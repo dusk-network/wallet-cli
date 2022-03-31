@@ -64,8 +64,8 @@ All other commands involve transactions, and thus require an active connection t
 [Install rust](https://www.rust-lang.org/tools/install) and then:
 
 ```
-git clone https://github.com/dusk-network/rusk.git
-cd rusk/rusk-wallet/
+git clone git@github.com:dusk-network/wallet-cli.git 
+cd wallet-cli
 make install
 ```
 

@@ -1,6 +1,6 @@
 [package]
 name = "rusk-wallet"
-version = "0.7.0-rc.4"
+version = "0.7.0-rc.5"
 edition = "2021"
 
 [dependencies]
@@ -33,7 +33,8 @@ hex = "0.4"
 dusk-wallet-core = "0.13.0-rc"
 canonical = "0.7"
 dusk-bytes = "0.1"
-dusk-pki ="0.10.0-rc"
+dusk-pki = "0.10.0-rc"
+rusk-abi = "0.7"
 phoenix-core = "0.16.0-rc"
 dusk-schnorr = { version = "0.10.0-rc", default-features = false }
 dusk-poseidon = { version = "0.25.0-rc", features = [ "canon" ], default-features = false }
@@ -41,7 +42,6 @@ dusk-plonk = { version = "0.10", default-features = false }
 dusk-jubjub = { version = "0.11", default-features = false }
 dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features = [ "canon" ] }
 
-rusk-abi = { path = "../rusk-abi" }
-
 [build-dependencies]
 tonic-build = "0.6"
+git2 = "0.14"
