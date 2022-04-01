@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, macos-11]
         compiler: [cargo]
         include:
           - os: ubuntu-latest
@@ -28,6 +28,11 @@ jobs:
           - os: macos-latest
             compiler: cargo
             target: macos-intel
+
+          - os: macos-11
+            compiler: cargo
+            btarget: --target=aarch64-apple-darwin
+            target: macos-arm64
 
     steps:
       - name: Checkout Repository
@@ -43,10 +48,14 @@ jobs:
       - name: Add rustfmt component
         run: rustup component add rustfmt
 
+      - name: Add arm target for Apple Silicon build
+        run: rustup target add aarch64-apple-darwin
+        if: matrix.os == "macos-11"
+
       - name: Build Wallet
         shell: bash
         working-directory: ./
-        run: ${{matrix.compiler}} b --release --verbose
+        run: ${{matrix.compiler}} b --release --verbose ${{matrix.btarget}}
 
       - name: Get semver from wallet binary
         run: |
