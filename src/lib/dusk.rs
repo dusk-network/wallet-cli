@@ -10,47 +10,21 @@ use std::num::ParseFloatError;
 use std::ops::{Add, Deref, Div, Mul, Sub};
 use std::str::FromStr;
 
+use rusk_abi::dusk;
+
 /// The underlying unit of Dusk
 pub type Lux = u64;
 
-const DUSK_UNIT: Lux = 1_000_000_000;
-const DUSK_UNIT_F: f64 = DUSK_UNIT as f64;
-
-pub(crate) const MIN: Dusk = Dusk(1);
-pub(crate) const MAX: Dusk = Dusk(Lux::MAX);
-
 /// Denomination for DUSK
-#[derive(Copy, Clone, Eq)]
+#[derive(Copy, Clone, Debug, Eq)]
 pub struct Dusk(Lux);
 
 impl Dusk {
-    /// Create Dusk from f64
-    pub fn from(value: f64) -> Self {
-        Self((value * DUSK_UNIT_F) as Lux)
-    }
+    pub const MIN: Dusk = Dusk(0);
+    pub const MAX: Dusk = Dusk(dusk::dusk(f64::MAX / dusk::dusk(1.0) as f64));
 
-    /// Create Dusk from Lux
-    pub fn from_lux(value: Lux) -> Self {
-        Self(value)
-    }
-
-    /// Get value in Lux
-    pub fn as_lux(&self) -> Lux {
-        self.0
-    }
-
-    /// Get value as f64
-    pub fn as_f64(&self) -> f64 {
-        self.0 as f64 / DUSK_UNIT_F
-    }
-
-    /// Min between two values
-    pub fn min(self, other: Self) -> Self {
-        if self <= other {
-            self
-        } else {
-            other
-        }
+    pub const fn new(lux: Lux) -> Dusk {
+        Self(lux)
     }
 }
 
@@ -66,6 +40,13 @@ impl Add for Dusk {
     }
 }
 
+impl Add<Lux> for Dusk {
+    type Output = Self;
+    fn add(self, other: Lux) -> Self {
+        Self(self.0 + other)
+    }
+}
+
 /// Subtraction
 impl Sub for Dusk {
     type Output = Self;
@@ -74,11 +55,29 @@ impl Sub for Dusk {
     }
 }
 
+impl Sub<Lux> for Dusk {
+    type Output = Self;
+    fn sub(self, other: Lux) -> Self {
+        Self(self.0 - other)
+    }
+}
+
 /// Multiplication
 impl Mul for Dusk {
     type Output = Self;
     fn mul(self, other: Self) -> Self {
-        Self((self.0 * other.0) / DUSK_UNIT)
+        let a = dusk::from_dusk(self.0);
+        let b = dusk::from_dusk(other.0);
+        Self(dusk::dusk(a * b))
+    }
+}
+
+impl Mul<Lux> for Dusk {
+    type Output = Self;
+    fn mul(self, other: Lux) -> Self {
+        let a = dusk::from_dusk(self.0);
+        let b = dusk::from_dusk(other);
+        Self(dusk::dusk(a * b))
     }
 }
 
@@ -86,7 +85,14 @@ impl Mul for Dusk {
 impl Div for Dusk {
     type Output = Self;
     fn div(self, other: Self) -> Self {
-        Self(((self.0 as f64 / other.0 as f64) * DUSK_UNIT_F) as Lux)
+        Self(dusk::dusk(self.0 as f64 / other.0 as f64))
+    }
+}
+
+impl Div<Lux> for Dusk {
+    type Output = Self;
+    fn div(self, other: Lux) -> Self {
+        Self(dusk::dusk(self.0 as f64 / other as f64))
     }
 }
 
@@ -98,16 +104,22 @@ impl PartialEq for Dusk {
 }
 impl PartialEq<Lux> for Dusk {
     fn eq(&self, other: &Lux) -> bool {
-        self.as_lux() == *other
+        self.0 == *other
     }
 }
 impl PartialEq<f64> for Dusk {
     fn eq(&self, other: &f64) -> bool {
-        self.as_f64() == *other
+        self.0 == dusk::dusk(*other)
     }
 }
 
 /// Comparison
+impl Ord for Dusk {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&*other)
+    }
+}
+
 impl PartialOrd for Dusk {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
@@ -115,12 +127,12 @@ impl PartialOrd for Dusk {
 }
 impl PartialOrd<Lux> for Dusk {
     fn partial_cmp(&self, other: &Lux) -> Option<Ordering> {
-        self.as_lux().partial_cmp(other)
+        self.0.partial_cmp(other)
     }
 }
 impl PartialOrd<f64> for Dusk {
     fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
-        self.as_f64().partial_cmp(other)
+        self.0.partial_cmp(&dusk::dusk(*other))
     }
 }
 
@@ -130,7 +142,22 @@ impl PartialOrd<f64> for Dusk {
 /// Floats are used directly as Dusk value
 impl From<f64> for Dusk {
     fn from(val: f64) -> Self {
-        Self::from(val)
+        if val < 0.0 {
+            panic!("Dusk type does not support negative values");
+        }
+        Self(dusk::dusk(val))
+    }
+}
+
+impl From<Dusk> for f64 {
+    fn from(val: Dusk) -> f64 {
+        dusk::from_dusk(*val)
+    }
+}
+
+impl From<&Dusk> for f64 {
+    fn from(val: &Dusk) -> f64 {
+        (*val).into()
     }
 }
 
@@ -163,13 +190,8 @@ impl Deref for Dusk {
 
 impl fmt::Display for Dusk {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_f64())
-    }
-}
-
-impl fmt::Debug for Dusk {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_f64())
+        let v: f64 = self.into();
+        f64::fmt(&v, f)
     }
 }
 
@@ -181,9 +203,10 @@ mod tests {
     fn basics() {
         let one = Dusk::from(1.0);
         let dec = Dusk::from(2.25);
-        assert_eq!(one, DUSK_UNIT);
         assert_eq!(one, 1.0);
         assert_eq!(dec, 2.25);
+        assert_eq!(Dusk::MIN, 0);
+        assert_eq!(Dusk::MIN, Dusk::from(0.0));
     }
 
     #[test]
@@ -217,6 +240,16 @@ mod tests {
     }
 
     #[test]
+    fn ops_dusk_lux() {
+        let one = Dusk::from(1.0);
+        let one_dusk = 1000000000;
+        assert_eq!(one + one_dusk, 2.0);
+        assert_eq!(one - one_dusk, 0.0);
+        assert_eq!(one * one_dusk, 1.0);
+        assert_eq!(one / one_dusk, 1.0);
+    }
+
+    #[test]
     fn conversions() {
         let my_float = 35.049;
         let dusk: Dusk = my_float.into();
@@ -227,5 +260,35 @@ mod tests {
         assert_eq!(*dusk, one_dusk);
         let dusk = Dusk::from_str("69.420").unwrap();
         assert_eq!(dusk, 69.420);
+        let float: f64 = dusk.into();
+        assert_eq!(float, 69.420);
+        let borrowed = &Dusk(one_dusk);
+        let float: f64 = borrowed.into();
+        assert_eq!(float, 1.0);
+        let zero = 0;
+        assert_eq!(Dusk::from(zero), 0);
+        let zero = 0.0;
+        assert_eq!(Dusk::from(zero), 0.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn overflow() {
+        let ten = Dusk::from(10.0);
+        let _ = Dusk::MAX + ten;
+    }
+
+    #[test]
+    #[should_panic]
+    fn negative_dusk() {
+        let _ = Dusk::from(-1.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn negative_result() {
+        let one = Dusk::from(1.0);
+        let two = Dusk::from(2.0);
+        let _ = one - two;
     }
 }

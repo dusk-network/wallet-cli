@@ -13,11 +13,11 @@ use serde::Serialize;
 use dusk_bytes::Serializable;
 use dusk_jubjub::BlsScalar;
 use dusk_wallet_core::{BalanceInfo, Store, Wallet};
-use rusk_abi::dusk::*;
 
 use crate::lib::clients::{Prover, State};
 use crate::lib::config::Config;
 use crate::lib::crypto::encrypt;
+use crate::lib::dusk::Dusk;
 use crate::lib::store::LocalStore;
 use crate::lib::{
     prompt, DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MIN_GAS_LIMIT, SEED_SIZE,
@@ -108,10 +108,9 @@ impl CliWallet {
                     prompt::show_cursor()?;
 
                     // prepare command
-                    if let Some(cmd) = prompt::prepare_command(
-                        pcmd,
-                        from_dusk(balance.spendable),
-                    )? {
+                    if let Some(cmd) =
+                        prompt::prepare_command(pcmd, balance.spendable.into())?
+                    {
                         // run command
                         match self.run(cmd) {
                             Ok(res) => {
@@ -156,11 +155,11 @@ impl CliWallet {
                     println!(
                         "\r> Total balance for key {} is: {} DUSK",
                         key,
-                        from_dusk(balance.value)
+                        Dusk::from(balance.value)
                     );
                     println!(
                         "\r> Maximum spendable per TX is: {} DUSK",
-                        from_dusk(balance.spendable)
+                        Dusk::from(balance.spendable)
                     );
                     prompt::show_cursor()?;
                     Ok(None)
@@ -216,9 +215,9 @@ impl CliWallet {
                         key,
                         &my_addr,
                         &dest_addr,
-                        dusk(amt),
+                        *amt,
                         gas_limit,
-                        gas_price.unwrap_or_else(|| dusk(DEFAULT_GAS_PRICE)),
+                        *gas_price.unwrap_or(DEFAULT_GAS_PRICE),
                         ref_id,
                     )?;
                     prompt::show_cursor()?;
@@ -267,9 +266,9 @@ impl CliWallet {
                         key,
                         stake_key,
                         &my_addr,
-                        dusk(amt),
+                        *amt,
                         gas_limit,
-                        gas_price.unwrap_or_else(|| dusk(DEFAULT_GAS_PRICE)),
+                        *gas_price.unwrap_or(DEFAULT_GAS_PRICE),
                     )?;
                     prompt::show_cursor()?;
 
@@ -286,10 +285,7 @@ impl CliWallet {
                 if let Some(wallet) = &self.wallet {
                     prompt::hide_cursor()?;
                     let stake = wallet.get_stake(key)?;
-                    println!(
-                        "\r> Staking {} DUSK",
-                        prompt::to_dusk(&stake.value)
-                    );
+                    println!("\r> Staking {} DUSK", Dusk::from(stake.value));
                     println!(
                         "> Stake created at block {} and valid since block {}",
                         &stake.created_at, &stake.eligibility
@@ -324,7 +320,7 @@ impl CliWallet {
                         stake_key,
                         &my_addr,
                         gas_limit,
-                        gas_price.unwrap_or_else(|| dusk(DEFAULT_GAS_PRICE)),
+                        *gas_price.unwrap_or(DEFAULT_GAS_PRICE),
                     )?;
                     prompt::show_cursor()?;
 
