@@ -61,14 +61,14 @@ jobs:
       - name: Get semver from wallet binary
         run: |
           ls -la target/release
-          export SEMVER=$(./target/${{matrix.platform}}/release/rusk-wallet --version | perl -lpe 's/\w+\s\w+\s\w+\s(.*?)/$1/')
+          export SEMVER=$(cargo pkgid | perl -lpe 's/.*#.*:(.*)/$1/')
           echo "SEMVER=$SEMVER" >> $GITHUB_ENV
 
       - name: "Pack binaries"
         run: |
           mkdir rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           echo "Fetching changelog and readme files..."
-          mv target/release/${{matrix.platform}}/rusk-wallet rusk-wallet${{env.SEMVER}}-${{matrix.target}}
+          mv target/${{matrix.platform}}/release/rusk-wallet rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           cp CHANGELOG.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           cp README.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           tar -czvf ruskwallet${{env.SEMVER}}-${{matrix.target}}.tar.gz rusk-wallet${{env.SEMVER}}-${{matrix.target}}
