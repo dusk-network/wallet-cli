@@ -31,8 +31,9 @@ jobs:
 
           - os: macos-11
             compiler: cargo
-            btarget: --target=aarch64-apple-darwin
             target: macos-arm64
+            flags: --target=aarch64-apple-darwin
+            platform: aarch64-apple-darwin
 
     steps:
       - name: Checkout Repository
@@ -55,19 +56,19 @@ jobs:
       - name: Build Wallet
         shell: bash
         working-directory: ./
-        run: ${{matrix.compiler}} b --release --verbose ${{matrix.btarget}}
+        run: ${{matrix.compiler}} b --release --verbose ${{matrix.flags}}
 
       - name: Get semver from wallet binary
         run: |
           ls -la target/release
-          export SEMVER=$(./target/release/rusk-wallet --version | perl -lpe 's/\w+\s\w+\s\w+\s(.*?)/$1/')
+          export SEMVER=$(./target/${{platform}}/release/rusk-wallet --version | perl -lpe 's/\w+\s\w+\s\w+\s(.*?)/$1/')
           echo "SEMVER=$SEMVER" >> $GITHUB_ENV
 
       - name: "Pack binaries"
         run: |
           mkdir rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           echo "Fetching changelog and readme files..."
-          mv target/release/rusk-wallet rusk-wallet${{env.SEMVER}}-${{matrix.target}}
+          mv target/release/${{platform}}/rusk-wallet rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           cp CHANGELOG.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           cp README.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           tar -czvf ruskwallet${{env.SEMVER}}-${{matrix.target}}.tar.gz rusk-wallet${{env.SEMVER}}-${{matrix.target}}
