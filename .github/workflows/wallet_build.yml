@@ -50,7 +50,7 @@ jobs:
 
       - name: Add arm target for Apple Silicon build
         run: rustup target add aarch64-apple-darwin
-        if: ${{ matrix.os == "macos-11"}}
+        if: ${{ matrix.os == 'macos-11' }}
 
       - name: Build Wallet
         shell: bash
