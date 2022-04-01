@@ -6,7 +6,7 @@ on:
       dusk_blockchain_ref:
         description: "GIT branch, ref, or SHA to checkout"
         required: true
-        default: "master"
+        default: "main"
 
 defaults:
   run:
