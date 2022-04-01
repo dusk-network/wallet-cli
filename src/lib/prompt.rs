@@ -17,13 +17,13 @@ use crossterm::{
 
 use blake3::Hash;
 use requestty::Question;
-use rusk_abi::dusk::*;
 
 use super::store::LocalStore;
 use crate::lib::crypto::MnemSeed;
+use crate::lib::dusk::Dusk;
 use crate::lib::{
-    Dusk, DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MAX_CONVERTIBLE,
-    MIN_CONVERTIBLE, MIN_GAS_LIMIT,
+    DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MAX_CONVERTIBLE, MIN_CONVERTIBLE,
+    MIN_GAS_LIMIT,
 };
 use crate::{CliCommand, Error};
 
@@ -277,7 +277,7 @@ pub(crate) fn choose_command(offline: bool) -> Option<PromptCommand> {
 /// Let the user enter command data interactively
 pub(crate) fn prepare_command(
     cmd: PromptCommand,
-    balance: f64,
+    balance: Dusk,
 ) -> Result<Option<CliCommand>, Error> {
     use CliCommand as Cli;
     use PromptCommand as Prompt;
@@ -360,14 +360,14 @@ fn confirm(cmd: &CliCommand) -> bool {
         } => {
             let gas_limit = gas_limit.expect("gas limit not set");
             let gas_price = gas_price.expect("gas price not set");
-            let max_fee = gas_limit * gas_price;
+            let max_fee = gas_limit * *gas_price;
             println!(
                 "   > Recipient = {}..{}",
                 &rcvr[..10],
                 &rcvr[rcvr.len() - 11..]
             );
             println!("   > Amount to transfer = {} DUSK", amt);
-            println!("   > Max fee = {} DUSK", to_dusk(&max_fee));
+            println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             ask_confirm()
         }
         Cli::Stake {
@@ -379,10 +379,10 @@ fn confirm(cmd: &CliCommand) -> bool {
         } => {
             let gas_limit = gas_limit.expect("gas limit not set");
             let gas_price = gas_price.expect("gas price not set");
-            let max_fee = gas_limit * gas_price;
+            let max_fee = gas_limit * *gas_price;
             println!("   > Stake key = {}", stake_key);
             println!("   > Amount to stake = {} DUSK", amt);
-            println!("   > Max fee = {} DUSK", to_dusk(&max_fee));
+            println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             ask_confirm()
         }
         Cli::WithdrawStake {
@@ -393,20 +393,13 @@ fn confirm(cmd: &CliCommand) -> bool {
         } => {
             let gas_limit = gas_limit.expect("gas limit not set");
             let gas_price = gas_price.expect("gas price not set");
-            let max_fee = gas_limit * gas_price;
+            let max_fee = gas_limit * *gas_price;
             println!("   > Stake key = {}", stake_key);
-            println!("   > Max fee = {} DUSK", to_dusk(&max_fee));
+            println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             ask_confirm()
         }
         _ => true,
     }
-}
-
-/// Returns DUSK value of LUX amt provided
-/// Note: This is only used for displaying purposes.
-pub fn to_dusk(lux: &u64) -> f64 {
-    let dusk = *lux as f64;
-    dusk / 1e9
 }
 
 /// Asks the user for confirmation
@@ -463,10 +456,11 @@ fn is_valid_addr(addr: &str) -> bool {
 }
 
 /// Checks for a valid DUSK denomination
-fn check_valid_denom(num: f64, balance: f64) -> Result<(), String> {
+fn check_valid_denom(value: f64, balance: Dusk) -> Result<(), String> {
+    let value = Dusk::from(value);
     let min = MIN_CONVERTIBLE;
-    let max = f64::min(balance, MAX_CONVERTIBLE);
-    match (min..=max).contains(&num) {
+    let max = Dusk::min(balance, MAX_CONVERTIBLE);
+    match (min..=max).contains(&value) {
         true => Ok(()),
         false => {
             Err(format!("The amount has to be between {} and {}", min, max))
@@ -475,16 +469,16 @@ fn check_valid_denom(num: f64, balance: f64) -> Result<(), String> {
 }
 
 /// Request amount of tokens
-fn request_token_amt(action: &str, balance: f64) -> f64 {
+fn request_token_amt(action: &str, balance: Dusk) -> Dusk {
     let question = requestty::Question::float("amt")
         .message(format!("Introduce the amount of DUSK to {}:", action))
-        .default(MIN_CONVERTIBLE)
-        .validate_on_key(|n, _| check_valid_denom(n, balance).is_ok())
-        .validate(|n, _| check_valid_denom(n, balance))
+        .default(MIN_CONVERTIBLE.into())
+        .validate_on_key(|f, _| check_valid_denom(f, balance).is_ok())
+        .validate(|f, _| check_valid_denom(f, balance))
         .build();
 
     let a = requestty::prompt_one(question).expect("token amount");
-    a.as_float().unwrap()
+    a.as_float().unwrap().into()
 }
 
 /// Request gas limit
@@ -510,14 +504,13 @@ fn request_gas_limit() -> u64 {
 fn request_gas_price() -> Dusk {
     let question = requestty::Question::float("amt")
         .message("Introduce the gas price for this transaction:")
-        .default(DEFAULT_GAS_PRICE)
-        .validate_on_key(|n, _| check_valid_denom(n, MAX_CONVERTIBLE).is_ok())
-        .validate(|n, _| check_valid_denom(n, MAX_CONVERTIBLE))
+        .default(DEFAULT_GAS_PRICE.into())
+        .validate_on_key(|f, _| check_valid_denom(f, MAX_CONVERTIBLE).is_ok())
+        .validate(|f, _| check_valid_denom(f, MAX_CONVERTIBLE))
         .build();
 
     let a = requestty::prompt_one(question).expect("gas price");
-    let value = a.as_float().unwrap();
-    dusk(value)
+    a.as_float().unwrap().into()
 }
 
 /// Request Dusk block explorer open

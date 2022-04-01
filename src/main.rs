@@ -22,6 +22,7 @@ use tonic::transport::Channel;
 use lib::clients::{Prover, State};
 use lib::config::Config;
 use lib::crypto::MnemSeed;
+use lib::dusk::Dusk;
 use lib::gql::GraphQL;
 use lib::prompt;
 use lib::store::LocalStore;
@@ -111,15 +112,15 @@ enum CliCommand {
 
         /// Amount of DUSK to send
         #[clap(short, long)]
-        amt: f64,
+        amt: Dusk,
 
         /// Max amt of gas for this transaction
         #[clap(short = 'l', long)]
         gas_limit: Option<u64>,
 
-        /// Max price you're willing to pay for gas used (in LUX)
+        /// Max price you're willing to pay for gas used
         #[clap(short = 'p', long)]
-        gas_price: Option<u64>,
+        gas_price: Option<Dusk>,
     },
 
     /// Start staking DUSK
@@ -134,15 +135,15 @@ enum CliCommand {
 
         /// Amount of DUSK to stake
         #[clap(short, long)]
-        amt: f64,
+        amt: Dusk,
 
         /// Max amt of gas for this transaction
         #[clap(short = 'l', long)]
         gas_limit: Option<u64>,
 
-        /// Max price you're willing to pay for gas used (in LUX)
+        /// Max price you're willing to pay for gas used
         #[clap(short = 'p', long)]
-        gas_price: Option<u64>,
+        gas_price: Option<Dusk>,
     },
 
     /// Check your stake
@@ -166,9 +167,9 @@ enum CliCommand {
         #[clap(short = 'l', long)]
         gas_limit: Option<u64>,
 
-        /// Max price you're willing to pay for gas used (in LUX)
+        /// Max price you're willing to pay for gas used
         #[clap(short = 'p', long)]
-        gas_price: Option<u64>,
+        gas_price: Option<Dusk>,
     },
 
     /// Export BLS provisioner key pair

@@ -10,40 +10,19 @@ use std::num::ParseFloatError;
 use std::ops::{Add, Deref, Div, Mul, Sub};
 use std::str::FromStr;
 
+use rusk_abi::dusk;
+
 /// The underlying unit of Dusk
 pub type Lux = u64;
 
-const DUSK_UNIT: Lux = 1_000_000_000;
-const DUSK_UNIT_F: f64 = DUSK_UNIT as f64;
-
-pub(crate) const MIN: Dusk = Dusk(1);
-pub(crate) const MAX: Dusk = Dusk(Lux::MAX);
+pub(crate) const MIN: Dusk = Dusk(dusk::LUX);
+pub(crate) const MAX: Dusk = Dusk(dusk::dusk(f64::MAX));
 
 /// Denomination for DUSK
 #[derive(Copy, Clone, Eq)]
 pub struct Dusk(Lux);
 
 impl Dusk {
-    /// Create Dusk from f64
-    pub fn from(value: f64) -> Self {
-        Self((value * DUSK_UNIT_F) as Lux)
-    }
-
-    /// Create Dusk from Lux
-    pub fn from_lux(value: Lux) -> Self {
-        Self(value)
-    }
-
-    /// Get value in Lux
-    pub fn as_lux(&self) -> Lux {
-        self.0
-    }
-
-    /// Get value as f64
-    pub fn as_f64(&self) -> f64 {
-        self.0 as f64 / DUSK_UNIT_F
-    }
-
     /// Min between two values
     pub fn min(self, other: Self) -> Self {
         if self <= other {
@@ -78,7 +57,9 @@ impl Sub for Dusk {
 impl Mul for Dusk {
     type Output = Self;
     fn mul(self, other: Self) -> Self {
-        Self((self.0 * other.0) / DUSK_UNIT)
+        let a = dusk::from_dusk(self.0);
+        let b = dusk::from_dusk(other.0);
+        Self(dusk::dusk(a * b))
     }
 }
 
@@ -86,7 +67,7 @@ impl Mul for Dusk {
 impl Div for Dusk {
     type Output = Self;
     fn div(self, other: Self) -> Self {
-        Self(((self.0 as f64 / other.0 as f64) * DUSK_UNIT_F) as Lux)
+        Self(dusk::dusk(self.0 as f64 / other.0 as f64))
     }
 }
 
@@ -98,12 +79,12 @@ impl PartialEq for Dusk {
 }
 impl PartialEq<Lux> for Dusk {
     fn eq(&self, other: &Lux) -> bool {
-        self.as_lux() == *other
+        self.0 == *other
     }
 }
 impl PartialEq<f64> for Dusk {
     fn eq(&self, other: &f64) -> bool {
-        self.as_f64() == *other
+        self.0 == dusk::dusk(*other)
     }
 }
 
@@ -115,12 +96,12 @@ impl PartialOrd for Dusk {
 }
 impl PartialOrd<Lux> for Dusk {
     fn partial_cmp(&self, other: &Lux) -> Option<Ordering> {
-        self.as_lux().partial_cmp(other)
+        self.0.partial_cmp(other)
     }
 }
 impl PartialOrd<f64> for Dusk {
     fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
-        self.as_f64().partial_cmp(other)
+        self.0.partial_cmp(&dusk::dusk(*other))
     }
 }
 
@@ -130,7 +111,7 @@ impl PartialOrd<f64> for Dusk {
 /// Floats are used directly as Dusk value
 impl From<f64> for Dusk {
     fn from(val: f64) -> Self {
-        Self::from(val)
+        Self(dusk::dusk(val))
     }
 }
 
@@ -150,6 +131,13 @@ impl FromStr for Dusk {
     }
 }
 
+#[allow(clippy::from_over_into)]
+impl Into<f64> for Dusk {
+    fn into(self) -> f64 {
+        dusk::from_dusk(self.0)
+    }
+}
+
 /// Dusk derefs into its underlying Lux amount
 impl Deref for Dusk {
     type Target = Lux;
@@ -163,13 +151,15 @@ impl Deref for Dusk {
 
 impl fmt::Display for Dusk {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_f64())
+        let v: f64 = (*self).into();
+        write!(f, "{}", v)
     }
 }
 
 impl fmt::Debug for Dusk {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_f64())
+        let v: f64 = (*self).into();
+        write!(f, "{}", v)
     }
 }
 
@@ -181,9 +171,10 @@ mod tests {
     fn basics() {
         let one = Dusk::from(1.0);
         let dec = Dusk::from(2.25);
-        assert_eq!(one, DUSK_UNIT);
         assert_eq!(one, 1.0);
         assert_eq!(dec, 2.25);
+        assert_eq!(MIN, dusk::LUX);
+        assert_eq!(MIN, Dusk::from(dusk::LUX));
     }
 
     #[test]
