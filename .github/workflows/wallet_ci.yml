@@ -22,7 +22,7 @@ jobs:
 
   test_nightly:
     name: Nightly tests
-    runs-on: core
+    runs-on: ubuntu-latest 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -41,7 +41,7 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: core
+    runs-on: ubuntu-latest 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
