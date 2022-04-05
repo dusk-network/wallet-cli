@@ -41,7 +41,4 @@ dusk-poseidon = { version = "0.25.0-rc", features = [ "canon" ], default-feature
 dusk-plonk = { version = "0.10", default-features = false }
 dusk-jubjub = { version = "0.11", default-features = false }
 dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features = [ "canon" ] }
-
-[build-dependencies]
-tonic-build = "0.6"
-git2 = "0.14"
+rusk-schema = "0.1.0"

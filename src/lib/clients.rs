@@ -25,10 +25,10 @@ use tokio::runtime::Handle;
 use tokio::task::block_in_place;
 use tonic::transport::Channel;
 
-use crate::rusk_proto::network_client::NetworkClient;
-use crate::rusk_proto::prover_client::ProverClient as GrpcProverClient;
-use crate::rusk_proto::state_client::StateClient as GrpcStateClient;
-use crate::rusk_proto::{
+use rusk_schema::network_client::NetworkClient;
+use rusk_schema::prover_client::ProverClient as GrpcProverClient;
+use rusk_schema::state_client::StateClient as GrpcStateClient;
+use rusk_schema::{
     ExecuteProverRequest, FindExistingNullifiersRequest, GetAnchorRequest,
     GetNotesOwnedByRequest, GetOpeningRequest, GetStakeRequest,
     PreverifyRequest, PropagateMessage, StctProverRequest,
