@@ -6,7 +6,7 @@ on:
       dusk_blockchain_ref:
         description: "GIT branch, ref, or SHA to checkout"
         required: true
-        default: "master"
+        default: "main"
 
 defaults:
   run:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, macos-11, windows-latest]
         compiler: [cargo]
         include:
           - os: ubuntu-latest
@@ -28,6 +28,16 @@ jobs:
           - os: macos-latest
             compiler: cargo
             target: macos-intel
+
+          - os: macos-11
+            compiler: cargo
+            target: macos-arm64
+            flags: --target=aarch64-apple-darwin
+            platform: aarch64-apple-darwin
+
+          - os: windows-latest
+            compiler: cargo
+            target: windows-x64
 
     steps:
       - name: Checkout Repository
@@ -43,21 +53,26 @@ jobs:
       - name: Add rustfmt component
         run: rustup component add rustfmt
 
+      - name: Add arm target for Apple Silicon build
+        run: rustup target add aarch64-apple-darwin
+        if: ${{ matrix.os == 'macos-11' }}
+
       - name: Build Wallet
         shell: bash
         working-directory: ./
-        run: ${{matrix.compiler}} b --release --verbose
+        run: ${{matrix.compiler}} b --release --verbose ${{matrix.flags}}
 
       - name: Get semver from wallet binary
         run: |
-          export SEMVER=$(./target/release/rusk-wallet --version | perl -lpe 's/\w+\s\w+\s\w+\s(.*?)/$1/')
+          ls -la target/release
+          export SEMVER=$(cargo pkgid | perl -lpe 's/.*#.*:(.*)/$1/')
           echo "SEMVER=$SEMVER" >> $GITHUB_ENV
 
       - name: "Pack binaries"
         run: |
           mkdir rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           echo "Fetching changelog and readme files..."
-          mv target/release/rusk-wallet rusk-wallet${{env.SEMVER}}-${{matrix.target}}
+          mv target/${{matrix.platform}}/release/rusk-wallet rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           cp CHANGELOG.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           cp README.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
           tar -czvf ruskwallet${{env.SEMVER}}-${{matrix.target}}.tar.gz rusk-wallet${{env.SEMVER}}-${{matrix.target}}
