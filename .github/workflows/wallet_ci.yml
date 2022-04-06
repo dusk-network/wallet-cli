@@ -3,6 +3,20 @@ on: [pull_request, workflow_dispatch]
 name: Continuous integration
 
 jobs:
+  fmt:
+    name: Rustfmt
+    runs-on: core 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
   analyze:
     name: Dusk Analyzer
     runs-on: core
@@ -20,18 +34,19 @@ jobs:
         with:
           command: dusk-analyzer
 
-  test_nightly:
-    name: Nightly tests
+  test_nightly-linux:
+    name: "[Linux] Nightly tests"
     runs-on: core 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+          components: clippy
 
       - run: rustup component add rustfmt
 
-      - run: make test
+      - run: cargo test
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
@@ -39,16 +54,47 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --release -- -D warnings
 
-  fmt:
-    name: Rustfmt
-    runs-on: core 
+  test_nightly-macintel:
+    name: "[Mac Intel] Nightly tests"
+    runs-on: macos-latest 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+
       - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
+
+      - name: Add arm target for Apple Silicon build
+        run: rustup target add aarch64-apple-darwin 
+
+      - run: cargo test
+
+  test_nightly-macm1:
+    name: "[Mac arm64] Nightly checks"
+    runs-on: macos-latest 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
         with:
-          command: fmt
-          args: --all -- --check
+          profile: minimal
+
+      - run: rustup component add rustfmt
+
+      - name: Add arm target for Apple Silicon build
+        run: rustup target add aarch64-apple-darwin 
+
+      - run: cargo check --target=aarch64-apple-darwin
+
+  test_nightly-win:
+    name: "[Windows] Nightly tests"
+    runs-on: windows-latest 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+
+      - run: rustup component add rustfmt
+
+      - run: cargo test
