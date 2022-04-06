@@ -58,15 +58,10 @@ jobs:
         run: rustup target add aarch64-apple-darwin
         if: ${{ matrix.os == 'macos-11' }}
 
-      - name: Dusk Analyzer
-        uses: actions-rs/toolchain@v1
-           with:
-             profile: minimal
-              toolchain: nightly
-        uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@v1
           with:
-             command: install
-             args: --git https://github.com/dusk-network/cargo-dusk-analyzer
+            command: install
+            args: --git https://github.com/dusk-network/cargo-dusk-analyzer
         uses: actions-rs/cargo@v1
           with:
             command: dusk-analyzer
