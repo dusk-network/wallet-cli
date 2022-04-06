@@ -58,19 +58,16 @@ jobs:
         run: rustup target add aarch64-apple-darwin
         if: ${{ matrix.os == 'macos-11' }}
 
-      - name: Dusk Analyzer
-         uses: actions/checkout@v2
-         uses: actions-rs/toolchain@v1
-           with:
-             profile: minimal
-              toolchain: nightly
-         uses: actions-rs/cargo@v1
-           with:
-              command: install
-              args: --git https://github.com/dusk-network/cargo-dusk-analyzer
-         uses: actions-rs/cargo@v1
-           with:
-             command: dusk-analyzer
+      - name: Install Analyzer  
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --git https://github.com/dusk-network/cargo-dusk-analyzer
+        
+      - name: Run Analyzer  
+        uses: actions-rs/cargo@v1
+        with:
+          command: dusk-analyzer
 
       - name: Run tests
         run: make test
@@ -82,7 +79,6 @@ jobs:
           args: --all-features --release -- -D warnings
 
       - name: Run rustfmt
-        run: rustup component add rustfmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
