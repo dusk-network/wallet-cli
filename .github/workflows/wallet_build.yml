@@ -59,18 +59,17 @@ jobs:
         if: ${{ matrix.os == 'macos-11' }}
 
       - name: Dusk Analyzer
-         uses: actions/checkout@v2
-         uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1
            with:
              profile: minimal
               toolchain: nightly
-         uses: actions-rs/cargo@v1
-           with:
-              command: install
-              args: --git https://github.com/dusk-network/cargo-dusk-analyzer
-         uses: actions-rs/cargo@v1
-           with:
-             command: dusk-analyzer
+        uses: actions-rs/cargo@v1
+          with:
+             command: install
+             args: --git https://github.com/dusk-network/cargo-dusk-analyzer
+        uses: actions-rs/cargo@v1
+          with:
+            command: dusk-analyzer
 
       - name: Run tests
         run: make test
