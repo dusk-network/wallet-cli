@@ -9,9 +9,15 @@ pub use lib::error::{Error, ProverError, StateError, StoreError};
 
 use clap::{AppSettings, Parser, Subcommand};
 use std::path::{Path, PathBuf};
+
+#[cfg(not(windows))]
 use tokio::net::UnixStream;
-use tonic::transport::{Channel, Endpoint, Uri};
+#[cfg(not(windows))]
+use tonic::transport::{Endpoint, Uri};
+#[cfg(not(windows))]
 use tower::service_fn;
+
+use tonic::transport::Channel;
 
 use lib::clients::{Prover, State};
 use lib::config::Config;
@@ -209,6 +215,7 @@ async fn rusk_tcp(rusk_addr: &str, prov_addr: &str) -> Result<Rusk, Error> {
 }
 
 /// Connect to rusk via UDS (Unix domain sockets)
+#[cfg(not(windows))]
 async fn rusk_uds(socket_path: &str) -> Result<Rusk, Error> {
     let socket_path = socket_path.to_string();
     let channel = Endpoint::try_from("http://[::]:50051")
@@ -312,11 +319,15 @@ async fn exec() -> Result<(), Error> {
     };
 
     // connect to rusk
-    let rusk = if cfg.rusk.ipc_method == "uds" {
-        rusk_uds(&cfg.rusk.rusk_addr).await
-    } else {
-        rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await
+    let ipc = cfg.rusk.ipc_method.as_str();
+    #[cfg(not(windows))]
+    let rusk = match ipc {
+        "uds" => rusk_uds(&cfg.rusk.rusk_addr).await,
+        "tcp_ip" => rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await,
+        _ => panic!("IPC method \"{}\" not supported", ipc),
     };
+    #[cfg(windows)]
+    let rusk = rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await;
 
     // graphql helper
     let gql = GraphQL::new(&cfg.chain.gql_url.clone());

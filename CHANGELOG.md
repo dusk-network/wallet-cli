@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notify user when defaulting configuration [#655]
 - Implementation for `State`'s `fetch_block_height` [#651]
 - Option to wait for transaction confirmation [#680]
+- Default to TCP/IP on Windows [#6]
 
 ## Changed
 - Export consensus public key as binary
@@ -176,3 +177,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#670]: https://github.com/dusk-network/rusk/issues/670
 [#672]: https://github.com/dusk-network/rusk/issues/672
 [#680]: https://github.com/dusk-network/rusk/issues/680
+[#6]: https://github.com/dusk-network/wallet-cli/issues/6

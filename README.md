@@ -81,6 +81,8 @@ The configuration file `config.toml` will be read from the base data directory. 
 
 The CLI arguments takes precedence and overrides any configuration present in the configuration file.
 
+**Note:** When using Windows, connection will default to TCP/IP even if UDS is explicitly specified.
+
 ## Running the CLI Wallet
 
 ### Interactive mode
