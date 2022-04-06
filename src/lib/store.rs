@@ -243,6 +243,8 @@ mod tests {
     fn test_localstore() -> Result<(), StoreError> {
         // create a wallet
         let path = PathBuf::from("/tmp/test_wallet.dat");
+        let _ = fs::remove_file(&path);
+
         let seed = [123u8; 64];
         let st = LocalStore::new(&path, seed)?;
 

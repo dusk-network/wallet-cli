@@ -4,10 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-pub(crate) mod rusk_proto {
-    tonic::include_proto!("rusk");
-}
-
 mod lib;
 pub use lib::error::{Error, ProverError, StateError, StoreError};
 
@@ -25,9 +21,9 @@ use lib::prompt;
 use lib::store::LocalStore;
 use lib::wallet::CliWallet;
 
-use rusk_proto::network_client::NetworkClient;
-use rusk_proto::prover_client::ProverClient;
-use rusk_proto::state_client::StateClient;
+use rusk_schema::network_client::NetworkClient;
+use rusk_schema::prover_client::ProverClient;
+use rusk_schema::state_client::StateClient;
 
 /// The CLI Wallet
 #[derive(Parser)]
