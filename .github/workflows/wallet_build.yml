@@ -13,60 +13,9 @@ defaults:
     shell: bash
 
 jobs:
-    analyze:
-    name: Dusk Analyzer
-    runs-on: core
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: --git https://github.com/dusk-network/cargo-dusk-analyzer
-      - uses: actions-rs/cargo@v1
-        with:
-          command: dusk-analyzer
-
-  test_nightly:
-    name: Nightly tests
-    runs-on: core 
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-
-      - run: rustup component add rustfmt
-
-      - run: make test
-
-      - name: Clippy check release
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --release -- -D warnings
-
-  fmt:
-    name: Rustfmt
-    runs-on: core 
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
   build_and_publish:
     name: Build rusk-wallet binaries for ${{ matrix.os }} with ${{ matrix.compiler }}.
     runs-on: ${{ matrix.os }}
-    needs: [analyze, test_nightly, fmt]
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, macos-11, windows-latest]
@@ -91,6 +40,7 @@ jobs:
             target: windows-x64
 
     steps:
+
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
@@ -107,6 +57,36 @@ jobs:
       - name: Add arm target for Apple Silicon build
         run: rustup target add aarch64-apple-darwin
         if: ${{ matrix.os == 'macos-11' }}
+
+      - name: Dusk Analyzer
+         uses: actions/checkout@v2
+         uses: actions-rs/toolchain@v1
+           with:
+             profile: minimal
+              toolchain: nightly
+         uses: actions-rs/cargo@v1
+           with:
+              command: install
+              args: --git https://github.com/dusk-network/cargo-dusk-analyzer
+         uses: actions-rs/cargo@v1
+           with:
+             command: dusk-analyzer
+
+      - name: Run tests
+        run: make test
+
+      - name: Clippy check release
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features --release -- -D warnings
+
+      - name: Run rustfmt
+        run: rustup component add rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
 
       - name: Build Wallet
         shell: bash
