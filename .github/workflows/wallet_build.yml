@@ -59,12 +59,13 @@ jobs:
         if: ${{ matrix.os == 'macos-11' }}
 
       - uses: actions-rs/cargo@v1
-          with:
-            command: install
-            args: --git https://github.com/dusk-network/cargo-dusk-analyzer
-        uses: actions-rs/cargo@v1
-          with:
-            command: dusk-analyzer
+        with:
+          command: install
+          args: --git https://github.com/dusk-network/cargo-dusk-analyzer
+        
+      - uses: actions-rs/cargo@v1
+        with:
+          command: dusk-analyzer
 
       - name: Run tests
         run: make test
