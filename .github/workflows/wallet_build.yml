@@ -40,6 +40,10 @@ jobs:
             target: windows-x64
 
     steps:
+      - name: Disable carriage returns on Windows
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          git config --global core.autocrlf false 
 
       - name: Checkout Repository
         uses: actions/checkout@v3
