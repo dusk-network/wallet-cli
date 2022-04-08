@@ -54,8 +54,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --release -- -D warnings
 
-  test_nightly-macm1:
-    name: "[Mac arm64] Nightly tests"
+  test_nightly-macintel:
+    name: "[Mac Intel] Nightly tests"
     runs-on: macos-latest 
     steps:
       - uses: actions/checkout@v2
@@ -69,7 +69,30 @@ jobs:
       - name: Add arm target for Apple Silicon build
         run: rustup target add aarch64-apple-darwin 
 
-      - run: cargo test --release --target=aarch64-apple-darwin
+      - run: cargo test --release
+
+      - name: Clippy check release
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features --release -- -D warnings
+
+  test_nightly-macm1:
+    name: "[Mac arm64] Nightly checks"
+    runs-on: macos-latest 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          components: clippy
+
+      - run: rustup component add rustfmt
+
+      - name: Add arm target for Apple Silicon build
+        run: rustup target add aarch64-apple-darwin 
+
+      - run: cargo check --target=aarch64-apple-darwin
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
