@@ -18,7 +18,7 @@ jobs:
           args: --all -- --check
 
   analyze-linux:
-    name: Dusk Analyzer
+    name: "[Linux] Dusk Analyzer"
     runs-on: core
     steps:
       - uses: actions/checkout@v2
@@ -35,7 +35,7 @@ jobs:
           command: dusk-analyzer
 
   test_nightly-linux:
-    name: Nightly tests
+    name: "[Linux] Nightly tests"
     runs-on: core 
     steps:
       - uses: actions/checkout@v2
@@ -54,7 +54,7 @@ jobs:
           args: --all-features --release -- -D warnings
 
   analyze-win:
-    name: Dusk Analyzer
+    name: "[Windows] Dusk Analyzer"
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
@@ -71,7 +71,7 @@ jobs:
           command: dusk-analyzer
 
   test_nightly-win:
-    name: Nightly tests
+    name: "[Windows] Nightly tests"
     runs-on: windows-latest 
     steps:
       - uses: actions/checkout@v2
