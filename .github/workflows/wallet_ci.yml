@@ -42,6 +42,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+          components: clippy
 
       - run: rustup component add rustfmt
 
@@ -61,6 +62,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+          components: clippy
 
       - run: rustup component add rustfmt
 
@@ -83,6 +85,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+          components: clippy
 
       - run: rustup component add rustfmt
 
