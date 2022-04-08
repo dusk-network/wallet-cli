@@ -40,10 +40,6 @@ jobs:
             target: windows-x64
 
     steps:
-      - name: Disable carriage returns on Windows
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: |
-          git config --global core.autocrlf false 
 
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -53,7 +49,7 @@ jobs:
       - name: Install dependencies
         uses: actions-rs/toolchain@v1
         with:
-          components: clippy
+          profile: minimal
 
       - name: Add rustfmt component
         run: rustup component add rustfmt
@@ -61,32 +57,6 @@ jobs:
       - name: Add arm target for Apple Silicon build
         run: rustup target add aarch64-apple-darwin
         if: ${{ matrix.os == 'macos-11' }}
-
-      - name: Install Analyzer  
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: --git https://github.com/dusk-network/cargo-dusk-analyzer
-        
-      - name: Run Analyzer  
-        uses: actions-rs/cargo@v1
-        with:
-          command: dusk-analyzer
-
-      - name: Run tests
-        run: make test
-
-      - name: Clippy check release
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --release -- -D warnings
-
-      - name: Run rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
 
       - name: Build Wallet
         shell: bash
