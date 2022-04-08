@@ -235,6 +235,7 @@ async fn rusk_uds(socket_path: &str) -> Result<Rusk, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+
     if let Err(err) = exec().await {
         // display the error message (if any)
         println!("{}", err);
@@ -319,15 +320,17 @@ async fn exec() -> Result<(), Error> {
     };
 
     // connect to rusk
-    let ipc = cfg.rusk.ipc_method.as_str();
-    #[cfg(not(windows))]
-    let rusk = match ipc {
-        "uds" => rusk_uds(&cfg.rusk.rusk_addr).await,
-        "tcp_ip" => rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await,
-        _ => panic!("IPC method \"{}\" not supported", ipc),
-    };
-    #[cfg(windows)]
+    #[cfg(windows)] 
     let rusk = rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await;
+    #[cfg(not(windows))] 
+    let rusk = {
+        let ipc = cfg.rusk.ipc_method.as_str();
+        match ipc {
+            "uds" => rusk_uds(&cfg.rusk.rusk_addr).await,
+            "tcp_ip" => rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await,
+             _ => panic!("IPC method \"{}\" not supported", ipc),
+        }
+    };
 
     // graphql helper
     let gql = GraphQL::new(&cfg.chain.gql_url.clone());
