@@ -17,8 +17,8 @@ jobs:
           command: fmt
           args: --all -- --check
 
-  analyze-linux:
-    name: "[Linux] Dusk Analyzer"
+  analyze:
+    name: Dusk Analyzer
     runs-on: core
     steps:
       - uses: actions/checkout@v2
@@ -45,7 +45,7 @@ jobs:
 
       - run: rustup component add rustfmt
 
-      - run: make test
+      - run: cargo test --release
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
@@ -53,22 +53,27 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --release -- -D warnings
 
-  analyze-win:
-    name: "[Windows] Dusk Analyzer"
-    runs-on: windows-latest
+  test_nightly-macm1:
+    name: "[Mac arm64] Nightly tests"
+    runs-on: macos-latest 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
-      - uses: actions-rs/cargo@v1
+
+      - run: rustup component add rustfmt
+
+      - name: Add arm target for Apple Silicon build
+        run: rustup target add aarch64-apple-darwin 
+
+      - run: cargo test --release --target=aarch64-apple-darwin
+
+      - name: Clippy check release
+        uses: actions-rs/clippy-check@v1
         with:
-          command: install
-          args: --git https://github.com/dusk-network/cargo-dusk-analyzer
-      - uses: actions-rs/cargo@v1
-        with:
-          command: dusk-analyzer
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features --release -- -D warnings
 
   test_nightly-win:
     name: "[Windows] Nightly tests"
@@ -81,7 +86,7 @@ jobs:
 
       - run: rustup component add rustfmt
 
-      - run: make test
+      - run: cargo test --release
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
