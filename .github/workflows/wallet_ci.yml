@@ -46,7 +46,7 @@ jobs:
 
       - run: rustup component add rustfmt
 
-      - run: cargo test --release
+      - run: cargo test
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
@@ -69,7 +69,7 @@ jobs:
       - name: Add arm target for Apple Silicon build
         run: rustup target add aarch64-apple-darwin 
 
-      - run: cargo test --release
+      - run: cargo test
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
@@ -112,7 +112,7 @@ jobs:
 
       - run: rustup component add rustfmt
 
-      - run: cargo test --release
+      - run: cargo test
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
