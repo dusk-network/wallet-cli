@@ -3,7 +3,21 @@ on: [pull_request, workflow_dispatch]
 name: Continuous integration
 
 jobs:
-  analyze:
+  fmt:
+    name: Rustfmt
+    runs-on: core 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  analyze-linux:
     name: Dusk Analyzer
     runs-on: core
     steps:
@@ -20,7 +34,7 @@ jobs:
         with:
           command: dusk-analyzer
 
-  test_nightly:
+  test_nightly-linux:
     name: Nightly tests
     runs-on: core 
     steps:
@@ -39,16 +53,38 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --release -- -D warnings
 
-  fmt:
-    name: Rustfmt
-    runs-on: core 
+  analyze-win:
+    name: Dusk Analyzer
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-      - run: rustup component add rustfmt
+          toolchain: nightly
       - uses: actions-rs/cargo@v1
         with:
-          command: fmt
-          args: --all -- --check
+          command: install
+          args: --git https://github.com/dusk-network/cargo-dusk-analyzer
+      - uses: actions-rs/cargo@v1
+        with:
+          command: dusk-analyzer
+
+  test_nightly-win:
+    name: Nightly tests
+    runs-on: windows-latest 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+
+      - run: rustup component add rustfmt
+
+      - run: make test
+
+      - name: Clippy check release
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features --release -- -D warnings
