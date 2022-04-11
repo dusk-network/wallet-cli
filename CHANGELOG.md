@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `data_dir` can be properly overriden [#656]
 - Invalid configuration should not fallback into default [#670]
+- Prevent interactive process from quitting on wallet execution errors [#18]
 
 ## Added
 - Notes cache [#650]
@@ -178,3 +179,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#672]: https://github.com/dusk-network/rusk/issues/672
 [#680]: https://github.com/dusk-network/rusk/issues/680
 [#6]: https://github.com/dusk-network/wallet-cli/issues/6
+[#18]: https://github.com/dusk-network/wallet-cli/issues/18
