@@ -449,7 +449,7 @@ fn first_run(cfg: &Config) -> Result<LocalStore, Error> {
     match action {
         1 => Ok(create(&p, false)?),
         2 => Ok(recover(&p)?),
-        _ => panic!("unrecongnized option"),
+        _ => panic!("Unrecognized option"),
     }
 }
 
