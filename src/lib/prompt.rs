@@ -18,6 +18,7 @@ use crossterm::{
 use blake3::Hash;
 use requestty::Question;
 
+use super::dusk::Lux;
 use super::store::LocalStore;
 use crate::lib::crypto::MnemSeed;
 use crate::lib::dusk::Dusk;
@@ -360,7 +361,7 @@ fn confirm(cmd: &CliCommand) -> bool {
         } => {
             let gas_limit = gas_limit.expect("gas limit not set");
             let gas_price = gas_price.expect("gas price not set");
-            let max_fee = gas_limit * *gas_price;
+            let max_fee = gas_limit * gas_price;
             println!(
                 "   > Recipient = {}..{}",
                 &rcvr[..10],
@@ -379,7 +380,7 @@ fn confirm(cmd: &CliCommand) -> bool {
         } => {
             let gas_limit = gas_limit.expect("gas limit not set");
             let gas_price = gas_price.expect("gas price not set");
-            let max_fee = gas_limit * *gas_price;
+            let max_fee = gas_limit * gas_price;
             println!("   > Stake key = {}", stake_key);
             println!("   > Amount to stake = {} DUSK", amt);
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
@@ -393,7 +394,7 @@ fn confirm(cmd: &CliCommand) -> bool {
         } => {
             let gas_limit = gas_limit.expect("gas limit not set");
             let gas_price = gas_price.expect("gas price not set");
-            let max_fee = gas_limit * *gas_price;
+            let max_fee = gas_limit * gas_price;
             println!("   > Stake key = {}", stake_key);
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             ask_confirm()
@@ -501,16 +502,17 @@ fn request_gas_limit() -> u64 {
 }
 
 /// Request gas price
-fn request_gas_price() -> Dusk {
+fn request_gas_price() -> Lux {
     let question = requestty::Question::float("amt")
         .message("Introduce the gas price for this transaction:")
-        .default(DEFAULT_GAS_PRICE.into())
+        .default(Dusk::from(DEFAULT_GAS_PRICE).into())
         .validate_on_key(|f, _| check_valid_denom(f, MAX_CONVERTIBLE).is_ok())
         .validate(|f, _| check_valid_denom(f, MAX_CONVERTIBLE))
         .build();
 
     let a = requestty::prompt_one(question).expect("gas price");
-    a.as_float().unwrap().into()
+    let price = Dusk::from(a.as_float().unwrap());
+    *price
 }
 
 /// Request Dusk block explorer open

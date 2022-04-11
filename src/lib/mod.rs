@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk::Dusk;
+use dusk::{Dusk, Lux};
 
 pub(crate) mod cache;
 pub(crate) mod clients;
@@ -25,4 +25,4 @@ pub(crate) const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
 pub(crate) const MIN_GAS_LIMIT: u64 = 350_000_000;
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 500_000_000;
 
-pub(crate) const DEFAULT_GAS_PRICE: Dusk = dusk::MIN;
+pub(crate) const DEFAULT_GAS_PRICE: Lux = 1;

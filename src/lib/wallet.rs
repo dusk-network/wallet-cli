@@ -203,6 +203,7 @@ impl CliWallet {
                     let mut rng = StdRng::from_entropy();
                     let ref_id = BlsScalar::random(&mut rng);
 
+                    let gas_price = gas_price.unwrap_or(DEFAULT_GAS_PRICE);
                     let gas_limit = gas_limit.unwrap_or(DEFAULT_GAS_LIMIT);
                     if gas_limit < MIN_GAS_LIMIT {
                         return Err(Error::NotEnoughGas);
@@ -211,14 +212,8 @@ impl CliWallet {
                     // transfer
                     prompt::hide_cursor()?;
                     let tx = wallet.transfer(
-                        &mut rng,
-                        key,
-                        &my_addr,
-                        &dest_addr,
-                        *amt,
-                        gas_limit,
-                        *gas_price.unwrap_or(DEFAULT_GAS_PRICE),
-                        ref_id,
+                        &mut rng, key, &my_addr, &dest_addr, *amt, gas_limit,
+                        gas_price, ref_id,
                     )?;
                     prompt::show_cursor()?;
 
@@ -268,7 +263,7 @@ impl CliWallet {
                         &my_addr,
                         *amt,
                         gas_limit,
-                        *gas_price.unwrap_or(DEFAULT_GAS_PRICE),
+                        gas_price.unwrap_or(DEFAULT_GAS_PRICE),
                     )?;
                     prompt::show_cursor()?;
 
@@ -320,7 +315,7 @@ impl CliWallet {
                         stake_key,
                         &my_addr,
                         gas_limit,
-                        *gas_price.unwrap_or(DEFAULT_GAS_PRICE),
+                        gas_price.unwrap_or(DEFAULT_GAS_PRICE),
                     )?;
                     prompt::show_cursor()?;
 

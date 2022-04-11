@@ -22,7 +22,7 @@ use tonic::transport::Channel;
 use lib::clients::{Prover, State};
 use lib::config::Config;
 use lib::crypto::MnemSeed;
-use lib::dusk::Dusk;
+use lib::dusk::{Dusk, Lux};
 use lib::gql::GraphQL;
 use lib::prompt;
 use lib::store::LocalStore;
@@ -118,9 +118,9 @@ enum CliCommand {
         #[clap(short = 'l', long)]
         gas_limit: Option<u64>,
 
-        /// Max price you're willing to pay for gas used
+        /// Max price you're willing to pay for gas used (in LUX)
         #[clap(short = 'p', long)]
-        gas_price: Option<Dusk>,
+        gas_price: Option<Lux>,
     },
 
     /// Start staking DUSK
@@ -141,9 +141,9 @@ enum CliCommand {
         #[clap(short = 'l', long)]
         gas_limit: Option<u64>,
 
-        /// Max price you're willing to pay for gas used
+        /// Max price you're willing to pay for gas used (in LUX)
         #[clap(short = 'p', long)]
-        gas_price: Option<Dusk>,
+        gas_price: Option<Lux>,
     },
 
     /// Check your stake
@@ -167,9 +167,9 @@ enum CliCommand {
         #[clap(short = 'l', long)]
         gas_limit: Option<u64>,
 
-        /// Max price you're willing to pay for gas used
+        /// Max price you're willing to pay for gas used (in LUX)
         #[clap(short = 'p', long)]
-        gas_price: Option<Dusk>,
+        gas_price: Option<Lux>,
     },
 
     /// Export BLS provisioner key pair
