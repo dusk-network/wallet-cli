@@ -237,13 +237,13 @@ impl fmt::Debug for LocalStore {
 mod tests {
 
     use super::*;
-    use std::path::PathBuf;
+    use tempfile::tempdir;
 
     #[test]
     fn test_localstore() -> Result<(), StoreError> {
         // create a wallet
-        let path = PathBuf::from("/tmp/test_wallet.dat");
-        let _ = fs::remove_file(&path);
+        let dir = tempdir()?;
+        let path = dir.path().join("test_wallet.dat");
 
         let seed = [123u8; 64];
         let st = LocalStore::new(&path, seed)?;
