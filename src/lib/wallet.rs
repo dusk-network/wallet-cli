@@ -113,14 +113,23 @@ impl CliWallet {
                         from_dusk(balance.spendable),
                     )? {
                         // run command
-                        if let Some(txh) = self.run(cmd)? {
-                            println!("\r> Transaction sent: {}", txh);
-                            if let Some(base_url) = &self.config.explorer.tx_url
-                            {
-                                let url = format!("{}{}", base_url, txh);
-                                println!("> URL: {}", url);
-                                prompt::launch_explorer(url);
-                            };
+                        match self.run(cmd) {
+                            Ok(res) => {
+                                if let Some(txh) = res {
+                                    println!("\r> Transaction sent: {}", txh);
+                                    if let Some(base_url) =
+                                        &self.config.explorer.tx_url
+                                    {
+                                        let url =
+                                            format!("{}{}", base_url, txh);
+                                        println!("> URL: {}", url);
+                                        prompt::launch_explorer(url);
+                                    };
+                                }
+                            }
+                            Err(err) => {
+                                println!("{}", err);
+                            }
                         }
                     }
 
