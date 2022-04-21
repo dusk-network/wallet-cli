@@ -7,6 +7,7 @@
 use crate::{Error, LocalStore, WalletArgs};
 use serde::Serialize;
 use std::{fs, io, path::PathBuf};
+use tracing::info;
 
 /// Default IPC method for Rusk connections
 pub(crate) const IPC_DEFAULT: &str = "uds";
@@ -130,9 +131,9 @@ impl Config {
                 let default = include_str!("../../config.toml");
 
                 match fs::write(&file, &default) {
-                    Ok(_) => println!("Default configuration generated: {}", file.display()),
+                    Ok(_) => info!("Default configuration generated: {}", file.display()),
 
-                    Err(e) => println!(
+                    Err(e) => info!(
                         "Default configuration generated; failed to write in {}: {}",
                         file.display(),
                         e

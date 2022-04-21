@@ -19,6 +19,10 @@ use tower::service_fn;
 
 use tonic::transport::Channel;
 
+use tracing::info;
+use tracing::log::error;
+
+//use lib::logger::Logger;
 use lib::clients::{Prover, State};
 use lib::config::Config;
 use lib::crypto::MnemSeed;
@@ -91,6 +95,10 @@ enum CliCommand {
         /// Key index
         #[clap(short, long, default_value_t = 0)]
         key: u64,
+
+        /// Check maximum spendable balance
+        #[clap(long)]
+        spendable: bool,
     },
 
     /// Retrieve public spend key
@@ -146,11 +154,15 @@ enum CliCommand {
         gas_price: Option<Lux>,
     },
 
-    /// Check your stake
+    /// Check your stake information
     StakeInfo {
         /// Staking key used to sign the stake
         #[clap(short, long, default_value_t = 0)]
         key: u64,
+
+        /// Check accumulated reward
+        #[clap(long)]
+        reward: bool,
     },
 
     /// Unstake a key's stake
@@ -261,7 +273,7 @@ async fn rusk_uds(socket_path: &str) -> Result<Rusk, Error> {
 async fn main() -> Result<(), Error> {
     if let Err(err) = exec().await {
         // display the error message (if any)
-        println!("{}", err);
+        error!("{}", err);
         // give cursor back to the user
         prompt::show_cursor()?;
     }
@@ -375,7 +387,7 @@ async fn exec() -> Result<(), Error> {
             CliWallet::new(cfg, store, state, prover)
         }
         Err(err) => {
-            println!("{}", err);
+            error!("{}", err);
             CliWallet::offline(cfg, store)
         }
     };
@@ -383,13 +395,92 @@ async fn exec() -> Result<(), Error> {
     // run command(s)
     match cmd {
         Interactive => wallet.interactive(),
-        _ => {
-            // in headless mode we only print the tx hash for convenience
-            if let Some(txh) = wallet.run(cmd)? {
-                println!("\r{}", txh);
+        Balance { key, spendable } => {
+            let balance = wallet.get_balance(key)?;
+            if spendable {
+                println!("\r{}", balance.spendable);
+            } else {
+                println!("\r{}", balance.value);
             }
             Ok(())
         }
+        Address { key } => {
+            let addr = wallet.get_address(key)?;
+            println!("\r{}", addr);
+            Ok(())
+        }
+        Transfer {
+            key,
+            rcvr,
+            amt,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh = wallet.transfer(key, &rcvr, amt, gas_limit, gas_price)?;
+            println!("\r{}", txh);
+            Ok(())
+        }
+        Stake {
+            key,
+            stake_key,
+            amt,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh =
+                wallet.stake(key, stake_key, amt, gas_limit, gas_price)?;
+            println!("\r{}", txh);
+            Ok(())
+        }
+        StakeInfo { key, reward } => {
+            let si = wallet.stake_info(key)?;
+            let val = if reward {
+                Dusk::from(si.reward)
+            } else {
+                match si.amount {
+                    Some((value, ..)) => Dusk::from(value),
+                    None => Dusk::from(0),
+                }
+            };
+            println!("\r{}", val);
+            Ok(())
+        }
+        Unstake {
+            key,
+            stake_key,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh = wallet.unstake(key, stake_key, gas_limit, gas_price)?;
+            println!("\r{}", txh);
+            Ok(())
+        }
+        Withdraw {
+            key,
+            stake_key,
+            refund_addr,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh = wallet.withdraw_reward(
+                key,
+                stake_key,
+                refund_addr,
+                gas_limit,
+                gas_price,
+            )?;
+            println!("\r{}", txh);
+            Ok(())
+        }
+        Export { key, plaintext } => {
+            let (pk, sk) = wallet.export_keys(key, plaintext)?;
+            println!(
+                "\rPub key exported to: {}\nPrv key exported to: {}",
+                pk, sk
+            );
+            Ok(())
+        }
+        _ => Ok(()),
     }
 }
 
@@ -409,7 +500,7 @@ fn create(path: &Path, skip_recovery: bool) -> Result<LocalStore, Error> {
     store.save(pwd)?;
 
     // inform the user and return
-    println!("> Your new wallet was created: {}", path.display());
+    info!("> Your new wallet was created: {}", path.display());
     Ok(store)
 }
 
@@ -429,7 +520,7 @@ fn recover(path: &Path) -> Result<LocalStore, Error> {
     store.save(pwd)?;
 
     // inform the user and return
-    println!("> Your wallet was restored succesfully: {}", path.display());
+    info!("> Your wallet was restored succesfully: {}", path.display());
     Ok(store)
 }
 
@@ -449,7 +540,7 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
             Ok(first_run(cfg)?)
         }
     } else {
-        println!("No wallet files found at {}", cfg.wallet.data_dir.display());
+        info!("No wallet files found at {}", cfg.wallet.data_dir.display());
         Ok(first_run(cfg)?)
     }
 }

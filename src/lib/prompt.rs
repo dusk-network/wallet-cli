@@ -290,7 +290,10 @@ pub(crate) fn prepare_command(
         // Public spend key
         Prompt::Address(key) => Ok(Some(Cli::Address { key })),
         // Check balance
-        Prompt::Balance(key) => Ok(Some(Cli::Balance { key })),
+        Prompt::Balance(key) => Ok(Some(Cli::Balance {
+            key,
+            spendable: false,
+        })),
         // Create transfer
         Prompt::Transfer(key) => {
             if balance == 0.0 {
@@ -326,7 +329,9 @@ pub(crate) fn prepare_command(
             }
         }
         // Stake info
-        Prompt::StakeInfo(key) => Ok(Some(Cli::StakeInfo { key })),
+        Prompt::StakeInfo(key) => {
+            Ok(Some(Cli::StakeInfo { key, reward: false }))
+        }
         // Unstake
         Prompt::Unstake(key) => {
             if balance == 0.0 {
@@ -566,6 +571,15 @@ pub(crate) fn status(status: &str) {
     let mut stdout = stdout();
     stdout.flush().unwrap();
     thread::sleep(Duration::from_millis(85));
+}
+
+/// Clears any dynamic status update
+#[allow(dead_code)]
+pub(crate) fn clear() {
+    let fill = " ".repeat(STATUS_SIZE);
+    print!("\r{}", fill);
+    let mut stdout = stdout();
+    stdout.flush().unwrap();
 }
 
 /// Shows the terminal cursor
