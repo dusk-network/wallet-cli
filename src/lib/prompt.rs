@@ -216,7 +216,7 @@ pub(crate) enum PromptCommand {
     Transfer(u64),
     Stake(u64),
     StakeInfo(u64),
-    Withdraw(u64),
+    Unstake(u64),
     Export,
 }
 
@@ -268,7 +268,7 @@ pub(crate) fn choose_command(offline: bool) -> Option<PromptCommand> {
             2 => Some(Transfer(request_key_index("spend"))),
             3 => Some(Stake(request_key_index("spend"))),
             4 => Some(StakeInfo(request_key_index("stake"))),
-            5 => Some(Withdraw(request_key_index("spend"))),
+            5 => Some(Unstake(request_key_index("spend"))),
             7 => Some(Export),
             _ => None,
         }
@@ -324,12 +324,12 @@ pub(crate) fn prepare_command(
         }
         // Stake info
         Prompt::StakeInfo(key) => Ok(Some(Cli::StakeInfo { key })),
-        // Withdraw stake
-        Prompt::Withdraw(key) => {
+        // Unstake stake
+        Prompt::Unstake(key) => {
             if balance == 0.0 {
                 return Err(Error::NotEnoughBalance);
             }
-            let cmd = Cli::WithdrawStake {
+            let cmd = Cli::Unstake {
                 key,
                 stake_key: request_key_index("stake"),
                 gas_limit: Some(request_gas_limit()),
@@ -386,7 +386,7 @@ fn confirm(cmd: &CliCommand) -> bool {
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             ask_confirm()
         }
-        Cli::WithdrawStake {
+        Cli::Unstake {
             key: _,
             stake_key,
             gas_limit,

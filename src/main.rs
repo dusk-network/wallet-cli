@@ -153,8 +153,8 @@ enum CliCommand {
         key: u64,
     },
 
-    /// Withdraw a key's stake
-    WithdrawStake {
+    /// Unstake a key's stake
+    Unstake {
         /// Key index from which your DUSK was staked
         #[clap(short, long, default_value_t = 0)]
         key: u64,
@@ -344,11 +344,11 @@ async fn exec() -> Result<(), Error> {
                 clients.prover,
                 clients.state.clone(),
                 clients.network,
-                gql.clone(),
+                gql,
                 cfg.chain.wait_for_tx,
             );
             let state =
-                State::new(clients.state, gql, cfg.wallet.data_dir.as_path())?;
+                State::new(clients.state, cfg.wallet.data_dir.as_path())?;
             CliWallet::new(cfg, store, state, prover)
         }
         Err(err) => {

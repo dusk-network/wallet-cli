@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Adapt balance to the new State [#24]
+- Rename `withdraw-stake` to `unstake`
 - Introduce Dusk type for currency management [#4]
 
 
@@ -173,6 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#24]: https://github.com/dusk-network/wallet-cli/issues/24
 [#18]: https://github.com/dusk-network/wallet-cli/issues/18
 [#6]: https://github.com/dusk-network/wallet-cli/issues/6
 [#4]: https://github.com/dusk-network/wallet-cli/issues/4

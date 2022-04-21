@@ -60,6 +60,12 @@ pub enum Error {
     /// Staking is only allowed when you're running your own local Rusk
     /// instance (Tip: Point `rusk_addr` to "localhost" or "127.0.0.1")
     StakingNotAllowed,
+    /// A stake already exists for this key
+    AlreadyStaked,
+    /// A stake does not exist for this key
+    NotStaked,
+    /// No reward available for this key
+    NoReward,
 }
 
 impl From<serde_json::Error> for Error {
@@ -141,6 +147,9 @@ impl From<CoreError> for Error {
             CoreErr::Phoenix(err) => Self::Phoenix(err),
             CoreErr::NotEnoughBalance => Self::NotEnoughBalance,
             CoreErr::NoteCombinationProblem => Self::NoteCombinationProblem,
+            CoreErr::AlreadyStaked { key: _, stake: _ } => Self::AlreadyStaked,
+            CoreErr::NotStaked { key: _, stake: _ } => Self::NotStaked,
+            CoreErr::NoReward { key: _, stake: _ } => Self::NoReward,
         }
     }
 }
@@ -171,6 +180,9 @@ impl fmt::Display for Error {
             Error::NotEnoughBalance => write!(f, "\rInsufficient balance to perform this operation"),
             Error::NoteCombinationProblem => write!(f, "\rNote combination for the given value is impossible given the maximum amount of inputs in a transaction"),
             Error::StakingNotAllowed => write!(f, "\rStaking is only allowed when you're running your own local Rusk instance (Tip: Point `rusk_addr` to \"localhost\" or \"127.0.0.1\")"),
+            Error::AlreadyStaked=> write!(f, "\rA stake already exists for this key"),
+            Error::NotStaked => write!(f, "\rA stake does not exist for this key"),
+            Error::NoReward => write!(f, "\rNo reward available for this key"),
         }
     }
 }
@@ -199,7 +211,10 @@ impl fmt::Debug for Error {
             Error::NotEnoughBalance => write!(f, "\rInsufficient balance to perform this operation"),
             Error::NoteCombinationProblem => write!(f, "\rNote combination for the given value is impossible given the maximum amount of inputs in a transaction"),
             Error::StakingNotAllowed => write!(f, "\rStaking is only allowed when you're running your own local Rusk instance (Tip: Point `rusk_addr` to \"localhost\" or \"127.0.0.1\")"),
-        }
+            Error::AlreadyStaked=> write!(f, "\rA stake already exists for this key"),
+            Error::NotStaked => write!(f, "\rA stake does not exist for this key"),
+            Error::NoReward => write!(f, "\rNo reward available for this key"),
+         }
     }
 }
 
