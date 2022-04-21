@@ -38,42 +38,6 @@ impl GraphQL {
         Self { url: url.into() }
     }
 
-    /// Obtains current block height from GraphQL endpoint
-    pub fn current_block_height(&self) -> Result<u64, GraphQLError> {
-        // graphql connection
-        let client = Client::new(&self.url);
-
-        // helper structs to deserialize response
-        #[derive(Deserialize)]
-        struct Height {
-            pub height: u64,
-        }
-        #[derive(Deserialize)]
-        struct Header {
-            pub header: Height,
-        }
-        #[derive(Deserialize)]
-        struct Blocks {
-            pub blocks: Vec<Header>,
-        }
-
-        // query the db
-        let query = "{blocks(last:1){header{height}}}";
-        let res = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { client.query::<Blocks>(query).await })
-        })?;
-
-        // collect response
-        if let Some(r) = res {
-            if !r.blocks.is_empty() {
-                let h = r.blocks[0].header.height;
-                return Ok(h);
-            }
-        }
-        Err(GraphQLError::BlockHeight)
-    }
-
     /// Obtain transaction status
     pub fn tx_status(&self, tx_id: &str) -> Result<TxStatus, GraphQLError> {
         // graphql connection

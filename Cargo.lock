@@ -615,9 +615,9 @@ checksum = "4854efe50874cc251cfa12932d2fc52e1994002eacf4d44c37a1532ebd555414"
 
 [[package]]
 name = "dusk-wallet-core"
-version = "0.13.0-rc.0"
+version = "0.14.0-rc.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b05ea01c4fa92d0ad3944201a2aae36f2316e274286f40ef39b5882d7d4a2974"
+checksum = "d7a61f6742564412fce70946602b501e6c712e1f4101d965c03b7022a79c1432"
 dependencies = [
  "canonical",
  "dusk-bls12_381-sign",
@@ -1717,9 +1717,9 @@ dependencies = [
 
 [[package]]
 name = "rusk-schema"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e48278bc5c07df8d30f6c4cb8f353330f7829bd0d1a3b8ba3fef95071c58fa1"
+checksum = "112b6e08e1a9715b822aaba0225351497463371f2ca16b5526d1fad212da93c3"
 dependencies = [
  "dusk-bytes",
  "dusk-pki",
@@ -1731,7 +1731,7 @@ dependencies = [
 
 [[package]]
 name = "rusk-wallet"
-version = "0.7.1-rc.0"
+version = "0.8.0-rc.0"
 dependencies = [
  "aes",
  "base64",

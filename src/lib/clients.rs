@@ -240,20 +240,17 @@ impl ProverClient for Prover {
 /// Implementation of the StateClient trait from wallet-core
 pub struct State {
     client: Mutex<GrpcStateClient<Channel>>,
-    graphql: GraphQL,
     cache: Cache,
 }
 
 impl State {
     pub fn new(
         client: GrpcStateClient<Channel>,
-        graphql: GraphQL,
         data_dir: &Path,
     ) -> Result<Self, StateError> {
         let cache = Cache::new(data_dir)?;
         Ok(State {
             client: Mutex::new(client),
-            graphql,
             cache,
         })
     }
@@ -264,13 +261,8 @@ impl StateClient for State {
     type Error = StateError;
 
     /// Find notes for a view key, starting from the given block height.
-    fn fetch_notes(
-        &self,
-        _height: u64,
-        vk: &ViewKey,
-    ) -> Result<Vec<Note>, Self::Error> {
+    fn fetch_notes(&self, vk: &ViewKey) -> Result<Vec<Note>, Self::Error> {
         prompt::status("Fetching block height...");
-        let current_block = self.fetch_block_height()?;
         let psk = &vk.public_spend_key().to_bytes()[..];
         prompt::status("Fetching cached notes...");
         let cached_block_height = self.cache.last_block_height(psk);
@@ -288,13 +280,14 @@ impl StateClient for State {
             Handle::current()
                 .block_on(async move { state.get_notes_owned_by(req).await })
         })?
-        .into_inner()
-        .notes;
+        .into_inner();
+
         prompt::status("Notes received!");
         prompt::status("Handling notes...");
 
         // collect notes
         let mut fresh_notes: Vec<Note> = res
+            .notes
             .into_iter()
             .flat_map(|n| {
                 let mut bytes = [0u8; Note::SIZE];
@@ -309,10 +302,12 @@ impl StateClient for State {
             })
             .collect();
 
-        prompt::status("Caching notes...");
-        self.cache.persist_notes(psk, &fresh_notes[..])?;
-        self.cache.persist_block_height(psk, current_block)?;
-        prompt::status("Cache updated!");
+        if !fresh_notes.is_empty() {
+            prompt::status("Caching notes...");
+            self.cache.persist_notes(psk, &fresh_notes[..])?;
+            self.cache.persist_block_height(psk, res.height)?;
+            prompt::status("Cache updated!");
+        }
 
         let mut ret: Vec<Note> = cached_notes.into_values().collect();
         ret.append(&mut fresh_notes);
@@ -414,16 +409,12 @@ impl StateClient for State {
         .into_inner();
         prompt::status("Stake received!");
 
-        Ok(StakeInfo {
-            value: res.value,
-            eligibility: res.eligibility,
-            created_at: res.created_at,
-        })
-    }
+        let amount = res.amount.map(|a| (a.value, a.eligibility));
 
-    /// Queries GraphQL for the current block height
-    fn fetch_block_height(&self) -> Result<u64, Self::Error> {
-        let h = self.graphql.current_block_height()?;
-        Ok(h)
+        Ok(StakeInfo {
+            amount,
+            reward: res.reward,
+            counter: res.counter,
+        })
     }
 }

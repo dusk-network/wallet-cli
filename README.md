@@ -14,8 +14,8 @@ OPTIONS:
             Name for your wallet [default: `$(whoami)`]
 
     -f, --wallet-file <PATH>
-            Path to a wallet file. Overrides `data-dir` and `wallet-name`,
-            useful when loading a wallet that's not in the default directory
+            Path to a wallet file. Overrides `data-dir` and `wallet-name`, useful when loading a
+            wallet that's not in the default directory
 
     -i, --ipc-method <IPC_METHOD>
             IPC method for communication with rusk [uds, tcp_ip]
@@ -23,11 +23,14 @@ OPTIONS:
     -r, --rusk-addr <RUSK_ADDR>
             Rusk address: socket path or fully quallified URL
 
-    -p  --prover-addr <PROVER_ADDR>
+    -p, --prover-addr <PROVER_ADDR>
             Prover service address
 
         --skip-recovery <SKIP_RECOVERY>
             Skip wallet recovery phrase (useful for headless wallet creation)
+
+        --wait-for-tx <WAIT_FOR_TX>
+            Wait for transaction confirmation from network
 
     -h, --help
             Print help information
@@ -36,17 +39,17 @@ OPTIONS:
             Print version information
 
 SUBCOMMANDS:
-    create            Create a new wallet
-    restore           Restore a lost wallet
-    balance           Check your current balance
-    address           Retrieve public spend key
-    transfer          Send DUSK through the network
-    stake             Start staking DUSK
-    stake-info        Check your stake
-    withdraw-stake    Withdraw a key's stake
-    export            Export BLS provisioner key pair
-    interactive       Run in interactive mode (default)
-    help              Print this message or the help of the given subcommand(s)
+    create         Create a new wallet
+    restore        Restore a lost wallet
+    balance        Check your current balance
+    address        Retrieve public spend key
+    transfer       Send DUSK through the network
+    stake          Start staking DUSK
+    stake-info     Check your stake
+    unstake        Unstake a key's stake
+    export         Export BLS provisioner key pair
+    interactive    Run in interactive mode (default)
+    help           Print this message or the help of the given subcommand(s)
 ```
 
 ## Good to know

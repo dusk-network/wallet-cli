@@ -90,7 +90,7 @@ impl CliWallet {
                             PromptCommand::Stake(key) => {
                                 wallet.get_balance(key)?
                             }
-                            PromptCommand::Withdraw(key) => {
+                            PromptCommand::Unstake(key) => {
                                 wallet.get_balance(key)?
                             }
                             // these commands don't require balance
@@ -280,10 +280,25 @@ impl CliWallet {
                 if let Some(wallet) = &self.wallet {
                     prompt::hide_cursor()?;
                     let stake = wallet.get_stake(key)?;
-                    println!("\r> Staking {} DUSK", Dusk::from(stake.value));
+                    match stake.amount {
+                        Some((amount, elegibility)) => {
+                            println!(
+                                "\r> Stake for key {} is: {} DUSK",
+                                key,
+                                Dusk::from(amount)
+                            );
+                            println!(
+                                "> Stake created with counter {} and valid since block {}",
+                                &stake.counter, &elegibility
+                            );
+                        }
+                        None => {
+                            println!("\r> No active stake for key {}", key);
+                        }
+                    }
                     println!(
-                        "> Stake created at block {} and valid since block {}",
-                        &stake.created_at, &stake.eligibility
+                        "\r> Current reward is {} DUSK",
+                        Dusk::from(stake.reward)
                     );
                     prompt::show_cursor()?;
                     Ok(None)
@@ -292,8 +307,8 @@ impl CliWallet {
                 }
             }
 
-            // Withdraw a key's stake
-            WithdrawStake {
+            // Unstake a key's stake
+            Unstake {
                 key,
                 stake_key,
                 gas_limit,
@@ -309,7 +324,7 @@ impl CliWallet {
                     }
 
                     prompt::hide_cursor()?;
-                    let tx = wallet.withdraw_stake(
+                    let tx = wallet.unstake(
                         &mut rng,
                         key,
                         stake_key,
