@@ -41,7 +41,7 @@ dusk-poseidon = { version = "0.25.0-rc", features = [ "canon" ], default-feature
 dusk-plonk = { version = "0.10", default-features = false }
 dusk-jubjub = { version = "0.11", default-features = false }
 dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features = [ "canon" ] }
-rusk-schema = "0.1.0"
+rusk-schema = "0.2.0"
 
 [dev-dependencies]
 tempfile = "3.2"

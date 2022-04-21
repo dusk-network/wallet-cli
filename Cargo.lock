@@ -1717,9 +1717,9 @@ dependencies = [
 
 [[package]]
 name = "rusk-schema"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e48278bc5c07df8d30f6c4cb8f353330f7829bd0d1a3b8ba3fef95071c58fa1"
+checksum = "112b6e08e1a9715b822aaba0225351497463371f2ca16b5526d1fad212da93c3"
 dependencies = [
  "dusk-bytes",
  "dusk-pki",
