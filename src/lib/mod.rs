@@ -19,6 +19,8 @@ pub(crate) mod wallet;
 
 pub(crate) const SEED_SIZE: usize = 64;
 
+pub(crate) const ADDR_LEN: usize = 88;
+
 pub(crate) const MAX_CONVERTIBLE: Dusk = Dusk::MAX;
 pub(crate) const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
 
