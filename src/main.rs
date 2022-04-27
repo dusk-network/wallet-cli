@@ -172,6 +172,29 @@ enum CliCommand {
         gas_price: Option<Lux>,
     },
 
+    /// Withdraw accumulated reward for a stake key
+    Withdraw {
+        /// Key index to pay transaction costs
+        #[clap(short, long, default_value_t = 0)]
+        key: u64,
+
+        /// Stake key index with the accumulated reward
+        #[clap(short, long, default_value_t = 0)]
+        stake_key: u64,
+
+        /// Address to which the reward will be sent to
+        #[clap(short, long)]
+        refund_addr: String,
+
+        /// Max amt of gas for this transaction
+        #[clap(short = 'l', long)]
+        gas_limit: Option<u64>,
+
+        /// Max price you're willing to pay for gas used (in LUX)
+        #[clap(short = 'p', long)]
+        gas_price: Option<Lux>,
+    },
+
     /// Export BLS provisioner key pair
     Export {
         /// Key index from which your DUSK was staked

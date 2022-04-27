@@ -217,6 +217,7 @@ pub(crate) enum PromptCommand {
     Stake(u64),
     StakeInfo(u64),
     Unstake(u64),
+    Withdraw(u64),
     Export,
 }
 
@@ -235,6 +236,7 @@ pub(crate) fn choose_command(offline: bool) -> Option<PromptCommand> {
         "Stake DUSK",
         "Check stake",
         "Unstake DUSK",
+        "Withdraw stake reward",
     ];
     if !offline {
         choices.append(&mut online_choices)
@@ -269,7 +271,8 @@ pub(crate) fn choose_command(offline: bool) -> Option<PromptCommand> {
             3 => Some(Stake(request_key_index("spend"))),
             4 => Some(StakeInfo(request_key_index("stake"))),
             5 => Some(Unstake(request_key_index("spend"))),
-            7 => Some(Export),
+            6 => Some(Withdraw(request_key_index("spend"))),
+            8 => Some(Export),
             _ => None,
         }
     }
@@ -295,7 +298,7 @@ pub(crate) fn prepare_command(
             }
             let cmd = Cli::Transfer {
                 key,
-                rcvr: request_rcvr_addr(),
+                rcvr: request_rcvr_addr("recipient"),
                 amt: request_token_amt("transfer", balance),
                 gas_limit: Some(request_gas_limit()),
                 gas_price: Some(request_gas_price()),
@@ -324,7 +327,7 @@ pub(crate) fn prepare_command(
         }
         // Stake info
         Prompt::StakeInfo(key) => Ok(Some(Cli::StakeInfo { key })),
-        // Unstake stake
+        // Unstake
         Prompt::Unstake(key) => {
             if balance == 0.0 {
                 return Err(Error::NotEnoughBalance);
@@ -332,6 +335,23 @@ pub(crate) fn prepare_command(
             let cmd = Cli::Unstake {
                 key,
                 stake_key: request_key_index("stake"),
+                gas_limit: Some(request_gas_limit()),
+                gas_price: Some(request_gas_price()),
+            };
+            match confirm(&cmd) {
+                true => Ok(Some(cmd)),
+                false => Ok(None),
+            }
+        }
+        // Withdraw reward
+        Prompt::Withdraw(key) => {
+            if balance == 0.0 {
+                return Err(Error::NotEnoughBalance);
+            }
+            let cmd = Cli::Withdraw {
+                key,
+                stake_key: request_key_index("stake"),
+                refund_addr: request_rcvr_addr("refund"),
                 gas_limit: Some(request_gas_limit()),
                 gas_price: Some(request_gas_price()),
             };
@@ -433,10 +453,10 @@ fn request_key_index(key_type: &str) -> u64 {
 }
 
 /// Request a receiver address
-fn request_rcvr_addr() -> String {
+fn request_rcvr_addr(addr_for: &str) -> String {
     // let the user input the receiver address
     let q = Question::input("addr")
-        .message("Please enter the recipients address:")
+        .message(format!("Please enter the {} address:", addr_for))
         .validate_on_key(|addr, _| is_valid_addr(addr))
         .validate(|addr, _| {
             if is_valid_addr(addr) {

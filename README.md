@@ -47,6 +47,7 @@ SUBCOMMANDS:
     stake          Start staking DUSK
     stake-info     Check your stake
     unstake        Unstake a key's stake
+    withdraw       Withdraw accumulated reward for a stake key
     export         Export BLS provisioner key pair
     interactive    Run in interactive mode (default)
     help           Print this message or the help of the given subcommand(s)

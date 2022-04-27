@@ -93,6 +93,9 @@ impl CliWallet {
                             PromptCommand::Unstake(key) => {
                                 wallet.get_balance(key)?
                             }
+                            PromptCommand::Withdraw(key) => {
+                                wallet.get_balance(key)?
+                            }
                             // these commands don't require balance
                             _ => BalanceInfo {
                                 value: 0,
@@ -329,6 +332,48 @@ impl CliWallet {
                         key,
                         stake_key,
                         &my_addr,
+                        gas_limit,
+                        gas_price.unwrap_or(DEFAULT_GAS_PRICE),
+                    )?;
+                    prompt::show_cursor()?;
+
+                    // compute tx id
+                    let txh = hex::encode(&tx.hash().to_bytes());
+                    Ok(Some(txh))
+                } else {
+                    Err(Error::Offline)
+                }
+            }
+
+            Withdraw {
+                key,
+                stake_key,
+                refund_addr,
+                gas_limit,
+                gas_price,
+            } => {
+                if let Some(wallet) = &self.wallet {
+                    // refund address
+                    let mut addr_bytes = [0u8; SEED_SIZE];
+                    addr_bytes.copy_from_slice(
+                        &bs58::decode(refund_addr).into_vec()?,
+                    );
+                    let refund_addr =
+                        dusk_pki::PublicSpendKey::from_bytes(&addr_bytes)?;
+
+                    let mut rng = StdRng::from_entropy();
+
+                    let gas_limit = gas_limit.unwrap_or(DEFAULT_GAS_LIMIT);
+                    if gas_limit < MIN_GAS_LIMIT {
+                        return Err(Error::NotEnoughGas);
+                    }
+
+                    prompt::hide_cursor()?;
+                    let tx = wallet.withdraw(
+                        &mut rng,
+                        key,
+                        stake_key,
+                        &refund_addr,
                         gas_limit,
                         gas_price.unwrap_or(DEFAULT_GAS_PRICE),
                     )?;
