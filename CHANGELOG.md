@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Enhance address validity checks on interactive mode [#28]
 - Prevent exit on prepare command errors [#27]
 - Adapt balance to the new State [#24]
 - Rename `withdraw-stake` to `unstake` [#26]
@@ -180,6 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#28]: https://github.com/dusk-network/wallet-cli/issues/28
 [#27]: https://github.com/dusk-network/wallet-cli/issues/27
 [#26]: https://github.com/dusk-network/wallet-cli/issues/26
 [#24]: https://github.com/dusk-network/wallet-cli/issues/24
