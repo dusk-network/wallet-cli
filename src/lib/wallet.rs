@@ -111,10 +111,19 @@ impl CliWallet {
                     prompt::show_cursor()?;
 
                     // prepare command
-                    if let Some(cmd) =
-                        prompt::prepare_command(pcmd, balance.spendable.into())?
-                    {
-                        // run command
+                    let cmd = match prompt::prepare_command(
+                        pcmd,
+                        balance.spendable.into(),
+                    ) {
+                        Ok(cmd) => cmd,
+                        Err(err) => {
+                            println!("{}", err);
+                            None
+                        }
+                    };
+
+                    // run command
+                    if let Some(cmd) = cmd {
                         match self.run(cmd) {
                             Ok(res) => {
                                 if let Some(txh) = res {
