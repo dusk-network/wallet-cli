@@ -9,16 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Block trait for easier blocking on futures [#32]
 - Withdraw reward command [#26]
 
-### Changed
+### Changed
 
+- Upgraded cache implementation to use `microkelvin` instead of `rusqlite` [#32]
+- Use streaming `GetNotes` call instead of `GetNotesOwnedBy` [#32]
 - Enhance address validity checks on interactive mode [#28]
 - Prevent exit on prepare command errors [#27]
 - Adapt balance to the new State [#24]
 - Rename `withdraw-stake` to `unstake` [#26]
 - Introduce Dusk type for currency management [#4]
-
 
 ## [0.7.0] - 2022-04-13
 
@@ -181,6 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#32]: https://github.com/dusk-network/wallet-cli/issues/32
 [#28]: https://github.com/dusk-network/wallet-cli/issues/28
 [#27]: https://github.com/dusk-network/wallet-cli/issues/27
 [#26]: https://github.com/dusk-network/wallet-cli/issues/26

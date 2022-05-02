@@ -4,91 +4,175 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::collections::HashMap;
-use std::path::Path;
+use crate::StateError;
 
-use dusk_bytes::{DeserializableSlice, Serializable};
+use canonical::{Canon, Sink, Source};
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::PathBuf;
+
+use canonical_derive::Canon;
+use dusk_hamt::Map;
+use dusk_pki::PublicSpendKey;
+use microkelvin::{BackendCtor, DiskBackend, PersistedId, Persistence};
+use once_cell::sync::OnceCell;
 use phoenix_core::Note;
-use rusqlite::{params, Connection, Error};
 
-const TABLE_NOTES: &str =
-    "CREATE TABLE if not exists notes (note BLOB, spendkey BLOB)";
-const TABLE_CACHE: &str =
-    "CREATE TABLE if not exists cache (block BIGINT, spendkey BLOB)";
+static CACHE_DATA_PATH: OnceCell<PathBuf> = OnceCell::new();
 
-const QUERY_BLOCK_HEIGHT: &str = "SELECT block FROM cache WHERE spendkey = ?";
-const UPDATE_BLOCK_HEIGHT: &str = "update cache set block=? WHERE spendkey = ?";
-const INSERT_BLOCK_HEIGHT: &str =
-    "INSERT INTO cache (block, spendkey) VALUES (?1, ?2)";
+fn backend() -> BackendCtor<DiskBackend> {
+    BackendCtor::new(|| {
+        DiskBackend::new(CACHE_DATA_PATH.get().unwrap().join("cache.db"))
+    })
+}
 
-const INSERT_NOTES: &str = "INSERT INTO notes (note, spendkey) values (?1, ?2)";
-const QUERY_NOTES: &str = "SELECT note FROM notes WHERE spendkey = ?";
-
-pub struct Cache(Connection);
+/// A cache of notes received from Rusk.
+///
+/// Before instantiating an instance with [`new`], the cache data path must be
+/// set using [`set_data_path`].
+#[derive(Debug, Clone)]
+pub struct Cache {
+    data: Map<PublicSpendKey, KeyData>,
+}
 
 impl Cache {
-    pub(crate) fn new(data_dir: &Path) -> Result<Self, Error> {
-        let db_path = data_dir.join("cache.db");
+    /// Returns a new cache instance. Before this is called the cache data path
+    /// must be set with [`set_data_path`].
+    ///
+    /// # Panics
+    /// If called before [`set_data_path`].
+    pub(crate) fn new() -> Result<Self, StateError> {
+        let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
+        let id_path = data_dir.join("cache.id");
 
-        let cache = Connection::open(db_path)?;
-        cache.execute(TABLE_NOTES, [])?;
-        cache.execute(TABLE_CACHE, [])?;
-        Ok(Cache(cache))
+        let persisted_id = match id_path.exists() {
+            true => {
+                let bytes = fs::read(id_path)?;
+                let mut source = Source::new(&bytes);
+
+                Some(PersistedId::decode(&mut source)?)
+            }
+            false => None,
+        };
+
+        let data = persisted_id.map_or(Ok(Map::new()), |id| id.restore())?;
+        Ok(Self { data })
     }
 
-    pub(crate) fn last_block_height(&self, spendkey: &[u8]) -> u64 {
-        let cached_block_height =
-            self.0
-                .query_row_and_then(QUERY_BLOCK_HEIGHT, [spendkey], |row| {
-                    row.get(0)
-                });
-        cached_block_height.unwrap_or(0u64)
+    /// Sets the cache data directory. This function can be called once and is a
+    /// requirement for being able to instantiate a cache using [`new`].
+    ///
+    /// # Panics
+    /// If data dir does not exist or is not a directory, or if called more than
+    /// once.
+    pub(crate) fn set_data_path(data_dir: PathBuf) -> Result<(), StateError> {
+        if !(data_dir.exists() && data_dir.is_dir()) {
+            panic!("cache path does not exist or is not a directory");
+        }
+
+        CACHE_DATA_PATH
+            .set(data_dir)
+            .expect("cache path can only be set once");
+
+        Persistence::with_backend(&backend(), |_| Ok(()))?;
+
+        Ok(())
     }
 
-    pub(crate) fn persist_block_height(
-        &self,
-        spendkey: &[u8],
-        current_block: u64,
-    ) -> Result<(), Error> {
-        if self
-            .0
-            .execute(UPDATE_BLOCK_HEIGHT, params!(current_block, spendkey))?
-            == 0
-        {
-            self.0.execute(
-                INSERT_BLOCK_HEIGHT,
-                params!(current_block, spendkey),
+    /// Persist the cache to the internal backend.
+    pub(crate) fn persist(&self) -> Result<(), StateError> {
+        let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
+        let id_path = data_dir.join("cache.id");
+
+        let persistence_id = Persistence::persist(&backend(), &self.data)?;
+
+        let mut bytes = [0u8; 36];
+        let mut sink = Sink::new(&mut bytes);
+
+        persistence_id.encode(&mut sink);
+
+        fs::write(id_path, bytes)?;
+
+        Ok(())
+    }
+
+    /// Insert a note into the cache at the given block height. If note is
+    /// `None` only the block height gets updated.
+    pub(crate) fn insert(
+        &mut self,
+        psk: PublicSpendKey,
+        height: u64,
+        note: Option<Note>,
+    ) -> Result<(), StateError> {
+        if self.data.get(&psk)?.is_none() {
+            self.data.insert(
+                psk,
+                KeyData {
+                    last_height: 0,
+                    notes: BTreeSet::new(),
+                },
             )?;
         }
+
+        let mut key_data = self.data.get_mut(&psk)?.unwrap();
+
+        if height > key_data.last_height {
+            key_data.last_height = height;
+        }
+
+        if let Some(note) = note {
+            key_data.notes.insert(NoteData { height, note });
+        }
+
         Ok(())
     }
 
-    pub(crate) fn persist_notes(
+    /// Returns the block height of the highest ever note inserted for the given
+    /// PSK. If no note has ever been inserted it returns 0.
+    pub(crate) fn last_height(
         &self,
-        spendkey: &[u8],
-        notes: &[Note],
-    ) -> Result<(), Error> {
-        for n in notes.iter() {
-            let mut insert_stats = self.0.prepare(INSERT_NOTES)?;
-            insert_stats.execute([n.to_bytes().to_vec(), spendkey.to_vec()])?;
-        }
-        Ok(())
+        psk: PublicSpendKey,
+    ) -> Result<u64, StateError> {
+        Ok(self
+            .data
+            .get(&psk)?
+            .map_or(0, |key_data| key_data.last_height))
     }
 
-    pub(crate) fn cached_notes(
+    /// Returns an iterator over all notes inserted for the given PSK, in order
+    /// of block height.
+    pub(crate) fn notes(
         &self,
-        spendkey: &[u8],
-    ) -> Result<HashMap<Vec<u8>, Note>, Error> {
-        let mut notes: HashMap<Vec<u8>, Note> = HashMap::new();
-
-        let mut stmt = self.0.prepare(QUERY_NOTES)?;
-        let mut rows = stmt.query([spendkey])?;
-        while let Some(row) = rows.next()? {
-            let note_bytes: Vec<u8> = row.get(0)?;
-            let note = Note::from_slice(&note_bytes[..])
-                .expect("Invalid notes previously saved");
-            notes.insert(note.hash().to_bytes().to_vec(), note);
-        }
-        Ok(notes)
+        psk: PublicSpendKey,
+    ) -> Result<BTreeSet<NoteData>, StateError> {
+        Ok(self
+            .data
+            .get(&psk)?
+            .map_or(BTreeSet::new(), |key_data| key_data.notes.clone()))
     }
+}
+/// Data kept about each note.
+#[derive(Debug, Clone, PartialEq, Eq, Canon)]
+pub struct NoteData {
+    pub height: u64,
+    pub note: Note,
+}
+
+impl PartialOrd for NoteData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NoteData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.height.cmp(&other.height)
+    }
+}
+
+#[derive(Debug, Clone, Canon)]
+struct KeyData {
+    last_height: u64,
+    notes: BTreeSet<NoteData>,
 }

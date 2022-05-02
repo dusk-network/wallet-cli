@@ -16,13 +16,12 @@ use dusk_wallet_core::{
     ProverClient, StakeInfo, StateClient, Transaction, UnprovenTransaction,
     POSEIDON_TREE_DEPTH,
 };
+use futures::StreamExt;
 use phoenix_core::{Crossover, Fee, Note};
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use tokio::runtime::Handle;
-use tokio::task::block_in_place;
 use tonic::transport::Channel;
 
 use rusk_schema::network_client::NetworkClient;
@@ -30,13 +29,15 @@ use rusk_schema::prover_client::ProverClient as GrpcProverClient;
 use rusk_schema::state_client::StateClient as GrpcStateClient;
 use rusk_schema::{
     ExecuteProverRequest, FindExistingNullifiersRequest, GetAnchorRequest,
-    GetNotesOwnedByRequest, GetOpeningRequest, GetStakeRequest,
-    PreverifyRequest, PropagateMessage, StctProverRequest,
-    Transaction as TransactionProto, WfctProverRequest,
+    GetNotesRequest, GetOpeningRequest, GetStakeRequest, PreverifyRequest,
+    PropagateMessage, StctProverRequest, Transaction as TransactionProto,
+    WfctProverRequest,
 };
 
+use super::block::Block;
 use super::cache::Cache;
 use super::gql::{GraphQL, TxStatus};
+
 use crate::{prompt, ProverError, StateError};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
@@ -92,12 +93,7 @@ impl ProverClient for Prover {
 
         prompt::status("Proving tx, please wait...");
         let mut prover = self.client.lock().unwrap();
-        let proof_bytes = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { prover.prove_execute(req).await })
-        })?
-        .into_inner()
-        .proof;
+        let proof_bytes = prover.prove_execute(req).wait()?.into_inner().proof;
         prompt::status("Proof success!");
 
         prompt::status("Attempt to preverify tx...");
@@ -113,10 +109,7 @@ impl ProverClient for Prover {
         let msg = PreverifyRequest { tx: Some(tx_proto) };
         let req = tonic::Request::new(msg);
         let mut state = self.state.lock().unwrap();
-        block_in_place(move || {
-            Handle::current()
-                .block_on(async move { state.preverify(req).await })
-        })?;
+        state.preverify(req).wait()?;
         prompt::status("Preverify success!");
 
         prompt::status("Propagating tx...");
@@ -124,9 +117,7 @@ impl ProverClient for Prover {
         let req = tonic::Request::new(msg);
 
         let mut net = self.network.lock().unwrap();
-        let _ = block_in_place(move || {
-            Handle::current().block_on(async move { net.propagate(req).await })
-        })?;
+        net.propagate(req).wait()?;
         prompt::status("Transaction propagated!");
 
         if self.wait_for_tx {
@@ -186,12 +177,7 @@ impl ProverClient for Prover {
 
         prompt::status("Requesting stct proof...");
         let mut prover = self.client.lock().unwrap();
-        let res = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { prover.prove_stct(req).await })
-        })?
-        .into_inner()
-        .proof;
+        let res = prover.prove_stct(req).wait()?.into_inner().proof;
         prompt::status("Stct proof success!");
 
         let mut proof_bytes = [0u8; Proof::SIZE];
@@ -221,12 +207,7 @@ impl ProverClient for Prover {
 
         prompt::status("Requesting wfct proof...");
         let mut prover = self.client.lock().unwrap();
-        let res = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { prover.prove_wfct(req).await })
-        })?
-        .into_inner()
-        .proof;
+        let res = prover.prove_wfct(req).wait()?.into_inner().proof;
         prompt::status("Wfct proof success!");
 
         let mut proof_bytes = [0u8; Proof::SIZE];
@@ -239,20 +220,29 @@ impl ProverClient for Prover {
 
 /// Implementation of the StateClient trait from wallet-core
 pub struct State {
-    client: Mutex<GrpcStateClient<Channel>>,
+    inner: Mutex<InnerState>,
+}
+
+struct InnerState {
+    client: GrpcStateClient<Channel>,
     cache: Cache,
 }
 
 impl State {
-    pub fn new(
-        client: GrpcStateClient<Channel>,
-        data_dir: &Path,
-    ) -> Result<Self, StateError> {
-        let cache = Cache::new(data_dir)?;
-        Ok(State {
-            client: Mutex::new(client),
-            cache,
-        })
+    /// Creates a new state instance. Should only be called once.
+    ///
+    /// # Panics
+    /// If called before [`set_cache_dir`].
+    pub fn new(client: GrpcStateClient<Channel>) -> Result<Self, StateError> {
+        let cache = Cache::new()?;
+        let inner = Mutex::new(InnerState { client, cache });
+        Ok(State { inner })
+    }
+
+    /// Sets the directory where the cache be stored. Should be called before
+    /// [`new`].
+    pub fn set_cache_dir(data_dir: PathBuf) -> Result<(), StateError> {
+        Cache::set_data_path(data_dir)
     }
 }
 /// Types that are clients of the state API.
@@ -262,71 +252,55 @@ impl StateClient for State {
 
     /// Find notes for a view key, starting from the given block height.
     fn fetch_notes(&self, vk: &ViewKey) -> Result<Vec<Note>, Self::Error> {
-        prompt::status("Fetching block height...");
-        let psk = &vk.public_spend_key().to_bytes()[..];
-        prompt::status("Fetching cached notes...");
-        let cached_block_height = self.cache.last_block_height(psk);
-        let cached_notes = self.cache.cached_notes(psk)?;
+        let mut state = self.inner.lock().unwrap();
 
-        let msg = GetNotesOwnedByRequest {
-            height: cached_block_height,
-            vk: vk.to_bytes().to_vec(),
-        };
-        let req = tonic::Request::new(msg);
+        prompt::status("Getting cached block height...");
+        let psk = vk.public_spend_key();
+        let last_height = state.cache.last_height(psk)?;
 
         prompt::status("Fetching fresh notes...");
-        let mut state = self.client.lock().unwrap();
-        let res = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { state.get_notes_owned_by(req).await })
-        })?
-        .into_inner();
+        let msg = GetNotesRequest {
+            height: last_height,
+            vk: vec![], // empty vector means *all* notes will be streamed
+        };
+        let req = tonic::Request::new(msg);
+        let mut stream = state.client.get_notes(req).wait()?.into_inner();
+        prompt::status("Connection established...");
 
-        prompt::status("Notes received!");
-        prompt::status("Handling notes...");
+        prompt::status("Streaming notes...");
 
-        // collect notes
-        let mut fresh_notes: Vec<Note> = res
-            .notes
-            .into_iter()
-            .flat_map(|n| {
-                let mut bytes = [0u8; Note::SIZE];
-                bytes.copy_from_slice(&n);
+        while let Some(item) = stream.next().wait() {
+            let rsp = item?;
 
-                let note = Note::from_bytes(&bytes).unwrap();
-                let key = note.hash().to_bytes().to_vec();
-                match cached_notes.contains_key(&key) {
-                    true => None,
-                    false => Some(note),
-                }
-            })
-            .collect();
+            let note = Note::from_slice(&rsp.note)?;
+            let note = match vk.owns(&note) {
+                true => Some(note),
+                false => None,
+            };
 
-        if !fresh_notes.is_empty() {
-            prompt::status("Caching notes...");
-            self.cache.persist_notes(psk, &fresh_notes[..])?;
-            self.cache.persist_block_height(psk, res.height)?;
-            prompt::status("Cache updated!");
+            state.cache.insert(psk, rsp.height, note)?;
         }
 
-        let mut ret: Vec<Note> = cached_notes.into_values().collect();
-        ret.append(&mut fresh_notes);
-        Ok(ret)
+        state.cache.persist()?;
+        let notes = state
+            .cache
+            .notes(psk)?
+            .into_iter()
+            .map(|data| data.note)
+            .collect();
+
+        Ok(notes)
     }
 
     /// Fetch the current anchor of the state.
     fn fetch_anchor(&self) -> Result<BlsScalar, Self::Error> {
+        let mut state = self.inner.lock().unwrap();
+
         let msg = GetAnchorRequest {};
         let req = tonic::Request::new(msg);
 
         prompt::status("Fetching anchor...");
-        let mut state = self.client.lock().unwrap();
-        let res = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { state.get_anchor(req).await })
-        })?
-        .into_inner()
-        .anchor;
+        let res = state.client.get_anchor(req).wait()?.into_inner().anchor;
         prompt::status("Anchor received!");
 
         let mut bytes = [0u8; BlsScalar::SIZE];
@@ -341,6 +315,8 @@ impl StateClient for State {
         &self,
         nullifiers: &[BlsScalar],
     ) -> Result<Vec<BlsScalar>, Self::Error> {
+        let mut state = self.inner.lock().unwrap();
+
         let null_bytes: Vec<_> =
             nullifiers.iter().map(|s| s.to_bytes().to_vec()).collect();
 
@@ -350,14 +326,12 @@ impl StateClient for State {
         let req = tonic::Request::new(msg);
 
         prompt::status("Fetching nullifiers...");
-        let mut state = self.client.lock().unwrap();
-        let res = block_in_place(move || {
-            Handle::current().block_on(async move {
-                state.find_existing_nullifiers(req).await
-            })
-        })?
-        .into_inner()
-        .nullifiers;
+        let res = state
+            .client
+            .find_existing_nullifiers(req)
+            .wait()?
+            .into_inner()
+            .nullifiers;
         prompt::status("Nullifiers received!");
 
         let nullifiers = res
@@ -373,19 +347,15 @@ impl StateClient for State {
         &self,
         note: &Note,
     ) -> Result<PoseidonBranch<POSEIDON_TREE_DEPTH>, Self::Error> {
+        let mut state = self.inner.lock().unwrap();
+
         let msg = GetOpeningRequest {
             note: note.to_bytes().to_vec(),
         };
         let req = tonic::Request::new(msg);
 
         prompt::status("Fetching opening notes...");
-        let mut state = self.client.lock().unwrap();
-        let res = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { state.get_opening(req).await })
-        })?
-        .into_inner()
-        .branch;
+        let res = state.client.get_opening(req).wait()?.into_inner().branch;
         prompt::status("Opening notes received!");
 
         let mut src = Source::new(&res);
@@ -395,18 +365,15 @@ impl StateClient for State {
 
     /// Queries the node for the amount staked by a key.
     fn fetch_stake(&self, pk: &PublicKey) -> Result<StakeInfo, Self::Error> {
+        let mut state = self.inner.lock().unwrap();
+
         let msg = GetStakeRequest {
             pk: pk.to_bytes().to_vec(),
         };
         let req = tonic::Request::new(msg);
 
         prompt::status("Fetching stake...");
-        let mut state = self.client.lock().unwrap();
-        let res = block_in_place(move || {
-            Handle::current()
-                .block_on(async move { state.get_stake(req).await })
-        })?
-        .into_inner();
+        let res = state.client.get_stake(req).wait()?.into_inner();
         prompt::status("Stake received!");
 
         let amount = res.amount.map(|a| (a.value, a.eligibility));

@@ -370,8 +370,10 @@ async fn exec() -> Result<(), Error> {
                 gql,
                 cfg.chain.wait_for_tx,
             );
-            let state =
-                State::new(clients.state, cfg.wallet.data_dir.as_path())?;
+
+            State::set_cache_dir(cfg.wallet.data_dir.clone())?;
+            let state = State::new(clients.state)?;
+
             CliWallet::new(cfg, store, state, prover)
         }
         Err(err) => {

@@ -7,9 +7,8 @@
 use gql_client::Client;
 use serde::Deserialize;
 use serde_json::Value;
-use tokio::runtime::Handle;
-use tokio::task::block_in_place;
 
+use super::block::Block;
 use super::error::GraphQLError;
 
 /// GraphQL is a helper struct that aggregates all queries done
@@ -56,11 +55,7 @@ impl GraphQL {
         let query =
             "{transactions(txid:\"####\"){ txerror }}".replace("####", tx_id);
 
-        let response = block_in_place(move || {
-            Handle::current().block_on(async move {
-                client.query::<Transactions>(&query).await
-            })
-        });
+        let response = client.query::<Transactions>(&query).wait();
 
         // we're interested in different types of errors
         if response.is_err() {

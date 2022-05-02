@@ -6,6 +6,7 @@
 
 use dusk::{Dusk, Lux};
 
+pub(crate) mod block;
 pub(crate) mod cache;
 pub(crate) mod clients;
 pub(crate) mod config;
