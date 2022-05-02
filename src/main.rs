@@ -21,8 +21,9 @@ use tonic::transport::Channel;
 
 use tracing::info;
 use tracing::log::error;
+use tracing_subscriber::prelude::*;
 
-//use lib::logger::Logger;
+use lib::logger::Logger;
 use lib::clients::{Prover, State};
 use lib::config::Config;
 use lib::crypto::MnemSeed;
@@ -271,6 +272,19 @@ async fn rusk_uds(socket_path: &str) -> Result<Rusk, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+/*
+    // Generate a subscriber with the desired log level.
+    let subscriber = tracing_subscriber::fmt::Subscriber::builder()
+    .with_max_level(tracing::Level::INFO)
+    .finish();
+
+    // Set the subscriber as global.
+    // so this subscriber will be used as the default in all threads for the
+    // remainder of the duration of the program, similar to how `loggers`
+    // work in the `log` crate.
+    tracing::subscriber::set_global_default(subscriber).expect("failed to start logger");
+*/
+
     if let Err(err) = exec().await {
         // display the error message (if any)
         error!("{}", err);
@@ -287,6 +301,17 @@ async fn exec() -> Result<(), Error> {
     let args = WalletArgs::parse();
     let cmd = args.command.clone();
 
+    // get command or default to interactive mode
+    let cmd = cmd.unwrap_or(CliCommand::Interactive);
+
+    // start logger with appropriate logging strategy
+    let is_interactive = match cmd {
+        Interactive => true,
+        _ => false,
+    };
+    let logger = Logger::new(is_interactive);
+    tracing_subscriber::registry().with(logger).init();
+
     // data directory needs to be clear from the start
     let data_dir = args
         .data_dir
@@ -302,9 +327,6 @@ async fn exec() -> Result<(), Error> {
 
     // merge static config with parsed args
     cfg.merge(args);
-
-    // get command or default to interactive mode
-    let cmd = cmd.unwrap_or(CliCommand::Interactive);
 
     // request auth for wallet (if required)
     let pwd = if cmd.uses_wallet() || cfg.wallet.file.is_some() {
@@ -397,15 +419,17 @@ async fn exec() -> Result<(), Error> {
         Interactive => wallet.interactive(),
         Balance { key, spendable } => {
             let balance = wallet.get_balance(key)?;
+            prompt::clear();
             if spendable {
-                println!("\r{}", balance.spendable);
+                println!("\r{}", Dusk::from(balance.spendable));
             } else {
-                println!("\r{}", balance.value);
+                println!("\r{}", Dusk::from(balance.value));
             }
             Ok(())
         }
         Address { key } => {
             let addr = wallet.get_address(key)?;
+            prompt::clear();
             println!("\r{}", addr);
             Ok(())
         }
@@ -417,6 +441,7 @@ async fn exec() -> Result<(), Error> {
             gas_price,
         } => {
             let txh = wallet.transfer(key, &rcvr, amt, gas_limit, gas_price)?;
+            prompt::clear();
             println!("\r{}", txh);
             Ok(())
         }
@@ -429,11 +454,13 @@ async fn exec() -> Result<(), Error> {
         } => {
             let txh =
                 wallet.stake(key, stake_key, amt, gas_limit, gas_price)?;
+            prompt::clear();
             println!("\r{}", txh);
             Ok(())
         }
         StakeInfo { key, reward } => {
             let si = wallet.stake_info(key)?;
+            prompt::clear();
             let val = if reward {
                 Dusk::from(si.reward)
             } else {
@@ -452,6 +479,7 @@ async fn exec() -> Result<(), Error> {
             gas_price,
         } => {
             let txh = wallet.unstake(key, stake_key, gas_limit, gas_price)?;
+            prompt::clear();
             println!("\r{}", txh);
             Ok(())
         }
@@ -469,6 +497,7 @@ async fn exec() -> Result<(), Error> {
                 gas_limit,
                 gas_price,
             )?;
+            prompt::clear();
             println!("\r{}", txh);
             Ok(())
         }

@@ -16,6 +16,7 @@ pub(crate) mod gql;
 pub(crate) mod prompt;
 pub(crate) mod store;
 pub(crate) mod wallet;
+pub(crate) mod logger;
 
 pub(crate) const SEED_SIZE: usize = 64;
 
