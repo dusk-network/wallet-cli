@@ -228,13 +228,21 @@ pub enum StateError {
     Canon(canonical::CanonError),
     /// GraphQL errors
     GraphQL(GraphQLError),
-    /// Cache I/O errors
-    Cache(rusqlite::Error),
+    /// Cache persistence errors
+    Cache(microkelvin::PersistError),
+    /// I/O errors
+    Io(io::Error),
 }
 
-impl From<rusqlite::Error> for StateError {
-    fn from(e: rusqlite::Error) -> Self {
+impl From<microkelvin::PersistError> for StateError {
+    fn from(e: microkelvin::PersistError) -> Self {
         Self::Cache(e)
+    }
+}
+
+impl From<io::Error> for StateError {
+    fn from(e: io::Error) -> Self {
+        Self::Io(e)
     }
 }
 
@@ -280,6 +288,9 @@ impl fmt::Display for StateError {
             StateError::Cache(err) => {
                 write!(f, "\rFailed to read/write cache:\n{:?}", err)
             }
+            StateError::Io(err) => {
+                write!(f, "\rAn I/O error occurred {}", err)
+            }
         }
     }
 }
@@ -301,6 +312,9 @@ impl fmt::Debug for StateError {
             }
             StateError::Cache(err) => {
                 write!(f, "\rFailed to read/write cache:\n{:?}", err)
+            }
+            StateError::Io(err) => {
+                write!(f, "\rAn I/O error occurred {:?}", err)
             }
         }
     }
