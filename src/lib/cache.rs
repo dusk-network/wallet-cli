@@ -167,7 +167,7 @@ impl PartialOrd for NoteData {
 
 impl Ord for NoteData {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.height.cmp(&other.height)
+        self.note.pos().cmp(other.note.pos())
     }
 }
 
