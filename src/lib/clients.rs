@@ -282,14 +282,13 @@ impl StateClient for State {
         }
 
         state.cache.persist()?;
-        let notes = state
+
+        Ok(state
             .cache
             .notes(psk)?
             .into_iter()
             .map(|data| data.note)
-            .collect();
-
-        Ok(notes)
+            .collect())
     }
 
     /// Fetch the current anchor of the state.

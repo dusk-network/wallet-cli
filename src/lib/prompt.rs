@@ -16,6 +16,8 @@ use crossterm::{
 };
 
 use blake3::Hash;
+use dusk_bytes::DeserializableSlice;
+use dusk_pki::PublicSpendKey;
 use requestty::Question;
 
 use super::dusk::Lux;
@@ -23,8 +25,8 @@ use super::store::LocalStore;
 use crate::lib::crypto::MnemSeed;
 use crate::lib::dusk::Dusk;
 use crate::lib::{
-    ADDR_LEN, DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MAX_CONVERTIBLE,
-    MIN_CONVERTIBLE, MIN_GAS_LIMIT,
+    DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MAX_CONVERTIBLE, MIN_CONVERTIBLE,
+    MIN_GAS_LIMIT,
 };
 use crate::{CliCommand, Error};
 
@@ -473,7 +475,10 @@ fn request_rcvr_addr(addr_for: &str) -> String {
 
 /// Utility function to check if an address is valid
 fn is_valid_addr(addr: &str) -> bool {
-    addr.len() == ADDR_LEN && bs58::decode(addr).into_vec().is_ok()
+    match bs58::decode(addr).into_vec() {
+        Ok(addr) => PublicSpendKey::from_slice(&addr).is_ok(),
+        Err(_) => false,
+    }
 }
 
 /// Checks for a valid DUSK denomination
