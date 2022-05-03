@@ -101,7 +101,7 @@ impl Cache {
     pub(crate) fn insert(
         &mut self,
         psk: PublicSpendKey,
-        note: Note,
+        note: Option<Note>,
         height: u64,
     ) -> Result<(), StateError> {
         if self.data.get(&psk)?.is_none() {
@@ -112,14 +112,15 @@ impl Cache {
                     notes: BTreeSet::new(),
                 },
             )?;
-        }
-
+        };
         let mut key_data = self.data.get_mut(&psk)?.unwrap();
 
         if height > key_data.last_height {
             key_data.last_height = height;
         }
-        key_data.notes.insert(NoteData { height, note });
+        if let Some(note) = note {
+            key_data.notes.insert(NoteData { height, note });
+        }
 
         Ok(())
     }

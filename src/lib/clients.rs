@@ -272,10 +272,11 @@ impl StateClient for State {
         while let Some(item) = stream.next().wait() {
             let rsp = item?;
             let note = Note::from_slice(&rsp.note)?;
-
-            if vk.owns(&note) {
-                state.cache.insert(psk, note, rsp.height)?;
-            }
+            let note = match vk.owns(&note) {
+                true => Some(note),
+                false => None,
+            };
+            state.cache.insert(psk, note, rsp.height)?;
         }
 
         state.cache.persist()?;
