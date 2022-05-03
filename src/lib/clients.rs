@@ -37,7 +37,8 @@ use rusk_schema::{
 
 use super::cache::Cache;
 use super::gql::{GraphQL, TxStatus};
-use crate::{prompt, ProverError, StateError};
+use super::logger::status;
+use crate::{ProverError, StateError};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -90,7 +91,7 @@ impl ProverClient for Prover {
         let msg = ExecuteProverRequest { utx: utx_bytes };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Proving tx, please wait...");
+        status!("Proving tx, please wait...");
         let mut prover = self.client.lock().unwrap();
         let proof_bytes = block_in_place(move || {
             Handle::current()
@@ -98,9 +99,9 @@ impl ProverClient for Prover {
         })?
         .into_inner()
         .proof;
-        prompt::status("Proof success!");
+        status!("Proof success!");
 
-        prompt::status("Attempt to preverify tx...");
+        status!("Attempt to preverify tx...");
         let proof =
             Proof::from_slice(&proof_bytes).map_err(ProverError::Bytes)?;
         let tx = utx.clone().prove(proof);
@@ -117,9 +118,9 @@ impl ProverClient for Prover {
             Handle::current()
                 .block_on(async move { state.preverify(req).await })
         })?;
-        prompt::status("Preverify success!");
+        status!("Preverify success!");
 
-        prompt::status("Propagating tx...");
+        status!("Propagating tx...");
         let msg = PropagateMessage { message: tx_bytes };
         let req = tonic::Request::new(msg);
 
@@ -127,7 +128,7 @@ impl ProverClient for Prover {
         let _ = block_in_place(move || {
             Handle::current().block_on(async move { net.propagate(req).await })
         })?;
-        prompt::status("Transaction propagated!");
+        status!("Transaction propagated!");
 
         if self.wait_for_tx {
             let tx_id = hex::encode(tx.hash().to_bytes());
@@ -142,19 +143,17 @@ impl ProverClient for Prover {
                         return Err(Self::Error::Transaction(err))
                     }
                     TxStatus::NotFound => {
-                        prompt::status(
-                            format!(
-                                "Waiting for confirmation... ({}/{})",
-                                i, TIMEOUT
-                            )
-                            .as_str(),
+                        let msg = format!(
+                            "Waiting for confirmation... ({}/{})",
+                            i, TIMEOUT
                         );
+                        status!(msg);
                         thread::sleep(Duration::from_millis(1000));
                         i += 1;
                     }
                 }
             }
-            prompt::status("Transaction confirmed!");
+            status!("Transaction confirmed!");
         }
 
         Ok(tx)
@@ -184,7 +183,7 @@ impl ProverClient for Prover {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Requesting stct proof...");
+        status!("Requesting stct proof...");
         let mut prover = self.client.lock().unwrap();
         let res = block_in_place(move || {
             Handle::current()
@@ -192,7 +191,7 @@ impl ProverClient for Prover {
         })?
         .into_inner()
         .proof;
-        prompt::status("Stct proof success!");
+        status!("Stct proof success!");
 
         let mut proof_bytes = [0u8; Proof::SIZE];
         proof_bytes.copy_from_slice(&res);
@@ -219,7 +218,7 @@ impl ProverClient for Prover {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Requesting wfct proof...");
+        status!("Requesting wfct proof...");
         let mut prover = self.client.lock().unwrap();
         let res = block_in_place(move || {
             Handle::current()
@@ -227,7 +226,7 @@ impl ProverClient for Prover {
         })?
         .into_inner()
         .proof;
-        prompt::status("Wfct proof success!");
+        status!("Wfct proof success!");
 
         let mut proof_bytes = [0u8; Proof::SIZE];
         proof_bytes.copy_from_slice(&res);
@@ -262,9 +261,9 @@ impl StateClient for State {
 
     /// Find notes for a view key, starting from the given block height.
     fn fetch_notes(&self, vk: &ViewKey) -> Result<Vec<Note>, Self::Error> {
-        prompt::status("Fetching block height...");
+        status!("Fetching block height...");
         let psk = &vk.public_spend_key().to_bytes()[..];
-        prompt::status("Fetching cached notes...");
+        status!("Fetching cached notes...");
         let cached_block_height = self.cache.last_block_height(psk);
         let cached_notes = self.cache.cached_notes(psk)?;
 
@@ -274,7 +273,7 @@ impl StateClient for State {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching fresh notes...");
+        status!("Fetching fresh notes...");
         let mut state = self.client.lock().unwrap();
         let res = block_in_place(move || {
             Handle::current()
@@ -282,8 +281,8 @@ impl StateClient for State {
         })?
         .into_inner();
 
-        prompt::status("Notes received!");
-        prompt::status("Handling notes...");
+        status!("Notes received!");
+        status!("Handling notes...");
 
         // collect notes
         let mut fresh_notes: Vec<Note> = res
@@ -303,10 +302,10 @@ impl StateClient for State {
             .collect();
 
         if !fresh_notes.is_empty() {
-            prompt::status("Caching notes...");
+            status!("Caching notes...");
             self.cache.persist_notes(psk, &fresh_notes[..])?;
             self.cache.persist_block_height(psk, res.height)?;
-            prompt::status("Cache updated!");
+            status!("Cache updated!");
         }
 
         let mut ret: Vec<Note> = cached_notes.into_values().collect();
@@ -319,7 +318,7 @@ impl StateClient for State {
         let msg = GetAnchorRequest {};
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching anchor...");
+        status!("Fetching anchor...");
         let mut state = self.client.lock().unwrap();
         let res = block_in_place(move || {
             Handle::current()
@@ -327,7 +326,7 @@ impl StateClient for State {
         })?
         .into_inner()
         .anchor;
-        prompt::status("Anchor received!");
+        status!("Anchor received!");
 
         let mut bytes = [0u8; BlsScalar::SIZE];
         bytes.copy_from_slice(&res);
@@ -349,7 +348,7 @@ impl StateClient for State {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching nullifiers...");
+        status!("Fetching nullifiers...");
         let mut state = self.client.lock().unwrap();
         let res = block_in_place(move || {
             Handle::current().block_on(async move {
@@ -358,7 +357,7 @@ impl StateClient for State {
         })?
         .into_inner()
         .nullifiers;
-        prompt::status("Nullifiers received!");
+        status!("Nullifiers received!");
 
         let nullifiers = res
             .iter()
@@ -378,7 +377,7 @@ impl StateClient for State {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching opening notes...");
+        status!("Fetching opening notes...");
         let mut state = self.client.lock().unwrap();
         let res = block_in_place(move || {
             Handle::current()
@@ -386,7 +385,7 @@ impl StateClient for State {
         })?
         .into_inner()
         .branch;
-        prompt::status("Opening notes received!");
+        status!("Opening notes received!");
 
         let mut src = Source::new(&res);
         let branch = Canon::decode(&mut src)?;
@@ -400,14 +399,14 @@ impl StateClient for State {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching stake...");
+        status!("Fetching stake...");
         let mut state = self.client.lock().unwrap();
         let res = block_in_place(move || {
             Handle::current()
                 .block_on(async move { state.get_stake(req).await })
         })?
         .into_inner();
-        prompt::status("Stake received!");
+        status!("Stake received!");
 
         let amount = res.amount.map(|a| (a.value, a.eligibility));
 

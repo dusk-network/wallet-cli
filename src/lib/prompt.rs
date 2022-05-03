@@ -10,8 +10,6 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-use tracing::info;
-
 use crossterm::{
     cursor::{Hide, Show},
     ExecutableCommand,
@@ -569,7 +567,7 @@ pub(crate) fn status(status: &str) {
     } else {
         "".to_string()
     };
-    info!("\r{}{}", status, fill);
+    print!("\r{}{}", status, fill);
     let mut stdout = stdout();
     stdout.flush().unwrap();
     thread::sleep(Duration::from_millis(85));

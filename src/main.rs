@@ -19,16 +19,15 @@ use tower::service_fn;
 
 use tonic::transport::Channel;
 
-use tracing::info;
 use tracing::log::error;
 use tracing_subscriber::prelude::*;
 
-use lib::logger::Logger;
 use lib::clients::{Prover, State};
 use lib::config::Config;
 use lib::crypto::MnemSeed;
 use lib::dusk::{Dusk, Lux};
 use lib::gql::GraphQL;
+use lib::logger::Logger;
 use lib::prompt;
 use lib::store::LocalStore;
 use lib::wallet::CliWallet;
@@ -272,19 +271,6 @@ async fn rusk_uds(socket_path: &str) -> Result<Rusk, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-/*
-    // Generate a subscriber with the desired log level.
-    let subscriber = tracing_subscriber::fmt::Subscriber::builder()
-    .with_max_level(tracing::Level::INFO)
-    .finish();
-
-    // Set the subscriber as global.
-    // so this subscriber will be used as the default in all threads for the
-    // remainder of the duration of the program, similar to how `loggers`
-    // work in the `log` crate.
-    tracing::subscriber::set_global_default(subscriber).expect("failed to start logger");
-*/
-
     if let Err(err) = exec().await {
         // display the error message (if any)
         error!("{}", err);
@@ -305,11 +291,8 @@ async fn exec() -> Result<(), Error> {
     let cmd = cmd.unwrap_or(CliCommand::Interactive);
 
     // start logger with appropriate logging strategy
-    let is_interactive = match cmd {
-        Interactive => true,
-        _ => false,
-    };
-    let logger = Logger::new(is_interactive);
+    let is_interactive = matches!(cmd, Interactive);
+    let logger = Logger::new("info", is_interactive);
     tracing_subscriber::registry().with(logger).init();
 
     // data directory needs to be clear from the start
@@ -419,18 +402,16 @@ async fn exec() -> Result<(), Error> {
         Interactive => wallet.interactive(),
         Balance { key, spendable } => {
             let balance = wallet.get_balance(key)?;
-            prompt::clear();
             if spendable {
-                println!("\r{}", Dusk::from(balance.spendable));
+                output!(Dusk::from(balance.spendable));
             } else {
-                println!("\r{}", Dusk::from(balance.value));
+                output!(Dusk::from(balance.value));
             }
             Ok(())
         }
         Address { key } => {
             let addr = wallet.get_address(key)?;
-            prompt::clear();
-            println!("\r{}", addr);
+            output!(addr);
             Ok(())
         }
         Transfer {
@@ -440,9 +421,9 @@ async fn exec() -> Result<(), Error> {
             gas_limit,
             gas_price,
         } => {
+            println!("{}", &rcvr);
             let txh = wallet.transfer(key, &rcvr, amt, gas_limit, gas_price)?;
-            prompt::clear();
-            println!("\r{}", txh);
+            output!(txh);
             Ok(())
         }
         Stake {
@@ -454,13 +435,11 @@ async fn exec() -> Result<(), Error> {
         } => {
             let txh =
                 wallet.stake(key, stake_key, amt, gas_limit, gas_price)?;
-            prompt::clear();
-            println!("\r{}", txh);
+            output!(txh);
             Ok(())
         }
         StakeInfo { key, reward } => {
             let si = wallet.stake_info(key)?;
-            prompt::clear();
             let val = if reward {
                 Dusk::from(si.reward)
             } else {
@@ -469,7 +448,7 @@ async fn exec() -> Result<(), Error> {
                     None => Dusk::from(0),
                 }
             };
-            println!("\r{}", val);
+            output!(val);
             Ok(())
         }
         Unstake {
@@ -479,8 +458,7 @@ async fn exec() -> Result<(), Error> {
             gas_price,
         } => {
             let txh = wallet.unstake(key, stake_key, gas_limit, gas_price)?;
-            prompt::clear();
-            println!("\r{}", txh);
+            output!(txh);
             Ok(())
         }
         Withdraw {
@@ -497,16 +475,12 @@ async fn exec() -> Result<(), Error> {
                 gas_limit,
                 gas_price,
             )?;
-            prompt::clear();
-            println!("\r{}", txh);
+            output!(txh);
             Ok(())
         }
         Export { key, plaintext } => {
             let (pk, sk) = wallet.export_keys(key, plaintext)?;
-            println!(
-                "\rPub key exported to: {}\nPrv key exported to: {}",
-                pk, sk
-            );
+            info!("\rPub key exported to: {}\nPrv key exported to: {}", pk, sk);
             Ok(())
         }
         _ => Ok(()),
