@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2022-05-04
+
 ### Added
 
 - Block trait for easier blocking on futures [#32]
@@ -236,7 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.7.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/dusk-network/wallet-cli/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/dusk-network/wallet-cli/compare/v0.5.2...v0.7.0
 [0.5.2]: https://github.com/dusk-network/wallet-cli/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/dusk-network/wallet-cli/compare/v0.5.0...v0.5.1
