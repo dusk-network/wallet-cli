@@ -292,7 +292,10 @@ pub(crate) fn prepare_command(
         // Public spend key
         Prompt::Address(key) => Ok(Some(Cli::Address { key })),
         // Check balance
-        Prompt::Balance(key) => Ok(Some(Cli::Balance { key })),
+        Prompt::Balance(key) => Ok(Some(Cli::Balance {
+            key,
+            spendable: false,
+        })),
         // Create transfer
         Prompt::Transfer(key) => {
             if balance == 0.0 {
@@ -328,7 +331,9 @@ pub(crate) fn prepare_command(
             }
         }
         // Stake info
-        Prompt::StakeInfo(key) => Ok(Some(Cli::StakeInfo { key })),
+        Prompt::StakeInfo(key) => {
+            Ok(Some(Cli::StakeInfo { key, reward: false }))
+        }
         // Unstake
         Prompt::Unstake(key) => {
             if balance == 0.0 {
