@@ -91,6 +91,10 @@ enum CliCommand {
         /// Key index
         #[clap(short, long, default_value_t = 0)]
         key: u64,
+
+        /// Check maximum spendable balance
+        #[clap(long)]
+        spendable: bool,
     },
 
     /// Retrieve public spend key
@@ -146,11 +150,15 @@ enum CliCommand {
         gas_price: Option<Lux>,
     },
 
-    /// Check your stake
+    /// Check your stake information
     StakeInfo {
         /// Staking key used to sign the stake
         #[clap(short, long, default_value_t = 0)]
         key: u64,
+
+        /// Check accumulated reward
+        #[clap(long)]
+        reward: bool,
     },
 
     /// Unstake a key's stake
@@ -293,6 +301,7 @@ async fn exec() -> Result<(), Error> {
 
     // get command or default to interactive mode
     let cmd = cmd.unwrap_or(CliCommand::Interactive);
+    let quiet = !matches!(cmd, Interactive);
 
     // request auth for wallet (if required)
     let pwd = if cmd.uses_wallet() || cfg.wallet.file.is_some() {
@@ -369,29 +378,111 @@ async fn exec() -> Result<(), Error> {
                 clients.network,
                 gql,
                 cfg.chain.wait_for_tx,
+                quiet,
             );
 
             State::set_cache_dir(cfg.wallet.data_dir.clone())?;
-            let state = State::new(clients.state)?;
+            let state = State::new(clients.state, quiet)?;
 
             CliWallet::new(cfg, store, state, prover)
         }
         Err(err) => {
-            println!("{}", err);
+            println!("\r{}", err);
             CliWallet::offline(cfg, store)
         }
     };
 
     // run command(s)
+
+    // run command(s)
     match cmd {
         Interactive => wallet.interactive(),
-        _ => {
-            // in headless mode we only print the tx hash for convenience
-            if let Some(txh) = wallet.run(cmd)? {
-                println!("\r{}", txh);
+        Balance { key, spendable } => {
+            let balance = wallet.get_balance(key)?;
+            if spendable {
+                println!("{}", Dusk::from(balance.spendable));
+            } else {
+                println!("{}", Dusk::from(balance.value));
             }
             Ok(())
         }
+        Address { key } => {
+            let addr = wallet.get_address(key)?;
+            println!("{}", addr);
+            Ok(())
+        }
+        Transfer {
+            key,
+            rcvr,
+            amt,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh = wallet.transfer(key, &rcvr, amt, gas_limit, gas_price)?;
+            println!("{}", txh);
+            Ok(())
+        }
+        Stake {
+            key,
+            stake_key,
+            amt,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh =
+                wallet.stake(key, stake_key, amt, gas_limit, gas_price)?;
+            println!("{}", txh);
+            Ok(())
+        }
+        StakeInfo { key, reward } => {
+            let si = wallet.stake_info(key)?;
+            let val = if reward {
+                Dusk::from(si.reward)
+            } else {
+                match si.amount {
+                    Some((value, ..)) => Dusk::from(value),
+                    None => Dusk::from(0),
+                }
+            };
+            println!("{}", val);
+            Ok(())
+        }
+        Unstake {
+            key,
+            stake_key,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh = wallet.unstake(key, stake_key, gas_limit, gas_price)?;
+            println!("{}", txh);
+            Ok(())
+        }
+        Withdraw {
+            key,
+            stake_key,
+            refund_addr,
+            gas_limit,
+            gas_price,
+        } => {
+            let txh = wallet.withdraw_reward(
+                key,
+                stake_key,
+                refund_addr,
+                gas_limit,
+                gas_price,
+            )?;
+            println!("{}", txh);
+            Ok(())
+        }
+        Export { key, plaintext } => {
+            let (pk, sk) = wallet.export_keys(key, plaintext)?;
+            println!(
+                "\rPub key exported to: {}\nPrv key exported to: {}",
+                pk, sk
+            );
+            Ok(())
+        }
+        _ => Ok(()),
     }
 }
 
