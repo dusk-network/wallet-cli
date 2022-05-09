@@ -64,11 +64,15 @@ impl Cache {
     /// requirement for being able to instantiate a cache using [`new`].
     ///
     /// # Panics
-    /// If data dir does not exist or is not a directory, or if called more than
-    /// once.
+    /// If called more than once or if unable to remove old cache file.
     pub(crate) fn set_data_path(data_dir: PathBuf) -> Result<(), StateError> {
-        if !(data_dir.exists() && data_dir.is_dir()) {
-            panic!("cache path does not exist or is not a directory");
+        // remove old cache if it's still there
+        let db_path = data_dir.join("cache.db");
+        if db_path.exists()
+            && !db_path.is_dir()
+            && fs::remove_file(&db_path).is_err()
+        {
+            panic!("Failed to remove old cache files. Please remove {} manually and try again.", db_path.display())
         }
 
         CACHE_DATA_PATH
