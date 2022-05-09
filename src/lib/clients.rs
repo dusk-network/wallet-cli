@@ -58,6 +58,7 @@ pub struct Prover {
     network: Mutex<NetworkClient<Channel>>,
     graphql: GraphQL,
     wait_for_tx: bool,
+    quiet: bool,
 }
 
 impl Prover {
@@ -67,6 +68,7 @@ impl Prover {
         network: NetworkClient<Channel>,
         graphql: GraphQL,
         wait_for_tx: bool,
+        quiet: bool,
     ) -> Self {
         Prover {
             client: Mutex::new(client),
@@ -74,6 +76,16 @@ impl Prover {
             network: Mutex::new(network),
             graphql,
             wait_for_tx,
+            quiet,
+        }
+    }
+}
+
+impl Prover {
+    /// Prints dynamic status updates to the user
+    fn status(&self, status: &str) {
+        if !self.quiet {
+            prompt::status(status);
         }
     }
 }
@@ -91,12 +103,12 @@ impl ProverClient for Prover {
         let msg = ExecuteProverRequest { utx: utx_bytes };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Proving tx, please wait...");
+        self.status("Proving tx, please wait...");
         let mut prover = self.client.lock().unwrap();
         let proof_bytes = prover.prove_execute(req).wait()?.into_inner().proof;
-        prompt::status("Proof success!");
+        self.status("Proof success!");
 
-        prompt::status("Attempt to preverify tx...");
+        self.status("Attempt to preverify tx...");
         let proof =
             Proof::from_slice(&proof_bytes).map_err(ProverError::Bytes)?;
         let tx = utx.clone().prove(proof);
@@ -110,15 +122,15 @@ impl ProverClient for Prover {
         let req = tonic::Request::new(msg);
         let mut state = self.state.lock().unwrap();
         state.preverify(req).wait()?;
-        prompt::status("Preverify success!");
+        self.status("Preverify success!");
 
-        prompt::status("Propagating tx...");
+        self.status("Propagating tx...");
         let msg = PropagateMessage { message: tx_bytes };
         let req = tonic::Request::new(msg);
 
         let mut net = self.network.lock().unwrap();
         net.propagate(req).wait()?;
-        prompt::status("Transaction propagated!");
+        self.status("Transaction propagated!");
 
         if self.wait_for_tx {
             let tx_id = hex::encode(tx.hash().to_bytes());
@@ -133,7 +145,7 @@ impl ProverClient for Prover {
                         return Err(Self::Error::Transaction(err))
                     }
                     TxStatus::NotFound => {
-                        prompt::status(
+                        self.status(
                             format!(
                                 "Waiting for confirmation... ({}/{})",
                                 i, TIMEOUT
@@ -145,7 +157,7 @@ impl ProverClient for Prover {
                     }
                 }
             }
-            prompt::status("Transaction confirmed!");
+            self.status("Transaction confirmed!");
         }
 
         Ok(tx)
@@ -175,10 +187,10 @@ impl ProverClient for Prover {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Requesting stct proof...");
+        self.status("Requesting stct proof...");
         let mut prover = self.client.lock().unwrap();
         let res = prover.prove_stct(req).wait()?.into_inner().proof;
-        prompt::status("Stct proof success!");
+        self.status("Stct proof success!");
 
         let mut proof_bytes = [0u8; Proof::SIZE];
         proof_bytes.copy_from_slice(&res);
@@ -205,10 +217,10 @@ impl ProverClient for Prover {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Requesting wfct proof...");
+        self.status("Requesting wfct proof...");
         let mut prover = self.client.lock().unwrap();
         let res = prover.prove_wfct(req).wait()?.into_inner().proof;
-        prompt::status("Wfct proof success!");
+        self.status("Wfct proof success!");
 
         let mut proof_bytes = [0u8; Proof::SIZE];
         proof_bytes.copy_from_slice(&res);
@@ -221,6 +233,7 @@ impl ProverClient for Prover {
 /// Implementation of the StateClient trait from wallet-core
 pub struct State {
     inner: Mutex<InnerState>,
+    quiet: bool,
 }
 
 struct InnerState {
@@ -233,16 +246,26 @@ impl State {
     ///
     /// # Panics
     /// If called before [`set_cache_dir`].
-    pub fn new(client: GrpcStateClient<Channel>) -> Result<Self, StateError> {
+    pub fn new(
+        client: GrpcStateClient<Channel>,
+        quiet: bool,
+    ) -> Result<Self, StateError> {
         let cache = Cache::new()?;
         let inner = Mutex::new(InnerState { client, cache });
-        Ok(State { inner })
+        Ok(State { inner, quiet })
     }
 
     /// Sets the directory where the cache be stored. Should be called before
     /// [`new`].
     pub fn set_cache_dir(data_dir: PathBuf) -> Result<(), StateError> {
         Cache::set_data_path(data_dir)
+    }
+
+    /// Prints dynamic status updates to the user
+    fn status(&self, status: &str) {
+        if !self.quiet {
+            prompt::status(status);
+        }
     }
 }
 /// Types that are clients of the state API.
@@ -254,20 +277,20 @@ impl StateClient for State {
     fn fetch_notes(&self, vk: &ViewKey) -> Result<Vec<Note>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
 
-        prompt::status("Getting cached block height...");
+        self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
         let last_height = state.cache.last_height(psk)?;
 
-        prompt::status("Fetching fresh notes...");
+        self.status("Fetching fresh notes...");
         let msg = GetNotesRequest {
             height: last_height,
             vk: vec![], // empty vector means *all* notes will be streamed
         };
         let req = tonic::Request::new(msg);
         let mut stream = state.client.get_notes(req).wait()?.into_inner();
-        prompt::status("Connection established...");
+        self.status("Connection established...");
 
-        prompt::status("Streaming notes...");
+        self.status("Streaming notes...");
 
         while let Some(item) = stream.next().wait() {
             let rsp = item?;
@@ -298,9 +321,9 @@ impl StateClient for State {
         let msg = GetAnchorRequest {};
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching anchor...");
+        self.status("Fetching anchor...");
         let res = state.client.get_anchor(req).wait()?.into_inner().anchor;
-        prompt::status("Anchor received!");
+        self.status("Anchor received!");
 
         let mut bytes = [0u8; BlsScalar::SIZE];
         bytes.copy_from_slice(&res);
@@ -324,14 +347,14 @@ impl StateClient for State {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching nullifiers...");
+        self.status("Fetching nullifiers...");
         let res = state
             .client
             .find_existing_nullifiers(req)
             .wait()?
             .into_inner()
             .nullifiers;
-        prompt::status("Nullifiers received!");
+        self.status("Nullifiers received!");
 
         let nullifiers = res
             .iter()
@@ -353,9 +376,9 @@ impl StateClient for State {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching opening notes...");
+        self.status("Fetching opening notes...");
         let res = state.client.get_opening(req).wait()?.into_inner().branch;
-        prompt::status("Opening notes received!");
+        self.status("Opening notes received!");
 
         let mut src = Source::new(&res);
         let branch = Canon::decode(&mut src)?;
@@ -371,9 +394,9 @@ impl StateClient for State {
         };
         let req = tonic::Request::new(msg);
 
-        prompt::status("Fetching stake...");
+        self.status("Fetching stake...");
         let res = state.client.get_stake(req).wait()?.into_inner();
-        prompt::status("Stake received!");
+        self.status("Stake received!");
 
         let amount = res.amount.map(|a| (a.value, a.eligibility));
 

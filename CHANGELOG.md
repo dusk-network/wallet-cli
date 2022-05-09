@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Flag `--spendable` to `Balance` command [#40]
+- Flag `--reward` to `StakeInfo` command [#40]
+
+### Changed
+- Commands run in headless mode do not provide dynamic status updates [#40]
+
 ## [0.8.0] - 2022-05-04
 
 ### Added
@@ -190,6 +197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#40]: https://github.com/dusk-network/wallet-cli/issues/40
 [#35]: https://github.com/dusk-network/wallet-cli/issues/35
 [#32]: https://github.com/dusk-network/wallet-cli/issues/32
 [#28]: https://github.com/dusk-network/wallet-cli/issues/28
