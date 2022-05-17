@@ -131,7 +131,6 @@ impl Config {
 
                 match fs::write(&file, &default) {
                     Ok(_) => println!("Default configuration generated: {}", file.display()),
-
                     Err(e) => println!(
                         "Default configuration generated; failed to write in {}: {}",
                         file.display(),

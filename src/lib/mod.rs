@@ -15,6 +15,7 @@ pub(crate) mod dusk;
 pub(crate) mod error;
 pub(crate) mod gql;
 pub(crate) mod prompt;
+pub(crate) mod rusk;
 pub(crate) mod store;
 pub(crate) mod wallet;
 
