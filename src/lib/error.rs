@@ -7,6 +7,7 @@
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::{fmt, io};
+use tonic::codegen::http;
 
 use super::clients;
 
@@ -26,6 +27,8 @@ pub enum Error {
     GraphQL(GraphQLError),
     /// Network error
     Network(tonic::transport::Error),
+    /// Rusk uri failure
+    RuskURI(http::uri::InvalidUri),
     /// Rusk connection failure
     RuskConn(tonic::transport::Error),
     /// Prover cluster connection failure
@@ -98,6 +101,12 @@ impl From<dusk_bytes::Error> for Error {
     }
 }
 
+impl From<http::uri::InvalidUri> for Error {
+    fn from(e: http::uri::InvalidUri) -> Self {
+        Self::RuskURI(e)
+    }
+}
+
 impl From<tonic::transport::Error> for Error {
     fn from(e: tonic::transport::Error) -> Self {
         Self::Network(e)
@@ -163,6 +172,7 @@ impl fmt::Display for Error {
             Error::Prover(err) => write!(f, "\r{}", err),
             Error::Store(err) => write!(f, "\r{}", err),
             Error::GraphQL(err) => write!(f, "\r{}", err),
+            Error::RuskURI(err) => write!(f, "\rInvalid URI provided for Rusk:\n{}", err),
             Error::Network(err) => write!(f, "\rA network error occurred while communicating with Rusk:\n{}", err),
             Error::RuskConn(err) => write!(f, "\rCouldn't establish connection with Rusk: {}\nPlease check your settings and try again.", err),
             Error::ProverConn(err) => write!(f, "\rCouldn't establish connection with the prover cluster: {}\nPlease check your settings and try again.", err),
@@ -194,6 +204,7 @@ impl fmt::Debug for Error {
             Error::Prover(err) => write!(f, "\r{:?}", err),
             Error::Store(err) => write!(f, "\r{:?}", err),
             Error::GraphQL(err) => write!(f, "\r{:?}", err),
+            Error::RuskURI(err) => write!(f, "\rInvalid URI provided for Rusk:\n{:?}", err),
             Error::Network(err) => write!(f, "\rA network error occurred while communicating with Rusk:\n{:?}", err),
             Error::RuskConn(err) => write!(f, "\rCouldn't establish connection with Rusk:\n{:?}", err),
             Error::ProverConn(err) => write!(f, "\rCouldn't establish connection with the prover cluster:\n{:?}", err),

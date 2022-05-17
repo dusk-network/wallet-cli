@@ -22,11 +22,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use tonic::transport::Channel;
 
-use rusk_schema::network_client::NetworkClient;
-use rusk_schema::prover_client::ProverClient as GrpcProverClient;
-use rusk_schema::state_client::StateClient as GrpcStateClient;
 use rusk_schema::{
     ExecuteProverRequest, FindExistingNullifiersRequest, GetAnchorRequest,
     GetNotesRequest, GetOpeningRequest, GetStakeRequest, PreverifyRequest,
@@ -37,7 +33,7 @@ use rusk_schema::{
 use super::block::Block;
 use super::cache::Cache;
 use super::gql::{GraphQL, TxStatus};
-
+use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::{prompt, ProverError, StateError};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
@@ -53,9 +49,9 @@ const WFCT_INPUT_SIZE: usize =
 /// Implementation of the ProverClient trait from wallet-core
 #[derive(Debug)]
 pub struct Prover {
-    client: Mutex<GrpcProverClient<Channel>>,
-    state: Mutex<GrpcStateClient<Channel>>,
-    network: Mutex<NetworkClient<Channel>>,
+    client: Mutex<RuskProverClient>,
+    state: Mutex<RuskStateClient>,
+    network: Mutex<RuskNetworkClient>,
     graphql: GraphQL,
     wait_for_tx: bool,
     quiet: bool,
@@ -63,9 +59,9 @@ pub struct Prover {
 
 impl Prover {
     pub fn new(
-        client: GrpcProverClient<Channel>,
-        state: GrpcStateClient<Channel>,
-        network: NetworkClient<Channel>,
+        client: RuskProverClient,
+        state: RuskStateClient,
+        network: RuskNetworkClient,
         graphql: GraphQL,
         wait_for_tx: bool,
         quiet: bool,
@@ -237,7 +233,7 @@ pub struct State {
 }
 
 struct InnerState {
-    client: GrpcStateClient<Channel>,
+    client: RuskStateClient,
     cache: Cache,
 }
 
@@ -247,7 +243,7 @@ impl State {
     /// # Panics
     /// If called before [`set_cache_dir`].
     pub fn new(
-        client: GrpcStateClient<Channel>,
+        client: RuskStateClient,
         quiet: bool,
     ) -> Result<Self, StateError> {
         let cache = Cache::new()?;
@@ -268,6 +264,7 @@ impl State {
         }
     }
 }
+
 /// Types that are clients of the state API.
 impl StateClient for State {
     /// Error returned by the node client.
