@@ -10,27 +10,15 @@ pub use lib::error::{Error, ProverError, StateError, StoreError};
 use clap::{AppSettings, Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
-#[cfg(not(windows))]
-use tokio::net::UnixStream;
-#[cfg(not(windows))]
-use tonic::transport::{Endpoint, Uri};
-#[cfg(not(windows))]
-use tower::service_fn;
-
-use tonic::transport::Channel;
-
 use lib::clients::{Prover, State};
 use lib::config::Config;
 use lib::crypto::MnemSeed;
 use lib::dusk::{Dusk, Lux};
 use lib::gql::GraphQL;
 use lib::prompt;
+use lib::rusk::RuskClient;
 use lib::store::LocalStore;
 use lib::wallet::CliWallet;
-
-use rusk_schema::network_client::NetworkClient;
-use rusk_schema::prover_client::ProverClient;
-use rusk_schema::state_client::StateClient;
 
 /// The CLI Wallet
 #[derive(Parser)]
@@ -224,47 +212,6 @@ impl CliCommand {
     }
 }
 
-/// Client connections to rusk Services
-struct Rusk {
-    network: NetworkClient<Channel>,
-    state: StateClient<Channel>,
-    prover: ProverClient<Channel>,
-}
-
-/// Connect to rusk services via TCP
-async fn rusk_tcp(rusk_addr: &str, prov_addr: &str) -> Result<Rusk, Error> {
-    Ok(Rusk {
-        network: NetworkClient::connect(rusk_addr.to_string())
-            .await
-            .map_err(Error::RuskConn)?,
-        state: StateClient::connect(rusk_addr.to_string())
-            .await
-            .map_err(Error::RuskConn)?,
-        prover: ProverClient::connect(prov_addr.to_string())
-            .await
-            .map_err(Error::ProverConn)?,
-    })
-}
-
-/// Connect to rusk via UDS (Unix domain sockets)
-#[cfg(not(windows))]
-async fn rusk_uds(socket_path: &str) -> Result<Rusk, Error> {
-    let socket_path = socket_path.to_string();
-    let channel = Endpoint::try_from("http://[::]:50051")
-        .expect("parse address")
-        .connect_with_connector(service_fn(move |_: Uri| {
-            let path = (&socket_path[..]).to_string();
-            UnixStream::connect(path)
-        }))
-        .await?;
-
-    Ok(Rusk {
-        network: NetworkClient::new(channel.clone()),
-        state: StateClient::new(channel.clone()),
-        prover: ProverClient::new(channel),
-    })
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     if let Err(err) = exec().await {
@@ -351,16 +298,18 @@ async fn exec() -> Result<(), Error> {
         _ => LocalStore::from_file(&wallet_path, pwd)?,
     };
 
-    // connect to rusk
+    // attempt to connect to rusk
     #[cfg(windows)]
-    let rusk = rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await;
+    let rusk =
+        RuskClient::with_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await;
     #[cfg(not(windows))]
     let rusk = {
         let ipc = cfg.rusk.ipc_method.as_str();
         match ipc {
-            "uds" => rusk_uds(&cfg.rusk.rusk_addr).await,
+            "uds" => RuskClient::with_uds(&cfg.rusk.rusk_addr).await,
             "tcp_ip" => {
-                rusk_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr).await
+                RuskClient::with_tcp(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr)
+                    .await
             }
             _ => panic!("IPC method \"{}\" not supported", ipc),
         }
@@ -372,6 +321,7 @@ async fn exec() -> Result<(), Error> {
     // create our wallet
     let wallet = match rusk {
         Ok(clients) => {
+            // wallet-core prover client
             let prover = Prover::new(
                 clients.prover,
                 clients.state.clone(),
@@ -381,9 +331,11 @@ async fn exec() -> Result<(), Error> {
                 quiet,
             );
 
+            // wallet-core state client
             State::set_cache_dir(cfg.wallet.data_dir.clone())?;
             let state = State::new(clients.state, quiet)?;
 
+            // create the wallet
             CliWallet::new(cfg, store, state, prover)
         }
         Err(err) => {
@@ -391,8 +343,6 @@ async fn exec() -> Result<(), Error> {
             CliWallet::offline(cfg, store)
         }
     };
-
-    // run command(s)
 
     // run command(s)
     match cmd {
