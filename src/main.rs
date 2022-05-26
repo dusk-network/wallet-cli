@@ -9,6 +9,8 @@ pub use lib::error::{Error, ProverError, StateError, StoreError};
 
 use clap::{AppSettings, Parser, Subcommand};
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 
 use lib::clients::{Prover, State};
 use lib::config::Config;
@@ -484,10 +486,23 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         // let the user choose one
         let wallet = prompt::choose_wallet(&wallets);
         if let Some(p) = wallet {
-            let pwd =
-                prompt::request_auth("Please enter your wallet's password");
-            let store = LocalStore::from_file(&p, pwd)?;
-            Ok(store)
+            let mut store: Option<LocalStore> = None;
+            while store.is_none() {
+                let pwd =
+                    prompt::request_auth("Please enter your wallet's password");
+                let st = LocalStore::from_file(&p, pwd);
+                match st {
+                    Ok(st) => store = Some(st),
+                    Err(err) => match err {
+                        StoreError::InvalidPassword => {
+                            println!("> Wrong password, please try again...");
+                            thread::sleep(Duration::from_millis(1000));
+                        }
+                        _ => return Err(err.into()),
+                    },
+                }
+            }
+            Ok(store.unwrap())
         } else {
             Ok(first_run(cfg)?)
         }
