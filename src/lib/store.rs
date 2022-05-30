@@ -140,6 +140,7 @@ impl LocalStore {
         let mut seed = [0u8; SEED_SIZE];
         match version.as_str() {
             "1.0" => {
+                // sets error wrong password ?
                 bytes = decrypt(&bytes, pwd)?;
                 if bytes.len() != SEED_SIZE {
                     return Err(StoreError::WalletFileCorrupted);

@@ -486,24 +486,48 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         // let the user choose one
         let wallet = prompt::choose_wallet(&wallets);
         if let Some(p) = wallet {
+            // store this will return none or some 
             let mut store: Option<LocalStore> = None;
-            while store.is_none() {
+            let mut i = 0;
+            // none
+            println!("{:?}", store);
+            while store.is_none() && i < 3 {
+                println!("none");
                 let pwd =
                     prompt::request_auth("Please enter your wallet's password");
                 let st = LocalStore::from_file(&p, pwd);
+                // if incorrect password, ask again
                 match st {
                     Ok(st) => store = Some(st),
                     Err(err) => match err {
                         StoreError::InvalidPassword => {
                             println!("> Wrong password, please try again...");
                             thread::sleep(Duration::from_millis(1000));
+                             i +=1;
+
                         }
-                        _ => return Err(err.into()),
+                        _=> return Err(err.into()),
                     },
+                    
                 }
             }
-            Ok(store.unwrap())
+            //if  3 times wrong password recover wallet with recovery phrase
+            if i == 3{     
+                println!("you have enterd 3 times a wrong password");
+               // return Err(StoreError::WrongPassword);
+            //let _action = prompt::recover_wallet();
+                // if _action == 0{
+                //     exit();
+                // }
+            }
+            
+            // is a Option not a result so no use ?
+           Ok(store.unwrap())
+            
+            
         } else {
+            // some./ will end the block
+            println!("some");
             Ok(first_run(cfg)?)
         }
     } else {
@@ -511,6 +535,9 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         Ok(first_run(cfg)?)
     }
 }
+
+
+
 
 /// Welcome the user when no wallets are found
 fn first_run(cfg: &Config) -> Result<LocalStore, Error> {

@@ -170,6 +170,29 @@ pub(crate) fn welcome() -> u8 {
     }
 }
 
+/// when use entered wrong password 3 times,
+pub(crate) fn recover_wallet() -> u8 {
+    let q = Question::select("welcome")
+        .message("you've filled in 3 times a wrong password recover your wallet?")
+        .choices(vec![
+            "recover your wallet",
+        ])
+        .default_separator()
+        .choice("Exit")
+        .build();
+
+    let answer = requestty::prompt_one(q).expect("choice");
+    match answer.as_list_item().unwrap().index {
+        0 => 1,
+        _ => 0,
+    }
+}
+
+
+
+
+
+
 /// Request the user to select a wallet to open
 pub(crate) fn choose_wallet(wallets: &[PathBuf]) -> Option<PathBuf> {
     let choices = wallets
