@@ -5,6 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 mod lib;
+use futures::future::ok;
 pub use lib::error::{Error, ProverError, StateError, StoreError};
 
 use clap::{AppSettings, Parser, Subcommand};
@@ -21,6 +22,8 @@ use lib::prompt;
 use lib::rusk::RuskClient;
 use lib::store::LocalStore;
 use lib::wallet::CliWallet;
+
+
 
 /// The CLI Wallet
 #[derive(Parser)]
@@ -489,22 +492,19 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
             // store this will return none or some 
             let mut store: Option<LocalStore> = None;
             let mut i = 0;
-            // none
-            println!("{:?}", store);
             while store.is_none() && i < 3 {
-                println!("none");
                 let pwd =
                     prompt::request_auth("Please enter your wallet's password");
                 let st = LocalStore::from_file(&p, pwd);
                 // if incorrect password, ask again
                 match st {
+                    // match password from local store 
                     Ok(st) => store = Some(st),
                     Err(err) => match err {
                         StoreError::InvalidPassword => {
-                            println!("> Wrong password, please try again...");
+                            println!("{:?}" , prompt::error_fill(i, "" ));
                             thread::sleep(Duration::from_millis(1000));
-                             i +=1;
-
+                            i +=1;
                         }
                         _=> return Err(err.into()),
                     },
@@ -512,22 +512,26 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
                 }
             }
             //if  3 times wrong password recover wallet with recovery phrase
-            if i == 3{     
-                println!("you have enterd 3 times a wrong password");
-               // return Err(StoreError::WrongPassword);
-            //let _action = prompt::recover_wallet();
-                // if _action == 0{
-                //     exit();
-                // }
-            }
-            
-            // is a Option not a result so no use ?
-           Ok(store.unwrap())
-            
-            
+            // if i == 3{     
+            //    println!("you have enterd 3 times a wrong password");
+            // let _action = prompt::recover_wallet();
+            //     if _action == 0{
+            //         exit();
+            //     }
+            //}
+    
+            // is a Option not a result so no use ? how to replace the unwrap now it keeps panicking
+            // convert an option to a result  
+            //store.as_ref().ok_or(StoreError::InvalidPassword)?;
+            // is store here None so we should just deal with the None value 
+            // if store.is_none(){
+            //    println!("store is none");
+            match store {
+                    Some(store) => Err(Error::Offline), // wrong error 
+                    None => Ok(second_run(cfg)?),
+                }
+    
         } else {
-            // some./ will end the block
-            println!("some");
             Ok(first_run(cfg)?)
         }
     } else {
@@ -535,8 +539,6 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         Ok(first_run(cfg)?)
     }
 }
-
-
 
 
 /// Welcome the user when no wallets are found
@@ -559,6 +561,29 @@ fn first_run(cfg: &Config) -> Result<LocalStore, Error> {
         2 => Ok(recover(&p)?),
         _ => panic!("Unrecognized option"),
     }
+}
+
+
+fn second_run(cfg: &Config) -> Result<LocalStore, Error>{
+    // greet the user and ask for action
+    let action = prompt::recover_wallet();
+    if action == 0 {
+        exit();
+    }
+
+    // let the user pick a name
+    let name = prompt::request_wallet_name(&cfg.wallet.data_dir);
+    let mut p = cfg.wallet.data_dir.clone();
+    p.push(name);
+    p.set_extension("dat");
+
+    // create the store
+    match action {  
+        1 => Ok(recover(&p)?),
+        _ => panic!("Unrecognized option"),
+    }
+
+
 }
 
 /// Terminates the program immediately with no errors

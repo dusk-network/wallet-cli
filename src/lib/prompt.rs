@@ -173,7 +173,7 @@ pub(crate) fn welcome() -> u8 {
 /// when use entered wrong password 3 times,
 pub(crate) fn recover_wallet() -> u8 {
     let q = Question::select("welcome")
-        .message("you've filled in 3 times a wrong password recover your wallet?")
+        .message("You've entered the wrong password too many times, please recover your wallet or exit")
         .choices(vec![
             "recover your wallet",
         ])
@@ -188,8 +188,24 @@ pub(crate) fn recover_wallet() -> u8 {
     }
 }
 
+pub(crate) fn 
+error_fill( count:u64, x:&str) -> &str{
+    let mut string = "";
 
+    if count == 0{
+        string = "wrong password 1/3";
+        return string
+    }
+    else if count == 1{
+        string = "wrong password 2/3";
+        return string
+    }
+    else{
+        string = "wrong password 3/3";
+        return string
+    }
 
+}
 
 
 

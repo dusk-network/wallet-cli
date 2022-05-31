@@ -69,9 +69,9 @@ pub enum Error {
     NotStaked,
     /// No reward available for this key
     NoReward,
-    //#####
-    /// wrong password
-    WrongPassword,
+    
+    
+ 
 }
 
 impl From<serde_json::Error> for Error {
@@ -571,3 +571,4 @@ impl fmt::Debug for GraphQLError {
         }
     }
 }
+
