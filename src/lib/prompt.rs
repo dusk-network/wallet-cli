@@ -183,7 +183,7 @@ pub(crate) fn recover_wallet() -> u8 {
 
     let answer = requestty::prompt_one(q).expect("choice");
     match answer.as_list_item().unwrap().index {
-        0 => 1,
+        0 => 2,
         _ => 0,
     }
 }

@@ -511,41 +511,35 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
                     
                 }
             }
-            //if  3 times wrong password recover wallet with recovery phrase
-            // if i == 3{     
-            //    println!("you have enterd 3 times a wrong password");
-            // let _action = prompt::recover_wallet();
-            //     if _action == 0{
-            //         exit();
-            //     }
-            //}
-    
-            // is a Option not a result so no use ? how to replace the unwrap now it keeps panicking
-            // convert an option to a result  
-            //store.as_ref().ok_or(StoreError::InvalidPassword)?;
-            // is store here None so we should just deal with the None value 
-            // if store.is_none(){
-            //    println!("store is none");
             match store {
-                    Some(store) => Err(Error::Offline), // wrong error 
-                    None => Ok(second_run(cfg)?),
+                    Some(_store) => Ok(first_run(cfg,i)?), // should be an error
+                    None => Ok(first_run(cfg,i)?),
+                 
                 }
     
         } else {
-            Ok(first_run(cfg)?)
+            Ok(first_run(cfg,1)?)
         }
     } else {
         println!("No wallet files found at {}", cfg.wallet.data_dir.display());
-        Ok(first_run(cfg)?)
+        Ok(first_run(cfg,1)?)
     }
 }
 
 
-/// Welcome the user when no wallets are found
-fn first_run(cfg: &Config) -> Result<LocalStore, Error> {
-    // greet the user and ask for action
-    let action = prompt::welcome();
-    if action == 0 {
+/// Welcome the user when no wallets are found 
+fn first_run(cfg: &Config, i:u64) -> Result<LocalStore, Error> {
+
+    let mut action = 0;
+    match i {
+          // greet the user and ask for action
+        1 => action = prompt::welcome(),
+        // user failed in filling in correct password ask to recover
+        2..=3 => action = prompt::recover_wallet(),
+        _ => println!("mistake"),
+    };
+
+    if action == 0{
         exit();
     }
 
@@ -557,34 +551,12 @@ fn first_run(cfg: &Config) -> Result<LocalStore, Error> {
 
     // create the store
     match action {
-        1 => Ok(create(&p, false)?),
+        0 => Ok(create(&p, false)?),
         2 => Ok(recover(&p)?),
         _ => panic!("Unrecognized option"),
     }
 }
 
-
-fn second_run(cfg: &Config) -> Result<LocalStore, Error>{
-    // greet the user and ask for action
-    let action = prompt::recover_wallet();
-    if action == 0 {
-        exit();
-    }
-
-    // let the user pick a name
-    let name = prompt::request_wallet_name(&cfg.wallet.data_dir);
-    let mut p = cfg.wallet.data_dir.clone();
-    p.push(name);
-    p.set_extension("dat");
-
-    // create the store
-    match action {  
-        1 => Ok(recover(&p)?),
-        _ => panic!("Unrecognized option"),
-    }
-
-
-}
 
 /// Terminates the program immediately with no errors
 fn exit() {
