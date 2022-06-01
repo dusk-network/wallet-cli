@@ -512,7 +512,7 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
                 }
             }
             match store {
-                    Some(_store) => Ok(first_run(cfg,i)?), // should be an error
+                    Some(_store) => Ok(first_run(cfg,i)?), // should be an error what is best to do ?
                     None => Ok(first_run(cfg,i)?),
                  
                 }
@@ -530,14 +530,14 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
 /// Welcome the user when no wallets are found 
 fn first_run(cfg: &Config, i:u64) -> Result<LocalStore, Error> {
 
-    let mut action = 0;
+    let  action;
     match i {
           // greet the user and ask for action
         1 => action = prompt::welcome(),
         // user failed in filling in correct password ask to recover
         2..=3 => action = prompt::recover_wallet(),
-        _ => println!("mistake"),
-    };
+        _ => panic!("Unrecognized option"),
+    }
 
     if action == 0{
         exit();
