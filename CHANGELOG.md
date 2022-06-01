@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2022-05-01
+
+### Added
+- Allow user to retry wrong password 3 times in interactive mode
+- If password is incorrect 3x user is given the option to recover wallet
+
 ## [0.9.0] - 2022-05-25
 
 ### Added
