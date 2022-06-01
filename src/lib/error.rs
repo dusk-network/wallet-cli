@@ -69,9 +69,6 @@ pub enum Error {
     NotStaked,
     /// No reward available for this key
     NoReward,
-    
-    
- 
 }
 
 impl From<serde_json::Error> for Error {
@@ -432,10 +429,7 @@ pub enum StoreError {
     InvalidPassword,
     /// Recovery phrase is not valid
     InvalidMnemonicPhrase,
-    // wrong pasdword 3 times 
-    WrongPassword,
     /// Filesystem errors
-    
     IO(io::Error),
 }
 
@@ -475,9 +469,6 @@ impl fmt::Display for StoreError {
             StoreError::WalletFileExists => {
                 write!(f, "\rA wallet file with this name already exists")
             }
-            StoreError::WrongPassword  => {
-                write!(f, "\rWrong password 3 times")
-            }
             StoreError::InvalidPassword => write!(f, "\rWrong password"),
             StoreError::IO(err) => {
                 write!(f, "\rAn IO error occurred:\n{}", err)
@@ -503,9 +494,6 @@ impl fmt::Debug for StoreError {
             }
             StoreError::WalletFileExists => {
                 write!(f, "\rA wallet file with this name already exists")
-            }
-            StoreError::WrongPassword => {
-                write!(f, "\rwrong password 3 times x")
             }
             StoreError::InvalidPassword => write!(f, "\rWrong password"),
             StoreError::IO(err) => {
@@ -571,4 +559,3 @@ impl fmt::Debug for GraphQLError {
         }
     }
 }
-

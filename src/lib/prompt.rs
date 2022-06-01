@@ -188,20 +188,16 @@ pub(crate) fn recover_wallet() -> u8 {
     }
 }
 
-pub(crate) fn 
-error_fill( count:u64) -> String{
-
+pub(crate) fn error_fill(count: u64) -> String {
     let string = match count {
         0 => String::from("wrong password 1/3"),
         1 => String::from("wrong password 2/3"),
         2 => String::from("wrong password 3/3"),
-         _=> panic!("count is out of scope"),
+        _ => panic!("count is out of scope"),
     };
 
-    string // Why do i have to add this return if match is the last action
+    string
 }
-
-
 
 /// Request the user to select a wallet to open
 pub(crate) fn choose_wallet(wallets: &[PathBuf]) -> Option<PathBuf> {

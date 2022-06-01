@@ -23,8 +23,6 @@ use lib::rusk::RuskClient;
 use lib::store::LocalStore;
 use lib::wallet::CliWallet;
 
-
-
 /// The CLI Wallet
 #[derive(Parser)]
 #[clap(version)]
@@ -489,57 +487,49 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         // let the user choose one
         let wallet = prompt::choose_wallet(&wallets);
         if let Some(p) = wallet {
-            // store this will return none or some 
             let mut store: Option<LocalStore> = None;
             let mut count = 0;
             while store.is_none() && count < 3 {
                 let pwd =
                     prompt::request_auth("Please enter your wallet's password");
                 let st = LocalStore::from_file(&p, pwd);
-                // if incorrect password, ask again
                 match st {
-                    // match password from local store 
+                    // match password from local store
                     Ok(st) => store = Some(st),
                     Err(err) => match err {
                         StoreError::InvalidPassword => {
-                            println!("{:?}" , prompt::error_fill(count));
+                            println!("{:?}", prompt::error_fill(count));
                             thread::sleep(Duration::from_millis(1000));
-                            count +=1;
+                            count += 1;
                         }
-                        _=> return Err(err.into()),
+                        _ => return Err(err.into()),
                     },
-                    
                 }
             }
             match store {
-                    Some(_store) => Ok(first_run(cfg,count)?), // should be an error what is best to do ?
-                    None => Ok(first_run(cfg,count)?),
-                 
-                }
-      
+                Some(_store) => Ok(first_run(cfg, count)?),
+                None => Ok(first_run(cfg, count)?),
+            }
         } else {
-            Ok(first_run(cfg,1)?)
+            Ok(first_run(cfg, 1)?)
         }
     } else {
         println!("No wallet files found at {}", cfg.wallet.data_dir.display());
-        Ok(first_run(cfg,1)?)
+        Ok(first_run(cfg, 1)?)
     }
 }
 
-
-/// Welcome the user when no wallets are found 
-fn first_run(cfg: &Config, i:u64) -> Result<LocalStore, Error> {
-
-    let   action:u8 = 
-    match i {
-          // greet the user and ask for action
-        1 =>  prompt::welcome(),
+/// Welcome the user when no wallets are found
+fn first_run(cfg: &Config, i: u64) -> Result<LocalStore, Error> {
+    let action: u8 = match i {
+        // greet the user and ask for action
+        1 => prompt::welcome(),
         // user failed in filling in correct password ask to recover
-        2..=3 =>  prompt::recover_wallet(),
+        2..=3 => prompt::recover_wallet(),
         _ => panic!("count out of scope"),
     };
 
-    if action == 0{
+    if action == 0 {
         exit();
     }
 
@@ -556,7 +546,6 @@ fn first_run(cfg: &Config, i:u64) -> Result<LocalStore, Error> {
         _ => panic!("Unrecognized option"),
     }
 }
-
 
 /// Terminates the program immediately with no errors
 fn exit() {
