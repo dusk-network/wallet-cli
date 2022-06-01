@@ -5,7 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 mod lib;
-use futures::future::ok;
+//use futures::future::ok;
 pub use lib::error::{Error, ProverError, StateError, StoreError};
 
 use clap::{AppSettings, Parser, Subcommand};
@@ -491,8 +491,8 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         if let Some(p) = wallet {
             // store this will return none or some 
             let mut store: Option<LocalStore> = None;
-            let mut i = 0;
-            while store.is_none() && i < 3 {
+            let mut count = 0;
+            while store.is_none() && count < 3 {
                 let pwd =
                     prompt::request_auth("Please enter your wallet's password");
                 let st = LocalStore::from_file(&p, pwd);
@@ -502,9 +502,9 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
                     Ok(st) => store = Some(st),
                     Err(err) => match err {
                         StoreError::InvalidPassword => {
-                            println!("{:?}" , prompt::error_fill(i, "" ));
+                            println!("{:?}" , prompt::error_fill(count));
                             thread::sleep(Duration::from_millis(1000));
-                            i +=1;
+                            count +=1;
                         }
                         _=> return Err(err.into()),
                     },
@@ -512,11 +512,11 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
                 }
             }
             match store {
-                    Some(_store) => Ok(first_run(cfg,i)?), // should be an error what is best to do ?
-                    None => Ok(first_run(cfg,i)?),
+                    Some(_store) => Ok(first_run(cfg,count)?), // should be an error what is best to do ?
+                    None => Ok(first_run(cfg,count)?),
                  
                 }
-    
+      
         } else {
             Ok(first_run(cfg,1)?)
         }
@@ -530,14 +530,14 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
 /// Welcome the user when no wallets are found 
 fn first_run(cfg: &Config, i:u64) -> Result<LocalStore, Error> {
 
-    let  action;
+    let   action:u8 = 
     match i {
           // greet the user and ask for action
-        1 => action = prompt::welcome(),
+        1 =>  prompt::welcome(),
         // user failed in filling in correct password ask to recover
-        2..=3 => action = prompt::recover_wallet(),
-        _ => panic!("Unrecognized option"),
-    }
+        2..=3 =>  prompt::recover_wallet(),
+        _ => panic!("count out of scope"),
+    };
 
     if action == 0{
         exit();
