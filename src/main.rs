@@ -483,50 +483,48 @@ fn recover(path: &Path) -> Result<LocalStore, Error> {
 fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
     // find existing wallets
     let wallets = LocalStore::wallets_in(&cfg.wallet.data_dir)?;
-    if !wallets.is_empty() {
-        // let the user choose one
-        let wallet = prompt::choose_wallet(&wallets);
-        if let Some(p) = wallet {
-            let mut store: Option<LocalStore> = None;
-            let mut count = 0;
-            while store.is_none() && count < 3 {
-                let pwd =
-                    prompt::request_auth("Please enter your wallet's password");
-                let st = LocalStore::from_file(&p, pwd);
-                match st {
-                    // match password from local store
-                    Ok(st) => store = Some(st),
-                    Err(err) => match err {
-                        StoreError::InvalidPassword => {
-                            println!("{:?}", prompt::error_fill(count));
-                            thread::sleep(Duration::from_millis(1000));
-                            count += 1;
-                        }
-                        _ => return Err(err.into()),
-                    },
-                }
-            }
-            match store {
-                Some(_store) => Ok(first_run(cfg, count)?),
-                None => Ok(first_run(cfg, count)?),
-            }
-        } else {
-            Ok(first_run(cfg, 1)?)
-        }
-    } else {
+    if wallets.is_empty() {
         println!("No wallet files found at {}", cfg.wallet.data_dir.display());
-        Ok(first_run(cfg, 1)?)
+        return Ok(first_run(cfg, false)?);
     }
+
+    // let the user choose one
+    let wallet = prompt::choose_wallet(&wallets);
+    let mut attempt: usize = 0;
+    const MAX_ATTEMPT: usize = 3;
+    if let Some(p) = wallet {
+        let mut store: Option<LocalStore> = None;
+        while store.is_none() && attempt < MAX_ATTEMPT {
+            let pwd =
+                prompt::request_auth("Please enter your wallet's password");
+            let st = LocalStore::from_file(&p, pwd);
+            match st {
+                // match password from local store
+                Ok(st) => store = Some(st),
+                Err(err) => match err {
+                    StoreError::InvalidPassword => {
+                        println!("{:?}", prompt::wrong_attempt(attempt));
+                        thread::sleep(Duration::from_millis(1000));
+                        attempt += 1;
+                    }
+                    _ => return Err(err.into()),
+                },
+            }
+        }
+    }
+
+    Ok(first_run(cfg, true)?)
+   // Ok(first_run(cfg, attempt == MAX_ATTEMPT))
+   
 }
 
 /// Welcome the user when no wallets are found
-fn first_run(cfg: &Config, i: u64) -> Result<LocalStore, Error> {
-    let action: u8 = match i {
-        // greet the user and ask for action
-        1 => prompt::welcome(),
+fn first_run(cfg: &Config, should_recover: bool) -> Result<LocalStore, Error> {
+    let action: usize = if should_recover {
         // user failed in filling in correct password ask to recover
-        2..=3 => prompt::recover_wallet(),
-        _ => panic!("count out of scope"),
+        prompt::recover_wallet()
+    } else {
+        prompt::welcome()
     };
 
     if action == 0 {
@@ -541,7 +539,7 @@ fn first_run(cfg: &Config, i: u64) -> Result<LocalStore, Error> {
 
     // create the store
     match action {
-        0 => Ok(create(&p, false)?),
+        1 => Ok(create(&p, false)?),
         2 => Ok(recover(&p)?),
         _ => panic!("Unrecognized option"),
     }
