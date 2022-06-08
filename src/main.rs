@@ -485,7 +485,7 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
     let wallets = LocalStore::wallets_in(&cfg.wallet.data_dir)?;
     if wallets.is_empty() {
         println!("No wallet files found at {}", cfg.wallet.data_dir.display());
-        return Ok(first_run(cfg, false)?);
+        return first_run(cfg, false);
     }
 
     // let the user choose one
@@ -513,9 +513,7 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         }
     }
 
-    Ok(first_run(cfg, true)?)
-   // Ok(first_run(cfg, attempt == MAX_ATTEMPT))
-   
+    first_run(cfg, attempt == MAX_ATTEMPT)
 }
 
 /// Welcome the user when no wallets are found
