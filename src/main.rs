@@ -18,7 +18,7 @@ use lib::config::Config;
 use lib::crypto::MnemSeed;
 use lib::dusk::{Dusk, Lux};
 use lib::gql::GraphQL;
-use lib::prompt;
+use lib::prompt::{self, MAX_ATTEMPTS};
 use lib::rusk::RuskClient;
 use lib::store::LocalStore;
 use lib::wallet::CliWallet;
@@ -491,10 +491,9 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
     // let the user choose one
     let wallet = prompt::choose_wallet(&wallets);
     let mut attempt: usize = 0;
-    const MAX_ATTEMPT: usize = 3;
     if let Some(p) = wallet {
         let mut store: Option<LocalStore> = None;
-        while store.is_none() && attempt < MAX_ATTEMPT {
+        while store.is_none() && attempt < MAX_ATTEMPTS {
             let pwd =
                 prompt::request_auth("Please enter your wallet's password");
             let st = LocalStore::from_file(&p, pwd);
@@ -503,7 +502,10 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
                 Ok(st) => store = Some(st),
                 Err(err) => match err {
                     StoreError::InvalidPassword => {
-                        println!("{:?}", prompt::wrong_attempt(attempt));
+                        println!(
+                            "Wrong password, you still have {} attempt(s).",
+                            MAX_ATTEMPTS - (attempt + 1)
+                        );
                         thread::sleep(Duration::from_millis(1000));
                         attempt += 1;
                     }
@@ -513,7 +515,7 @@ fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
         }
     }
 
-    first_run(cfg, attempt == MAX_ATTEMPT)
+    first_run(cfg, attempt == MAX_ATTEMPTS)
 }
 
 /// Welcome the user when no wallets are found

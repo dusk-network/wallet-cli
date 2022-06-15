@@ -33,6 +33,7 @@ use crate::{CliCommand, Error};
 /// Max status text length
 /// Used to clear buffer between prints
 const STATUS_SIZE: usize = 35;
+pub(crate) const MAX_ATTEMPTS: usize = 2;
 
 /// Request the user to authenticate with a password
 pub(crate) fn request_auth(msg: &str) -> Hash {
@@ -185,17 +186,6 @@ pub(crate) fn recover_wallet() -> usize {
         Some(option) if option.index == 0 => 2,
         _ => 0,
     }
-}
-
-pub(crate) fn wrong_attempt(count: usize) -> String {
-    let string = match count {
-        0 => String::from("wrong password 1/3"),
-        1 => String::from("wrong password 2/3"),
-        2 => String::from("wrong password 3/3"),
-        _ => panic!("count is out of scope"),
-    };
-
-    string
 }
 
 /// Request the user to select a wallet to open
