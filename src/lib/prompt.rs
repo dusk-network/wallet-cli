@@ -33,7 +33,7 @@ use crate::{CliCommand, Error};
 /// Max status text length
 /// Used to clear buffer between prints
 const STATUS_SIZE: usize = 35;
-pub(crate) const MAX_ATTEMPTS: usize = 2;
+pub(crate) const MAX_ATTEMPTS: usize = 3;
 
 /// Request the user to authenticate with a password
 pub(crate) fn request_auth(msg: &str) -> Hash {
