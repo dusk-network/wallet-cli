@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2022-05-01
+
+### Added
+- Allow user to retry wrong password 3 times in interactive mode
+- If password is incorrect 3x user is given the option to recover wallet
+
 ## [0.9.0] - 2022-05-25
 
 ### Added
@@ -172,6 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enable headless mode [#495]
 - Introduce interactive mode by default [#492]
 - Add Export command for BLS PubKeys [#505]
+- Option to correct password [#46]
 
 ## [0.1.1] - 2022-01-27
 
@@ -199,6 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#46]:https://github.com/dusk-network/wallet-cli/issues/46
 [#40]: https://github.com/dusk-network/wallet-cli/issues/40
 [#35]: https://github.com/dusk-network/wallet-cli/issues/35
 [#32]: https://github.com/dusk-network/wallet-cli/issues/32

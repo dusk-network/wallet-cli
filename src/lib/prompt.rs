@@ -33,6 +33,7 @@ use crate::{CliCommand, Error};
 /// Max status text length
 /// Used to clear buffer between prints
 const STATUS_SIZE: usize = 35;
+pub(crate) const MAX_ATTEMPTS: usize = 3;
 
 /// Request the user to authenticate with a password
 pub(crate) fn request_auth(msg: &str) -> Hash {
@@ -151,7 +152,7 @@ pub(crate) fn request_recovery_phrase() -> String {
 }
 
 /// Welcome the user into interactive mode and ask for an action
-pub(crate) fn welcome() -> u8 {
+pub(crate) fn welcome() -> usize {
     let q = Question::select("welcome")
         .message("What would you like to do?")
         .choices(vec![
@@ -163,9 +164,26 @@ pub(crate) fn welcome() -> u8 {
         .build();
 
     let answer = requestty::prompt_one(q).expect("choice");
-    match answer.as_list_item().unwrap().index {
-        0 => 1,
-        1 => 2,
+    match answer.as_list_item() {
+        Some(option) if option.index < 2 => option.index + 1,
+        _ => 0,
+    }
+}
+
+/// when use entered wrong password 3 times,
+pub(crate) fn recover_wallet() -> usize {
+    let q = Question::select("welcome")
+        .message("You've entered the wrong password too many times, please recover your wallet or exit")
+        .choices(vec![
+            "recover your wallet",
+        ])
+        .default_separator()
+        .choice("Exit")
+        .build();
+
+    let answer = requestty::prompt_one(q).expect("choice");
+    match answer.as_list_item() {
+        Some(option) if option.index == 0 => 2,
         _ => 0,
     }
 }

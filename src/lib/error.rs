@@ -193,6 +193,8 @@ impl fmt::Display for Error {
             Error::AlreadyStaked=> write!(f, "\rA stake already exists for this key"),
             Error::NotStaked => write!(f, "\rA stake does not exist for this key"),
             Error::NoReward => write!(f, "\rNo reward available for this key"),
+            //######
+            // Error::WrongPasword => write!(f,"\r Wrong password"),
         }
     }
 }

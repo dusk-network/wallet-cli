@@ -5,17 +5,20 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 mod lib;
+//use futures::future::ok;
 pub use lib::error::{Error, ProverError, StateError, StoreError};
 
 use clap::{AppSettings, Parser, Subcommand};
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 
 use lib::clients::{Prover, State};
 use lib::config::Config;
 use lib::crypto::MnemSeed;
 use lib::dusk::{Dusk, Lux};
 use lib::gql::GraphQL;
-use lib::prompt;
+use lib::prompt::{self, MAX_ATTEMPTS};
 use lib::rusk::RuskClient;
 use lib::store::LocalStore;
 use lib::wallet::CliWallet;
@@ -480,27 +483,50 @@ fn recover(path: &Path) -> Result<LocalStore, Error> {
 fn open_interactive(cfg: &Config) -> Result<LocalStore, Error> {
     // find existing wallets
     let wallets = LocalStore::wallets_in(&cfg.wallet.data_dir)?;
-    if !wallets.is_empty() {
-        // let the user choose one
-        let wallet = prompt::choose_wallet(&wallets);
-        if let Some(p) = wallet {
+    if wallets.is_empty() {
+        println!("No wallet files found at {}", cfg.wallet.data_dir.display());
+        return first_run(cfg, false);
+    }
+
+    // let the user choose one
+    let wallet = prompt::choose_wallet(&wallets);
+    let mut attempt: usize = 0;
+    if let Some(p) = wallet {
+        let mut store: Option<LocalStore> = None;
+        while store.is_none() && attempt < MAX_ATTEMPTS {
             let pwd =
                 prompt::request_auth("Please enter your wallet's password");
-            let store = LocalStore::from_file(&p, pwd)?;
-            Ok(store)
-        } else {
-            Ok(first_run(cfg)?)
+            let st = LocalStore::from_file(&p, pwd);
+            match st {
+                // match password from local store
+                Ok(st) => store = Some(st),
+                Err(err) => match err {
+                    StoreError::InvalidPassword => {
+                        println!(
+                            "Wrong password, you still have {} attempt(s).",
+                            MAX_ATTEMPTS - (attempt + 1)
+                        );
+                        thread::sleep(Duration::from_millis(1000));
+                        attempt += 1;
+                    }
+                    _ => return Err(err.into()),
+                },
+            }
         }
-    } else {
-        println!("No wallet files found at {}", cfg.wallet.data_dir.display());
-        Ok(first_run(cfg)?)
     }
+
+    first_run(cfg, attempt == MAX_ATTEMPTS)
 }
 
 /// Welcome the user when no wallets are found
-fn first_run(cfg: &Config) -> Result<LocalStore, Error> {
-    // greet the user and ask for action
-    let action = prompt::welcome();
+fn first_run(cfg: &Config, should_recover: bool) -> Result<LocalStore, Error> {
+    let action: usize = if should_recover {
+        // user failed in filling in correct password ask to recover
+        prompt::recover_wallet()
+    } else {
+        prompt::welcome()
+    };
+
     if action == 0 {
         exit();
     }
