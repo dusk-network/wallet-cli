@@ -8,12 +8,12 @@ use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::{fmt, io};
 use tonic::codegen::http;
-
+use crate::store::LocalStore;
 use super::clients;
 
 /// Wallet core error
 pub type CoreError =
-    dusk_wallet_core::Error<crate::LocalStore, clients::State, clients::Prover>;
+    dusk_wallet_core::Error<LocalStore, clients::State, clients::Prover>;
 
 /// Errors returned by this crate
 pub enum Error {

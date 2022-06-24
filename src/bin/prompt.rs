@@ -22,9 +22,9 @@ use requestty::Question;
 
 use super::dusk::Lux;
 use super::store::LocalStore;
-use crate::lib::crypto::MnemSeed;
-use crate::lib::dusk::Dusk;
-use crate::lib::{
+use crate::crypto::MnemSeed;
+use crate::dusk::Dusk;
+use crate::{
     DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MAX_CONVERTIBLE, MIN_CONVERTIBLE,
     MIN_GAS_LIMIT,
 };
@@ -564,6 +564,7 @@ pub(crate) fn launch_explorer(url: String) -> bool {
     }
 }
 
+#[inline]
 /// Prints a dynamic status update
 pub(crate) fn status(status: &str) {
     let filln = STATUS_SIZE - status.len();

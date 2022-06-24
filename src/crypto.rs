@@ -13,7 +13,7 @@ use block_modes::{BlockMode, Cbc};
 use rand::rngs::OsRng;
 use rand::RngCore;
 
-use crate::lib::SEED_SIZE;
+use crate::SEED_SIZE;
 use crate::StoreError;
 
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;

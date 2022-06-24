@@ -4,21 +4,20 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-mod lib;
 pub use lib::error::{Error, ProverError, StateError, StoreError};
 
 use clap::{AppSettings, Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
-use lib::clients::{Prover, State};
-use lib::config::Config;
-use lib::crypto::MnemSeed;
-use lib::dusk::{Dusk, Lux};
-use lib::gql::GraphQL;
-use lib::prompt;
-use lib::rusk::RuskClient;
-use lib::store::LocalStore;
-use lib::wallet::CliWallet;
+use clients::{Prover, State};
+use config::Config;
+use crypto::MnemSeed;
+use dusk::{Dusk, Lux};
+use gql::GraphQL;
+use prompt::status;
+use rusk::RuskClient;
+use store::LocalStore;
+use wallet::CliWallet;
 
 /// The CLI Wallet
 #[derive(Parser)]
