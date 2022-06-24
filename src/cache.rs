@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::StateError;
+use crate::error::StateError;
 
 use canonical::{Canon, Sink, Source};
 use std::cmp::Ordering;

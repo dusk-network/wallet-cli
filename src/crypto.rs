@@ -13,13 +13,13 @@ use block_modes::{BlockMode, Cbc};
 use rand::rngs::OsRng;
 use rand::RngCore;
 
-use crate::lib::SEED_SIZE;
 use crate::StoreError;
+use crate::SEED_SIZE;
 
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 /// Creates and recovers wallet seed from a 12-word BIP39 mnemonic phrase
-pub(crate) struct MnemSeed {
+pub struct MnemSeed {
     pub phrase: String,
     pub seed: [u8; SEED_SIZE],
 }
@@ -71,10 +71,7 @@ impl MnemSeed {
 }
 
 /// Encrypts data using a password.
-pub(crate) fn encrypt(
-    plaintext: &[u8],
-    pwd: Hash,
-) -> Result<Vec<u8>, StoreError> {
+pub fn encrypt(plaintext: &[u8], pwd: Hash) -> Result<Vec<u8>, StoreError> {
     let mut iv = vec![0; 16];
     let mut rng = OsRng::default();
     rng.fill_bytes(&mut iv);

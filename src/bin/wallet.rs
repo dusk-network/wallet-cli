@@ -15,15 +15,19 @@ use dusk_bytes::Serializable;
 use dusk_jubjub::BlsScalar;
 use dusk_wallet_core::{BalanceInfo, Store, Wallet};
 
-use crate::lib::clients::{Prover, State};
-use crate::lib::config::Config;
-use crate::lib::crypto::encrypt;
-use crate::lib::dusk::{Dusk, Lux};
-use crate::lib::store::LocalStore;
-use crate::lib::{
-    prompt, DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MIN_GAS_LIMIT, SEED_SIZE,
+use wallet_lib::clients::{Prover, State};
+
+use crate::config::Config;
+use crate::io::prompt;
+use wallet_lib::crypto::encrypt;
+use wallet_lib::dusk::{Dusk, Lux};
+use wallet_lib::store::LocalStore;
+
+use crate::io::args::CliCommand;
+use wallet_lib::Error;
+use wallet_lib::{
+    DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MIN_GAS_LIMIT, SEED_SIZE,
 };
-use crate::{CliCommand, Error};
 
 mod base64 {
     use serde::{Serialize, Serializer};
