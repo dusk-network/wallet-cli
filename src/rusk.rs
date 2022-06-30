@@ -23,7 +23,7 @@ use tonic::transport::Uri;
 #[cfg(not(windows))]
 use tower::service_fn;
 
-use crate::Error;
+use crate::error::Error;
 
 /// Supported Rusk version
 const REQUIRED_RUSK_VERSION: &str = "0.5.0-rc.0";

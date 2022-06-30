@@ -4,9 +4,11 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::{Error, LocalStore, WalletArgs};
 use serde::Serialize;
 use std::{fs, io, path::PathBuf};
+use wallet_lib::handle::arg::WalletArgs;
+use wallet_lib::store::LocalStore;
+use wallet_lib::Error;
 
 /// Default IPC method for Rusk connections
 pub(crate) const IPC_DEFAULT: &str = "uds";
@@ -17,9 +19,9 @@ pub(crate) const GQL_ADDR: &str = "http://nodes.dusk.network:9500/graphql";
 
 mod parser {
 
-    use crate::Error;
     use serde::Deserialize;
     use std::path::PathBuf;
+    use wallet_lib::Error;
 
     #[derive(Deserialize)]
     pub struct ParsedConfig {
@@ -57,21 +59,21 @@ mod parser {
 
     /// Attempts to parse the content of a file into config values
     pub fn parse(content: &str) -> Result<ParsedConfig, Error> {
-        toml::from_str(content).map_err(Error::ConfigRead)
+        toml::from_str(content).map_err(wallet_lib::error::Error::ConfigRead)
     }
 }
 
 /// Config holds the settings for the CLI wallet
 #[derive(Serialize)]
-pub(crate) struct Config {
+pub struct Config {
     /// Wallet configuration
-    pub wallet: WalletConfig,
+    pub(crate) wallet: WalletConfig,
     /// Rusk connection configuration
-    pub rusk: RuskConfig,
+    pub(crate) rusk: RuskConfig,
     /// Dusk explorer configuration
-    pub explorer: ExplorerConfig,
+    pub(crate) explorer: ExplorerConfig,
     /// Dusk chain configuration
-    pub chain: ChainConfig,
+    pub(crate) chain: ChainConfig,
 }
 
 /// Wallet and store configuration

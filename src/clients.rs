@@ -23,8 +23,6 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
-use prompt::{status};
-
 use rusk_schema::{
     ExecuteProverRequest, FindExistingNullifiersRequest, GetAnchorRequest,
     GetNotesRequest, GetOpeningRequest, GetStakeRequest, PreverifyRequest,
@@ -37,7 +35,7 @@ use super::cache::Cache;
 use super::gql::{GraphQL, TxStatus};
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::{ProverError, StateError};
-
+use crate::handle::status;
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -84,7 +82,7 @@ impl Prover {
     /// Prints dynamic status updates to the user
     fn status(&self, status: &str) {
         if !self.quiet {
-            prompt::status(status);
+            status::status(status);
         }
     }
 }
@@ -263,7 +261,7 @@ impl State {
     /// Prints dynamic status updates to the user
     fn status(&self, status: &str) {
         if !self.quiet {
-            prompt::status(status);
+            status::status(status);
         }
     }
 }

@@ -19,7 +19,7 @@ use crate::StoreError;
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 /// Creates and recovers wallet seed from a 12-word BIP39 mnemonic phrase
-pub(crate) struct MnemSeed {
+pub struct MnemSeed {
     pub phrase: String,
     pub seed: [u8; SEED_SIZE],
 }
@@ -71,7 +71,7 @@ impl MnemSeed {
 }
 
 /// Encrypts data using a password.
-pub(crate) fn encrypt(
+pub fn encrypt(
     plaintext: &[u8],
     pwd: Hash,
 ) -> Result<Vec<u8>, StoreError> {

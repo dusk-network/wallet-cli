@@ -6,26 +6,30 @@
 
 use dusk::{Dusk, Lux};
 
-pub(crate) mod block;
-pub(crate) mod cache;
-pub(crate) mod clients;
+pub mod block;
+pub mod cache;
+pub mod clients;
+pub mod crypto;
+pub mod dusk;
+pub mod error;
+pub mod gql;
 
-pub(crate) mod crypto;
-pub(crate) mod dusk;
-pub(crate) mod error;
-pub(crate) mod gql;
+pub mod handle;
+pub mod rusk;
 
-pub(crate) mod rusk;
-pub(crate) mod store;
+pub mod store;
 
-pub(crate) const SEED_SIZE: usize = 64;
+pub const SEED_SIZE: usize = 64;
 
-pub(crate) const MAX_CONVERTIBLE: Dusk = Dusk::MAX;
-pub(crate) const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
+pub const MAX_CONVERTIBLE: Dusk = Dusk::MAX;
+pub const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
 
-pub(crate) const MIN_GAS_LIMIT: u64 = 350_000_000;
-pub(crate) const DEFAULT_GAS_LIMIT: u64 = 500_000_000;
+pub const MIN_GAS_LIMIT: u64 = 350_000_000;
+pub const DEFAULT_GAS_LIMIT: u64 = 500_000_000;
 
-pub(crate) const DEFAULT_GAS_PRICE: Lux = 1;
+pub const DEFAULT_GAS_PRICE: Lux = 1;
 
+pub use clients::{Prover, State};
 pub use error::{Error, ProverError, StateError, StoreError};
+pub use handle::arg::WalletArgs;
+pub use store::LocalStore;

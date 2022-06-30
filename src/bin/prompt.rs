@@ -5,10 +5,8 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use std::env;
-use std::io::{stdout, Write};
+use std::io::stdout;
 use std::path::{Path, PathBuf};
-use std::thread;
-use std::time::Duration;
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -20,19 +18,16 @@ use dusk_bytes::DeserializableSlice;
 use dusk_pki::PublicSpendKey;
 use requestty::Question;
 
-use super::dusk::Lux;
-use super::store::LocalStore;
-use crate::crypto::MnemSeed;
-use crate::dusk::Dusk;
-use crate::{
+use wallet_lib::crypto::MnemSeed;
+use wallet_lib::dusk::{Dusk, Lux};
+use wallet_lib::handle::arg::CliCommand;
+use wallet_lib::store::LocalStore;
+
+use wallet_lib::Error;
+use wallet_lib::{
     DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MAX_CONVERTIBLE, MIN_CONVERTIBLE,
     MIN_GAS_LIMIT,
 };
-use crate::{CliCommand, Error};
-
-/// Max status text length
-/// Used to clear buffer between prints
-const STATUS_SIZE: usize = 35;
 
 /// Request the user to authenticate with a password
 pub(crate) fn request_auth(msg: &str) -> Hash {
@@ -562,21 +557,6 @@ pub(crate) fn launch_explorer(url: String) -> bool {
     } else {
         false
     }
-}
-
-#[inline]
-/// Prints a dynamic status update
-pub(crate) fn status(status: &str) {
-    let filln = STATUS_SIZE - status.len();
-    let fill = if filln > 0 {
-        " ".repeat(filln)
-    } else {
-        "".to_string()
-    };
-    print!("\r{}{}", status, fill);
-    let mut stdout = stdout();
-    stdout.flush().unwrap();
-    thread::sleep(Duration::from_millis(85));
 }
 
 /// Shows the terminal cursor

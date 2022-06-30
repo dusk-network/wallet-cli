@@ -11,3 +11,6 @@ test: build ## Run wallet tests
 	cargo test --release
 
 .PHONY: build test help
+
+tree:
+	tree -I target 
