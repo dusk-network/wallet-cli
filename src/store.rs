@@ -10,9 +10,9 @@ use std::{fmt, fs};
 use blake3::Hash;
 use dusk_wallet_core::Store;
 
-use crate::lib::crypto::{decrypt, encrypt};
-use crate::lib::SEED_SIZE;
+use crate::crypto::{decrypt, encrypt};
 use crate::StoreError;
+use crate::SEED_SIZE;
 
 /// Default data directory name
 pub(crate) const DATA_DIR: &str = ".dusk";

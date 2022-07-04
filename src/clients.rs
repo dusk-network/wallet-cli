@@ -34,7 +34,8 @@ use super::block::Block;
 use super::cache::Cache;
 use super::gql::{GraphQL, TxStatus};
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
-use crate::{prompt, ProverError, StateError};
+use crate::status;
+use crate::{ProverError, StateError};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -81,7 +82,7 @@ impl Prover {
     /// Prints dynamic status updates to the user
     fn status(&self, status: &str) {
         if !self.quiet {
-            prompt::status(status);
+            status::status(status);
         }
     }
 }
@@ -260,7 +261,7 @@ impl State {
     /// Prints dynamic status updates to the user
     fn status(&self, status: &str) {
         if !self.quiet {
-            prompt::status(status);
+            status::status(status);
         }
     }
 }

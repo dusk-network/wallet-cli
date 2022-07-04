@@ -7,13 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `src/bin` to gather the module related to the I/O ops [#51]
+- Add `autobins` to Cargo.toml to prevent bins auto discovery [#51]
+- Add `[lib]` and `[[bin]]` sections to Cargo.toml to decouple bin and lib [#51]
+- Add `src/bin/io` to gather all modules related to I/O [#51]
+- Add `status` mod as temp workaround to make the lib compile [#51]
+- Add `actions` mod with all the actions previously in `main` [#51]
+
+### Changed
+
+- Rename `src/mod.rs` to `src/lib.rs` to be compliant with 2018 edition [#51]
+- Refactor `main` to be more readable [#51]
+- Update imports in the code to reflect the new files structure [#51]
+
 ## [0.9.0] - 2022-05-25
 
 ### Added
+
 - Flag `--spendable` to `Balance` command [#40]
 - Flag `--reward` to `StakeInfo` command [#40]
 
 ### Changed
+
 - Commands run in headless mode do not provide dynamic status updates [#40]
 
 ## [0.8.0] - 2022-05-04
@@ -199,6 +216,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#51]: https://github.com/dusk-network/wallet-cli/issues/51
 [#40]: https://github.com/dusk-network/wallet-cli/issues/40
 [#35]: https://github.com/dusk-network/wallet-cli/issues/35
 [#32]: https://github.com/dusk-network/wallet-cli/issues/32

@@ -1,7 +1,19 @@
 [package]
+
 name = "rusk-wallet"
 version = "0.9.0"
 edition = "2021"
+autobins = false
+
+[lib]
+name = "wallet_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rusk-wallet"
+path = "src/bin/main.rs"
+
+
 
 [dependencies]
 clap = { version = "3.1", features = ["derive"] }
@@ -46,6 +58,7 @@ dusk-jubjub = { version = "0.11", default-features = false }
 dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features = [ "canon" ] }
 rusk-schema = "0.4.0"
 microkelvin = { version = "0.15.0-rc", features = ["persistence"] }
+
 
 [dev-dependencies]
 tempfile = "3.2"
