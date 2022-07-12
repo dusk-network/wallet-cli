@@ -35,6 +35,8 @@ pub enum Error {
     ProverConn(tonic::transport::Error),
     /// Command not available in offline mode
     Offline,
+    /// Unauthorized to access this wallet
+    Unauthorized,
     /// Filesystem errors
     IO(io::Error),
     /// JSON serialization errors
@@ -53,10 +55,12 @@ pub enum Error {
     Rng(RngError),
     /// Transaction model errors
     Phoenix(PhoenixError),
-    /// Not enough balance to perform transaction.
+    /// Not enough balance to perform transaction
     NotEnoughBalance,
+    /// Amount to transfer/stake cannot be zero
+    AmountIsZero,
     /// Note combination for the given value is impossible given the maximum
-    /// amount if inputs in a transaction.
+    /// amount of inputs in a transaction
     NoteCombinationProblem,
     /// Not enough gas to perform this transaction
     NotEnoughGas,
@@ -177,6 +181,7 @@ impl fmt::Display for Error {
             Error::RuskConn(err) => write!(f, "\rCouldn't establish connection with Rusk: {}\nPlease check your settings and try again.", err),
             Error::ProverConn(err) => write!(f, "\rCouldn't establish connection with the prover cluster: {}\nPlease check your settings and try again.", err),
             Error::Offline => write!(f, "\rThis command cannot be performed while offline. Please configure a valid Rusk instance and try again."),
+            Error::Unauthorized => write!(f, "\rUnauthorized to access this wallet"),
             Error::IO(err) => write!(f, "\rAn IO error occurred:\n{}", err),
             Error::JSON(err) => write!(f, "\rA serialization error occurred:\n{}", err),
             Error::ConfigRead(err) => write!(f, "\rFailed to read configuration file:\n{}", err),
@@ -188,6 +193,7 @@ impl fmt::Display for Error {
             Error::Phoenix(err) => write!(f, "\rAn error occured in Phoenix:\n{}", err),
             Error::NotEnoughGas => write!(f, "\rNot enough gas to perform this transaction"),
             Error::NotEnoughBalance => write!(f, "\rInsufficient balance to perform this operation"),
+            Error::AmountIsZero => write!(f, "\rAmount to transfer/stake cannot be zero\n"),
             Error::NoteCombinationProblem => write!(f, "\rNote combination for the given value is impossible given the maximum amount of inputs in a transaction"),
             Error::StakingNotAllowed => write!(f, "\rStaking is only allowed when you're running your own local Rusk instance (Tip: Point `rusk_addr` to \"localhost\" or \"127.0.0.1\")"),
             Error::AlreadyStaked=> write!(f, "\rA stake already exists for this key"),
@@ -209,6 +215,7 @@ impl fmt::Debug for Error {
             Error::RuskConn(err) => write!(f, "\rCouldn't establish connection with Rusk:\n{:?}", err),
             Error::ProverConn(err) => write!(f, "\rCouldn't establish connection with the prover cluster:\n{:?}", err),
             Error::Offline => write!(f, "\rThis command cannot be performed while offline. Please configure a valid Rusk instance and try again."),
+            Error::Unauthorized => write!(f, "\rUnauthorized to access this wallet"),
             Error::IO(err) => write!(f, "\rAn IO error occurred:\n{:?}", err),
             Error::JSON(err) => write!(f, "\rA serialization error occurred:\n{:?}", err),
             Error::ConfigRead(err) => write!(f, "\rFailed to read configuration file:\n{:?}", err),
@@ -220,6 +227,7 @@ impl fmt::Debug for Error {
             Error::Phoenix(err) => write!(f, "\rAn error occured in Phoenix:\n{:?}", err),
             Error::NotEnoughGas => write!(f, "\rNot enough gas to perform this transaction"),
             Error::NotEnoughBalance => write!(f, "\rInsufficient balance to perform this operation"),
+            Error::AmountIsZero => write!(f, "\rAmount to transfer/stake cannot be zero\n"),
             Error::NoteCombinationProblem => write!(f, "\rNote combination for the given value is impossible given the maximum amount of inputs in a transaction"),
             Error::StakingNotAllowed => write!(f, "\rStaking is only allowed when you're running your own local Rusk instance (Tip: Point `rusk_addr` to \"localhost\" or \"127.0.0.1\")"),
             Error::AlreadyStaked=> write!(f, "\rA stake already exists for this key"),

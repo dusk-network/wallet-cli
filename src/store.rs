@@ -4,15 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::path::{Path, PathBuf};
 use std::fs;
-use std::str::FromStr;
+use std::path::{Path, PathBuf};
 
 use blake3::Hash;
 use dusk_wallet_core::Store;
 
 use crate::crypto::{decrypt, encrypt};
-use crate::StoreError;
+use crate::error::StoreError;
 use crate::SEED_SIZE;
 
 /// Default data directory name
@@ -38,7 +37,6 @@ impl Store for LocalStore {
 }
 
 impl LocalStore {
-
     /// Data directory defaults to user's home dir
     pub fn default_data_dir() -> PathBuf {
         let home = dirs::home_dir().expect("OS not supported");
@@ -94,13 +92,14 @@ impl LocalStore {
     /// Creates a new store from a known seed
     pub(crate) fn new(seed: [u8; SEED_SIZE]) -> Self {
         // create the local store
-        LocalStore {
-            seed,
-        }
+        LocalStore { seed }
     }
 
     /// Loads wallet file from file
-    pub(crate) fn from_file(path: &Path, pwd: Hash) -> Result<LocalStore, StoreError> {
+    pub(crate) fn from_file(
+        path: &Path,
+        pwd: Hash,
+    ) -> Result<LocalStore, StoreError> {
         // basic sanity check
         let mut path = path.to_path_buf();
         if path.extension().is_none() {
@@ -174,7 +173,11 @@ impl LocalStore {
 
     /// Saves wallet to the specified file. If there's an existing
     /// wallet in that path it will be overwritten.
-    pub(crate) fn save(&self, file: &Path, pwd: Hash) -> Result<(), StoreError> {
+    pub(crate) fn save(
+        &self,
+        file: &Path,
+        pwd: Hash,
+    ) -> Result<(), StoreError> {
         // encrypt seed
         let enc_seed = encrypt(&self.seed, pwd)?;
 
@@ -191,7 +194,6 @@ impl LocalStore {
         fs::write(&file, content)?;
         Ok(())
     }
-
 }
 
 #[cfg(test)]
@@ -229,13 +231,10 @@ mod tests {
         Ok(())
     }
 }
-
-
-
+/*
 pub struct WalletPath(PathBuf);
 
 impl WalletPath {
-
     /// Returns the filename of this path
     pub fn name(&self) -> Option<String> {
         // extract the name
@@ -252,7 +251,6 @@ impl WalletPath {
             None
         }
     }
-
 }
 
 /// Strings are parsed as Dusk values (floats)
@@ -264,3 +262,4 @@ impl FromStr for WalletPath {
         Ok(Self(p.to_owned()))
     }
 }
+*/

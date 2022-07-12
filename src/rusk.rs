@@ -11,8 +11,8 @@ use tonic::transport::Uri;
 #[cfg(not(windows))]
 use tower::service_fn;
 
-use std::str::FromStr;
 use async_trait::async_trait;
+use std::str::FromStr;
 
 use tonic::codegen::InterceptedService;
 use tonic::metadata::MetadataValue;
@@ -45,13 +45,12 @@ pub(crate) struct RuskClient {
 }
 
 impl RuskClient {
-
     /// Attempts a connection to the network and, if successful,
     /// returns a connected `RuskClient` instance
-    pub async fn connect<E>(endpoint: E) -> Result<Self, Error> 
-        where E: RuskEndpoint
+    pub async fn connect<E>(endpoint: E) -> Result<Self, Error>
+    where
+        E: RuskEndpoint,
     {
-
         let rusk = Self {
             network: GrpcNetworkClient::with_interceptor(
                 endpoint.state().await?,
@@ -91,7 +90,6 @@ impl Interceptor for RuskVersionInterceptor {
     }
 }
 
-
 /// Transport details for the Dusk Network
 #[async_trait]
 pub trait RuskEndpoint {
@@ -99,7 +97,7 @@ pub trait RuskEndpoint {
     async fn prover(&self) -> Result<Channel, Error>;
 }
 
-/// Transport details for establishing a tcp/ip connection 
+/// Transport details for establishing a TCP/IP connection
 /// to the Dusk Network
 pub struct TransportTCP {
     rusk_addr: String,
@@ -107,62 +105,57 @@ pub struct TransportTCP {
 }
 
 impl TransportTCP {
-
     pub fn new<S>(rusk_addr: S, prov_addr: S) -> Self
-        where S: Into<String>
+    where
+        S: Into<String>,
     {
         Self {
             rusk_addr: rusk_addr.into(),
             prov_addr: prov_addr.into(),
         }
     }
-
 }
 
 #[async_trait]
 impl RuskEndpoint for TransportTCP {
-
     async fn state(&self) -> Result<Channel, Error> {
-        Endpoint::from_str(&self.rusk_addr)?.connect()
+        Ok(Endpoint::from_str(&self.rusk_addr)?.connect().await?)
     }
 
     async fn prover(&self) -> Result<Channel, Error> {
-        Endpoint::from_str(&self.prov_addr)?.connect()
+        Ok(Endpoint::from_str(&self.prov_addr)?.connect().await?)
     }
-
 }
 
-
-/// Transport details for establishing an IPC unix-domain socket
+/// Transport details for establishing a unix-domain socket (UDS)
 /// connection to a local Rusk instance
 pub struct TransportUDS {
     addr: String,
 }
 
 impl TransportUDS {
-
     pub fn new<S>(path: S) -> Self
-        where S: Into<String>
+    where
+        S: Into<String>,
     {
         Self { addr: path.into() }
     }
-
 }
 
 #[async_trait]
 impl RuskEndpoint for TransportUDS {
-
     async fn state(&self) -> Result<Channel, Error> {
-        Endpoint::try_from("http://[::]:50051")
+        let addr = self.addr.clone();
+        Ok(Endpoint::try_from("http://[::]:50051")
             .expect("parse address")
             .connect_with_connector(service_fn(move |_: Uri| {
-                let path = (&self.addr[..]).to_string();
+                let path = (&addr[..]).to_string();
                 UnixStream::connect(path)
             }))
+            .await?)
     }
 
     async fn prover(&self) -> Result<Channel, Error> {
-        self.state()
+        self.state().await
     }
-
 }
