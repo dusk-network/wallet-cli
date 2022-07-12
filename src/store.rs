@@ -4,14 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{fmt, fs};
 
 use blake3::Hash;
 use dusk_wallet_core::Store;
 
 use crate::crypto::{decrypt, encrypt};
-use crate::StoreError;
+use crate::error::StoreError;
 use crate::SEED_SIZE;
 
 /// Default data directory name
@@ -24,7 +24,6 @@ const VERSION: &[u8] = &[1, 0];
 /// Stores all the user's settings and keystore in the file system
 #[derive(Clone)]
 pub struct LocalStore {
-    path: PathBuf,
     seed: [u8; SEED_SIZE],
 }
 
@@ -75,24 +74,6 @@ impl LocalStore {
         pb.is_file()
     }
 
-    /// Creates a new store
-    pub fn new(
-        path: &Path,
-        seed: [u8; SEED_SIZE],
-    ) -> Result<LocalStore, StoreError> {
-        // prevent user from overwriting an existing wallet file
-        if path.is_file() {
-            return Err(StoreError::WalletFileExists);
-        }
-
-        // create the local store
-        let store = LocalStore {
-            path: path.to_path_buf(),
-            seed,
-        };
-        Ok(store)
-    }
-
     /// Get full paths of all wallet files found in `dir`
     pub fn wallets_in(dir: &PathBuf) -> Result<Vec<PathBuf>, StoreError> {
         let dir = fs::read_dir(dir)?;
@@ -108,8 +89,17 @@ impl LocalStore {
         Ok(wallets)
     }
 
+    /// Creates a new store from a known seed
+    pub(crate) fn new(seed: [u8; SEED_SIZE]) -> Self {
+        // create the local store
+        LocalStore { seed }
+    }
+
     /// Loads wallet file from file
-    pub fn from_file(path: &Path, pwd: Hash) -> Result<LocalStore, StoreError> {
+    pub(crate) fn from_file(
+        path: &Path,
+        pwd: Hash,
+    ) -> Result<LocalStore, StoreError> {
         // basic sanity check
         let mut path = path.to_path_buf();
         if path.extension().is_none() {
@@ -152,7 +142,7 @@ impl LocalStore {
         };
 
         // create and return
-        Ok(LocalStore { path, seed })
+        Ok(LocalStore { seed })
     }
 
     /// Attempts to load a legacy wallet file (no version number)
@@ -178,11 +168,16 @@ impl LocalStore {
         seed.copy_from_slice(&bytes);
 
         // return the store
-        Ok(LocalStore { path, seed })
+        Ok(LocalStore { seed })
     }
 
-    /// Saves wallet to a file
-    pub fn save(&self, pwd: Hash) -> Result<(), StoreError> {
+    /// Saves wallet to the specified file. If there's an existing
+    /// wallet in that path it will be overwritten.
+    pub(crate) fn save(
+        &self,
+        file: &Path,
+        pwd: Hash,
+    ) -> Result<(), StoreError> {
         // encrypt seed
         let enc_seed = encrypt(&self.seed, pwd)?;
 
@@ -196,40 +191,8 @@ impl LocalStore {
         content.splice(0..0, prefix.iter().cloned());
 
         // write file
-        fs::write(&self.path, content)?;
+        fs::write(&file, content)?;
         Ok(())
-    }
-
-    /// Returns the filename of this store
-    pub fn name(&self) -> Option<String> {
-        // extract the name
-        let p = &self.path;
-        let name = p.file_stem()?.to_str()?;
-
-        Some(String::from(name))
-    }
-
-    /// Returns current directory for this store
-    pub fn dir(&self) -> Option<PathBuf> {
-        let mut p = self.path.clone();
-        if p.pop() {
-            Some(p)
-        } else {
-            None
-        }
-    }
-}
-
-impl fmt::Debug for LocalStore {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "-------------------\n\
-            LocalStore: {}\n\
-            Seed: {:?}",
-            self.path.as_os_str().to_str().unwrap(),
-            self.seed
-        )
     }
 }
 
@@ -246,20 +209,20 @@ mod tests {
         let path = dir.path().join("test_wallet.dat");
 
         let seed = [123u8; 64];
-        let st = LocalStore::new(&path, seed)?;
+        let st = LocalStore::new(seed);
 
         // store it on disk
         let pwd = blake3::hash("mypassword".as_bytes());
-        st.save(pwd)?;
+        st.save(&path, pwd)?;
 
         // load it back
         let loaded = LocalStore::from_file(&path, pwd)?;
 
         // check name
-        match loaded.name() {
+        /*match loaded.name() {
             Some(name) => assert_eq!(name, "test_wallet"),
             None => panic!("no wallet name"),
-        }
+        }*/
 
         // check seed
         let lseed = loaded.get_seed()?;
@@ -268,3 +231,35 @@ mod tests {
         Ok(())
     }
 }
+/*
+pub struct WalletPath(PathBuf);
+
+impl WalletPath {
+    /// Returns the filename of this path
+    pub fn name(&self) -> Option<String> {
+        // extract the name
+        let name = self.0.file_stem()?.to_str()?;
+        Some(String::from(name))
+    }
+
+    /// Returns current directory for this path
+    pub fn dir(&self) -> Option<PathBuf> {
+        let mut p = self.0.clone();
+        if p.pop() {
+            Some(p)
+        } else {
+            None
+        }
+    }
+}
+
+/// Strings are parsed as Dusk values (floats)
+impl FromStr for WalletPath {
+    type Err = StoreError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let p = Path::new(s);
+        Ok(Self(p.to_owned()))
+    }
+}
+*/
