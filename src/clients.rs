@@ -20,8 +20,6 @@ use futures::StreamExt;
 use phoenix_core::{Crossover, Fee, Note};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::thread;
-use std::time::Duration;
 
 use rusk_schema::{
     ExecuteProverRequest, FindExistingNullifiersRequest, GetAnchorRequest,
@@ -32,10 +30,9 @@ use rusk_schema::{
 
 use super::block::Block;
 use super::cache::Cache;
-use super::gql::{GraphQL, TxStatus};
+
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
-use crate::status;
-use crate::{ProverError, StateError};
+use crate::error::{ProverError, StateError};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -48,14 +45,11 @@ const WFCT_INPUT_SIZE: usize =
     JubJubAffine::SIZE + u64::SIZE + JubJubScalar::SIZE;
 
 /// Implementation of the ProverClient trait from wallet-core
-#[derive(Debug)]
 pub struct Prover {
     client: Mutex<RuskProverClient>,
     state: Mutex<RuskStateClient>,
     network: Mutex<RuskNetworkClient>,
-    graphql: GraphQL,
-    wait_for_tx: bool,
-    quiet: bool,
+    status: fn(status: &str),
 }
 
 impl Prover {
@@ -63,27 +57,18 @@ impl Prover {
         client: RuskProverClient,
         state: RuskStateClient,
         network: RuskNetworkClient,
-        graphql: GraphQL,
-        wait_for_tx: bool,
-        quiet: bool,
     ) -> Self {
         Prover {
             client: Mutex::new(client),
             state: Mutex::new(state),
             network: Mutex::new(network),
-            graphql,
-            wait_for_tx,
-            quiet,
+            status: |_| {},
         }
     }
-}
 
-impl Prover {
-    /// Prints dynamic status updates to the user
-    fn status(&self, status: &str) {
-        if !self.quiet {
-            status::status(status);
-        }
+    /// Sets the callback method to send status updates
+    pub fn set_status_callback(&mut self, status: fn(&str)) {
+        self.status = status;
     }
 }
 
@@ -128,34 +113,6 @@ impl ProverClient for Prover {
         let mut net = self.network.lock().unwrap();
         net.propagate(req).wait()?;
         self.status("Transaction propagated!");
-
-        if self.wait_for_tx {
-            let tx_id = hex::encode(tx.hash().to_bytes());
-
-            const TIMEOUT: i32 = 30;
-            let mut i = 1;
-            while i <= TIMEOUT {
-                let status = self.graphql.tx_status(&tx_id)?;
-                match status {
-                    TxStatus::Ok => break,
-                    TxStatus::Error(err) => {
-                        return Err(Self::Error::Transaction(err))
-                    }
-                    TxStatus::NotFound => {
-                        self.status(
-                            format!(
-                                "Waiting for confirmation... ({}/{})",
-                                i, TIMEOUT
-                            )
-                            .as_str(),
-                        );
-                        thread::sleep(Duration::from_millis(1000));
-                        i += 1;
-                    }
-                }
-            }
-            self.status("Transaction confirmed!");
-        }
 
         Ok(tx)
     }
@@ -227,10 +184,16 @@ impl ProverClient for Prover {
     }
 }
 
+impl Prover {
+    fn status(&self, text: &str) {
+        (self.status)(text)
+    }
+}
+
 /// Implementation of the StateClient trait from wallet-core
 pub struct State {
     inner: Mutex<InnerState>,
-    quiet: bool,
+    status: fn(&str),
 }
 
 struct InnerState {
@@ -243,13 +206,13 @@ impl State {
     ///
     /// # Panics
     /// If called before [`set_cache_dir`].
-    pub fn new(
-        client: RuskStateClient,
-        quiet: bool,
-    ) -> Result<Self, StateError> {
+    pub fn new(client: RuskStateClient) -> Result<Self, StateError> {
         let cache = Cache::new()?;
         let inner = Mutex::new(InnerState { client, cache });
-        Ok(State { inner, quiet })
+        Ok(State {
+            inner,
+            status: |_| {},
+        })
     }
 
     /// Sets the directory where the cache be stored. Should be called before
@@ -258,11 +221,9 @@ impl State {
         Cache::set_data_path(data_dir)
     }
 
-    /// Prints dynamic status updates to the user
-    fn status(&self, status: &str) {
-        if !self.quiet {
-            status::status(status);
-        }
+    /// Sets the callback method to send status updates
+    pub fn set_status_callback(&mut self, status: fn(&str)) {
+        self.status = status;
     }
 }
 
@@ -403,5 +364,11 @@ impl StateClient for State {
             reward: res.reward,
             counter: res.counter,
         })
+    }
+}
+
+impl State {
+    fn status(&self, text: &str) {
+        (self.status)(text)
     }
 }

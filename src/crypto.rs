@@ -4,8 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use bip39::{Language, Mnemonic, MnemonicType, Seed};
-
 use aes::Aes256;
 use blake3::Hash;
 use block_modes::block_padding::Pkcs7;
@@ -13,65 +11,12 @@ use block_modes::{BlockMode, Cbc};
 use rand::rngs::OsRng;
 use rand::RngCore;
 
-use crate::StoreError;
-use crate::SEED_SIZE;
+use crate::Error;
 
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
-/// Creates and recovers wallet seed from a 12-word BIP39 mnemonic phrase
-pub struct MnemSeed {
-    pub phrase: String,
-    pub seed: [u8; SEED_SIZE],
-}
-
-impl MnemSeed {
-    /// Create a new random mnemonic & seed with a password
-    pub fn new(pwd: &str) -> Self {
-        // create a new randomly generated mnemonic phrase
-        let mnemonic = Mnemonic::new(MnemonicType::Words12, Language::English);
-
-        // get the HD wallet seed
-        let seed = Seed::new(&mnemonic, pwd);
-        let mut seed_bytes = [0u8; SEED_SIZE];
-        seed_bytes.copy_from_slice(seed.as_bytes());
-
-        // create and return new MnemSeed
-        let phrase: &str = mnemonic.phrase();
-        MnemSeed {
-            phrase: phrase.to_string(),
-            seed: seed_bytes,
-        }
-    }
-
-    /// Generate a seed given a mnemonic phrase and a password
-    pub fn from_phrase(phrase: &str, pwd: &str) -> Result<Self, StoreError> {
-        // generate mnemmonic from user's phrase
-        let mnemonic = Mnemonic::from_phrase(phrase, Language::English);
-        match mnemonic {
-            Ok(m) => {
-                // recover the seed
-                let gen_seed = Seed::new(&m, pwd);
-                let mut seed = [0u8; SEED_SIZE];
-                seed.copy_from_slice(gen_seed.as_bytes());
-
-                // return
-                Ok(MnemSeed {
-                    phrase: String::from(phrase),
-                    seed,
-                })
-            }
-            Err(_) => Err(StoreError::InvalidMnemonicPhrase),
-        }
-    }
-
-    /// Returns true if a given mnemonic phrase is valid
-    pub fn is_valid(phrase: &str) -> bool {
-        Mnemonic::from_phrase(phrase, Language::English).is_ok()
-    }
-}
-
 /// Encrypts data using a password.
-pub fn encrypt(plaintext: &[u8], pwd: Hash) -> Result<Vec<u8>, StoreError> {
+pub(crate) fn encrypt(plaintext: &[u8], pwd: Hash) -> Result<Vec<u8>, Error> {
     let mut iv = vec![0; 16];
     let mut rng = OsRng::default();
     rng.fill_bytes(&mut iv);
@@ -84,10 +29,7 @@ pub fn encrypt(plaintext: &[u8], pwd: Hash) -> Result<Vec<u8>, StoreError> {
 }
 
 /// Decrypts data encrypted with `encrypt`.
-pub(crate) fn decrypt(
-    ciphertext: &[u8],
-    pwd: Hash,
-) -> Result<Vec<u8>, StoreError> {
+pub(crate) fn decrypt(ciphertext: &[u8], pwd: Hash) -> Result<Vec<u8>, Error> {
     let iv = &ciphertext[..16];
     let enc = &ciphertext[16..];
 
@@ -100,15 +42,6 @@ pub(crate) fn decrypt(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn mnemonic_recovery() -> Result<(), StoreError> {
-        let pwd = "mypassword";
-        let ms = MnemSeed::new(pwd);
-        let recovered = MnemSeed::from_phrase(&ms.phrase, pwd)?;
-        assert_eq!(ms.seed, recovered.seed);
-        Ok(())
-    }
 
     #[test]
     fn encrypt_and_decrypt() {

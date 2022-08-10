@@ -4,11 +4,11 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::io::args::WalletArgs;
+use super::WalletArgs;
+use crate::Error;
+use dusk_wallet::WalletPath;
 use serde::Serialize;
 use std::{fs, io, path::PathBuf};
-use wallet_lib::store::LocalStore;
-use wallet_lib::Error;
 
 /// Default IPC method for Rusk connections
 pub(crate) const IPC_DEFAULT: &str = "uds";
@@ -19,9 +19,9 @@ pub(crate) const GQL_ADDR: &str = "http://nodes.dusk.network:9500/graphql";
 
 mod parser {
 
+    use crate::Error;
     use serde::Deserialize;
     use std::path::PathBuf;
-    use wallet_lib::Error;
 
     #[derive(Deserialize)]
     pub struct ParsedConfig {
@@ -59,7 +59,7 @@ mod parser {
 
     /// Attempts to parse the content of a file into config values
     pub fn parse(content: &str) -> Result<ParsedConfig, Error> {
-        toml::from_str(content).map_err(wallet_lib::error::Error::ConfigRead)
+        toml::from_str(content).map_err(Error::ConfigRead)
     }
 }
 
@@ -129,7 +129,7 @@ impl Config {
 
             // File not found - use default config
             Err(e) if matches!(e.kind(), io::ErrorKind::NotFound) => {
-                let default = include_str!("../../config.toml");
+                let default = include_str!("../../../config.toml");
 
                 match fs::write(&file, &default) {
                     Ok(_) => println!("Default configuration generated: {}", file.display()),
@@ -155,7 +155,7 @@ impl Config {
 
     /// Arguments that have been explicitly passed into this
     /// execution replace the static configuration
-    pub fn merge(&mut self, args: WalletArgs) {
+    pub(crate) fn merge(&mut self, args: WalletArgs) {
         if let Some(data_dir) = args.data_dir {
             self.wallet.data_dir = data_dir;
         }
@@ -190,11 +190,11 @@ impl From<parser::ParsedConfig> for Config {
                 data_dir: parsed
                     .wallet
                     .data_dir
-                    .unwrap_or_else(LocalStore::default_data_dir),
+                    .unwrap_or_else(WalletPath::default_dir),
                 name: parsed
                     .wallet
                     .wallet_name
-                    .unwrap_or_else(LocalStore::default_wallet_name),
+                    .unwrap_or_else(WalletPath::default_name),
                 file: parsed.wallet.wallet_file,
                 skip_recovery: parsed.wallet.skip_recovery.unwrap_or(false),
             },

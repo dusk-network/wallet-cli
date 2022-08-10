@@ -4,6 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+#[cfg(not(windows))]
+use tokio::net::UnixStream;
+#[cfg(not(windows))]
+use tonic::transport::Uri;
+#[cfg(not(windows))]
+use tower::service_fn;
+
+use async_trait::async_trait;
 use std::str::FromStr;
 
 use tonic::codegen::InterceptedService;
@@ -15,13 +23,6 @@ use tonic::Status;
 use rusk_schema::network_client::NetworkClient as GrpcNetworkClient;
 use rusk_schema::prover_client::ProverClient as GrpcProverClient;
 use rusk_schema::state_client::StateClient as GrpcStateClient;
-
-#[cfg(not(windows))]
-use tokio::net::UnixStream;
-#[cfg(not(windows))]
-use tonic::transport::Uri;
-#[cfg(not(windows))]
-use tower::service_fn;
 
 use crate::error::Error;
 
@@ -37,71 +38,35 @@ pub(crate) type RuskProverClient =
     GrpcProverClient<InterceptedService<Channel, RuskVersionInterceptor>>;
 
 /// Clients to Rusk services
-pub struct RuskClient {
+pub(crate) struct RuskClient {
     pub network: RuskNetworkClient,
     pub state: RuskStateClient,
     pub prover: RuskProverClient,
 }
 
 impl RuskClient {
-    /// Creates a `Rusk` instance and attempts to connect
-    /// all clients via TCP.
-    pub async fn with_tcp(
-        rusk_addr: &str,
-        prov_addr: &str,
-    ) -> Result<RuskClient, Error> {
-        let rusk_chan = Endpoint::from_str(rusk_addr)?
-            .connect()
-            .await
-            .map_err(Error::RuskConn)?;
-        let prov_chan = Endpoint::from_str(prov_addr)?
-            .connect()
-            .await
-            .map_err(Error::RuskConn)?;
-
-        Ok(RuskClient {
+    /// Attempts a connection to the network and, if successful,
+    /// returns a connected `RuskClient` instance
+    pub async fn connect<E>(endpoint: E) -> Result<Self, Error>
+    where
+        E: RuskEndpoint,
+    {
+        let rusk = Self {
             network: GrpcNetworkClient::with_interceptor(
-                rusk_chan.clone(),
+                endpoint.state().await?,
                 RuskVersionInterceptor,
             ),
             state: GrpcStateClient::with_interceptor(
-                rusk_chan,
+                endpoint.state().await?,
                 RuskVersionInterceptor,
             ),
             prover: GrpcProverClient::with_interceptor(
-                prov_chan,
+                endpoint.prover().await?,
                 RuskVersionInterceptor,
             ),
-        })
-    }
+        };
 
-    /// Creates a `Rusk` instance and attempts to connect
-    /// all clients via UDS (unix domain sockets).
-    #[cfg(not(windows))]
-    pub async fn with_uds(socket_path: &str) -> Result<RuskClient, Error> {
-        let socket_path = socket_path.to_string();
-        let channel = Endpoint::try_from("http://[::]:50051")
-            .expect("parse address")
-            .connect_with_connector(service_fn(move |_: Uri| {
-                let path = (&socket_path[..]).to_string();
-                UnixStream::connect(path)
-            }))
-            .await?;
-
-        Ok(RuskClient {
-            network: GrpcNetworkClient::with_interceptor(
-                channel.clone(),
-                RuskVersionInterceptor,
-            ),
-            state: GrpcStateClient::with_interceptor(
-                channel.clone(),
-                RuskVersionInterceptor,
-            ),
-            prover: GrpcProverClient::with_interceptor(
-                channel,
-                RuskVersionInterceptor,
-            ),
-        })
+        Ok(rusk)
     }
 }
 
@@ -121,5 +86,82 @@ impl Interceptor for RuskVersionInterceptor {
             MetadataValue::from_static(REQUIRED_RUSK_VERSION),
         );
         Ok(request)
+    }
+}
+
+/// Transport details for the Dusk Network
+#[async_trait]
+pub trait RuskEndpoint {
+    async fn state(&self) -> Result<Channel, Error>;
+    async fn prover(&self) -> Result<Channel, Error>;
+}
+
+/// Transport details for establishing a TCP/IP connection
+/// to the Dusk Network
+#[derive(Debug)]
+pub struct TransportTCP {
+    rusk_addr: String,
+    prov_addr: String,
+}
+
+impl TransportTCP {
+    pub fn new<S>(rusk_addr: S, prov_addr: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self {
+            rusk_addr: rusk_addr.into(),
+            prov_addr: prov_addr.into(),
+        }
+    }
+}
+
+#[async_trait]
+impl RuskEndpoint for TransportTCP {
+    async fn state(&self) -> Result<Channel, Error> {
+        Ok(Endpoint::from_str(&self.rusk_addr)?.connect().await?)
+    }
+
+    async fn prover(&self) -> Result<Channel, Error> {
+        Ok(Endpoint::from_str(&self.prov_addr)?.connect().await?)
+    }
+}
+
+/// Transport details for establishing a unix-domain socket (UDS)
+/// connection to a local Rusk instance
+pub struct TransportUDS {
+    addr: String,
+}
+
+impl TransportUDS {
+    pub fn new<S>(path: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self { addr: path.into() }
+    }
+}
+
+#[async_trait]
+impl RuskEndpoint for TransportUDS {
+    #[cfg(not(windows))]
+    async fn state(&self) -> Result<Channel, Error> {
+        let addr = self.addr.clone();
+        Ok(Endpoint::try_from("http://[::]:50051")
+            .expect("parse address")
+            .connect_with_connector(service_fn(move |_: Uri| {
+                let path = (&addr[..]).to_string();
+                UnixStream::connect(path)
+            }))
+            .await?)
+    }
+
+    #[cfg(windows)]
+    async fn state(&self) -> Result<Channel, Error> {
+        Err(Error::SocketsNotSupported(self.addr.clone()))
+    }
+
+    async fn prover(&self) -> Result<Channel, Error> {
+        self.state().await
     }
 }
