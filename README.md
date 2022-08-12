@@ -30,7 +30,13 @@ OPTIONS:
             Skip wallet recovery phrase (useful for headless wallet creation)
 
         --wait-for-tx <WAIT_FOR_TX>
-            Wait for transaction confirmation from network
+            Wait for transaction confirmation from network [possible values: true, false]
+
+        --log-level <LOG_LEVEL>
+            Output log level
+
+        --log-type <LOG_TYPE>
+            Logging output type (valid: "json", "plain", "coloured")
 
     -h, --help
             Print help information
@@ -42,10 +48,10 @@ SUBCOMMANDS:
     create         Create a new wallet
     restore        Restore a lost wallet
     balance        Check your current balance
-    address        Retrieve public spend key
+    address        Generate new addresses or list your existing ones
     transfer       Send DUSK through the network
     stake          Start staking DUSK
-    stake-info     Check your stake
+    stake-info     Check your stake information
     unstake        Unstake a key's stake
     withdraw       Withdraw accumulated reward for a stake key
     export         Export BLS provisioner key pair

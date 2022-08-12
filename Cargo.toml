@@ -43,7 +43,6 @@ bs58 = "0.4"
 rand = "0.8"
 aes = "0.7"
 
-
 dusk-wallet-core = "0.14.0-rc"
 canonical = "0.7"
 canonical_derive = "0.7"
@@ -60,6 +59,8 @@ dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features
 rusk-schema = "0.4.0"
 microkelvin = { version = "0.15.0-rc", features = ["persistence"] }
 
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.0", features = ["fmt", "env-filter", "json"] }
 
 [dev-dependencies]
 tempfile = "3.2"

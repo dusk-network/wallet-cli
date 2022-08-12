@@ -9,6 +9,7 @@ use crate::Error;
 use dusk_wallet::WalletPath;
 use serde::Serialize;
 use std::{fs, io, path::PathBuf};
+use tracing::{error, info};
 
 /// Default IPC method for Rusk connections
 pub(crate) const IPC_DEFAULT: &str = "uds";
@@ -29,6 +30,7 @@ mod parser {
         pub rusk: ParsedRuskConfig,
         pub explorer: ParsedExplorerConfig,
         pub chain: ParsedChainConfig,
+        pub logging: LoggingConfig,
     }
 
     #[derive(Deserialize)]
@@ -57,6 +59,12 @@ mod parser {
         pub wait_for_tx: Option<bool>,
     }
 
+    #[derive(Deserialize)]
+    pub struct LoggingConfig {
+        pub level: Option<String>,
+        pub r#type: Option<String>,
+    }
+
     /// Attempts to parse the content of a file into config values
     pub fn parse(content: &str) -> Result<ParsedConfig, Error> {
         toml::from_str(content).map_err(Error::ConfigRead)
@@ -74,6 +82,8 @@ pub struct Config {
     pub(crate) explorer: ExplorerConfig,
     /// Dusk chain configuration
     pub(crate) chain: ChainConfig,
+    /// Logging configuration
+    pub(crate) logging: LoggingConfig,
 }
 
 /// Wallet and store configuration
@@ -116,6 +126,15 @@ pub(crate) struct ChainConfig {
     pub wait_for_tx: bool,
 }
 
+/// Logging configuration
+#[derive(Serialize)]
+pub(crate) struct LoggingConfig {
+    /// Max log level
+    pub level: String,
+    /// Log type
+    pub r#type: String,
+}
+
 impl Config {
     /// Attempt to load configuration from file
     ///
@@ -132,8 +151,8 @@ impl Config {
                 let default = include_str!("../../../config.toml");
 
                 match fs::write(&file, &default) {
-                    Ok(_) => println!("Default configuration generated: {}", file.display()),
-                    Err(e) => println!(
+                    Ok(_) => info!("Default configuration generated: {}", file.display()),
+                    Err(e) => error!(
                         "Default configuration generated; failed to write in {}: {}",
                         file.display(),
                         e
@@ -180,6 +199,12 @@ impl Config {
         if let Some(wait_for_tx) = args.wait_for_tx {
             self.chain.wait_for_tx = wait_for_tx;
         }
+        if let Some(log_type) = args.log_type {
+            self.logging.r#type = log_type;
+        }
+        if let Some(log_level) = args.log_level {
+            self.logging.level = log_level;
+        }
     }
 }
 
@@ -221,6 +246,16 @@ impl From<parser::ParsedConfig> for Config {
                     .gql_url
                     .unwrap_or_else(|| GQL_ADDR.to_string()),
                 wait_for_tx: parsed.chain.wait_for_tx.unwrap_or(false),
+            },
+            logging: LoggingConfig {
+                level: parsed
+                    .logging
+                    .level
+                    .unwrap_or_else(|| "info".to_string()),
+                r#type: parsed
+                    .logging
+                    .r#type
+                    .unwrap_or_else(|| "coloured".to_string()),
             },
         }
     }

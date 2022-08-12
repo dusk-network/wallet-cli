@@ -10,3 +10,8 @@ tx_url = "https://explorer.dusk.network/transactions/transaction/?id="
 
 [chain]
 gql_url = "http://nodes.dusk.network:9500/graphql"
+
+[logging]
+level = "info"
+type = "coloured"
+
