@@ -32,7 +32,7 @@ fn backend() -> BackendCtor<DiskBackend> {
 /// Before instantiating an instance with [`new`], the cache data path must be
 /// set using [`set_data_path`].
 #[derive(Debug, Clone)]
-pub struct Cache {
+pub(crate) struct Cache {
     data: Map<PublicSpendKey, KeyData>,
 }
 
@@ -158,7 +158,7 @@ impl Cache {
 }
 /// Data kept about each note.
 #[derive(Debug, Clone, PartialEq, Eq, Canon)]
-pub struct NoteData {
+pub(crate) struct NoteData {
     pub height: u64,
     pub note: Note,
 }

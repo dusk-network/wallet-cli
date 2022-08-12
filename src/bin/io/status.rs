@@ -16,7 +16,7 @@ pub(crate) fn status(status: &str) {
     } else {
         "".to_string()
     };
-    print!("\r{}{}", status, fill);
+    print!("{}{}\r", status, fill);
     let mut stdout = stdout();
     stdout.flush().unwrap();
     thread::sleep(Duration::from_millis(85));

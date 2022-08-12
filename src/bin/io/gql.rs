@@ -4,20 +4,23 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use std::fmt;
+
+use tokio::time::{sleep, Duration};
+
+use crate::Error;
 use gql_client::Client;
 use serde::Deserialize;
 use serde_json::Value;
-
-use super::block::Block;
-use super::error::GraphQLError;
 
 /// GraphQL is a helper struct that aggregates all queries done
 /// to the Dusk GraphQL database.
 /// This helps avoid having helper structs and boilerplate code
 /// mixed with the wallet logic
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GraphQL {
     url: String,
+    status: fn(&str),
 }
 
 /// Transaction status
@@ -30,15 +33,43 @@ pub enum TxStatus {
 
 impl GraphQL {
     /// Create a new GraphQL wallet client
-    pub fn new<S>(url: S) -> Self
+    pub fn new<S>(url: S, status: fn(&str)) -> Self
     where
         S: Into<String>,
     {
-        Self { url: url.into() }
+        Self {
+            url: url.into(),
+            status,
+        }
+    }
+
+    /// Wait for a transaction to be confirmed (included in a block)
+    pub async fn wait_for(&self, tx_id: &str) -> Result<(), Error> {
+        const TIMEOUT_SECS: i32 = 30;
+        let mut i = 1;
+        while i <= TIMEOUT_SECS {
+            let status = self.tx_status(tx_id).await?;
+            match status {
+                TxStatus::Ok => break,
+                TxStatus::Error(err) => return Err(Error::Transaction(err)),
+                TxStatus::NotFound => {
+                    (self.status)(
+                        format!(
+                            "Waiting for confirmation... ({}/{})",
+                            i, TIMEOUT_SECS
+                        )
+                        .as_str(),
+                    );
+                    sleep(Duration::from_millis(1000)).await;
+                    i += 1;
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Obtain transaction status
-    pub fn tx_status(&self, tx_id: &str) -> Result<TxStatus, GraphQLError> {
+    async fn tx_status(&self, tx_id: &str) -> Result<TxStatus, GraphQLError> {
         // graphql connection
         let client = Client::new(&self.url);
 
@@ -55,7 +86,7 @@ impl GraphQL {
         let query =
             "{transactions(txid:\"####\"){ txerror }}".replace("####", tx_id);
 
-        let response = client.query::<Transactions>(&query).wait();
+        let response = client.query::<Transactions>(&query).await;
 
         // we're interested in different types of errors
         if response.is_err() {
@@ -103,6 +134,56 @@ impl GraphQL {
                 }
             }
             None => Err(GraphQLError::TxStatus),
+        }
+    }
+}
+
+/// Errors generated from GraphQL
+pub enum GraphQLError {
+    /// Generic errors
+    Generic(gql_client::GraphQLError),
+    /// Failed to fetch transaction status
+    TxStatus,
+}
+
+impl From<gql_client::GraphQLError> for GraphQLError {
+    fn from(e: gql_client::GraphQLError) -> Self {
+        Self::Generic(e)
+    }
+}
+
+impl fmt::Display for GraphQLError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GraphQLError::Generic(err) => {
+                write!(
+                    f,
+                    "Error fetching data from the node:\n{}\n{:#?}",
+                    err.message(),
+                    err.json()
+                )
+            }
+            GraphQLError::TxStatus => {
+                write!(f, "Failed to obtain transaction status")
+            }
+        }
+    }
+}
+
+impl fmt::Debug for GraphQLError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GraphQLError::Generic(err) => {
+                write!(
+                    f,
+                    "Error fetching data from the node:\n{}\n{:#?}",
+                    err.message(),
+                    err.json()
+                )
+            }
+            GraphQLError::TxStatus => {
+                write!(f, "Failed to obtain transaction status")
+            }
         }
     }
 }

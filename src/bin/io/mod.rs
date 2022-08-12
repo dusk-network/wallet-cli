@@ -4,6 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-pub mod args;
-pub mod prompt;
-pub mod store;
+mod args;
+mod config;
+mod gql;
+mod status;
+
+pub(crate) mod prompt;
+
+pub(crate) use args::WalletArgs;
+pub(crate) use config::Config;
+pub(crate) use gql::{GraphQL, GraphQLError};
+pub(crate) use status::status;

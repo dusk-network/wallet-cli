@@ -6,6 +6,7 @@
 
 use core::cmp::Ordering;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::num::ParseFloatError;
 use std::ops::{Add, Deref, Div, Mul, Sub};
 use std::str::FromStr;
@@ -97,6 +98,11 @@ impl Div<Lux> for Dusk {
 }
 
 /// Equality
+impl Hash for Dusk {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
 impl PartialEq for Dusk {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
