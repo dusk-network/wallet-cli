@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2022-08-17
+
 ### Added
+
 - New public `Wallet` struct exposing all wallet operations as library [#54]
 - New `Address` type to identify and work with addresses [#54]
 - Logging capabilities with customizable `log_level` and `log_type` [#11]
 
 ### Changed
+
 - Project is now a public facing library [#54]
 - Our reference implementation is included under `src/bin` [#54]
 - UX flow is now address-based to match that of the web wallet [#59]
@@ -282,7 +286,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.9.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/dusk-network/wallet-cli/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/dusk-network/wallet-cli/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/dusk-network/wallet-cli/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/dusk-network/wallet-cli/compare/v0.5.2...v0.7.0
