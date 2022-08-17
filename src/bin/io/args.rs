@@ -48,6 +48,14 @@ pub(crate) struct WalletArgs {
     #[clap(long, action)]
     pub wait_for_tx: Option<bool>,
 
+    /// Output log level
+    #[clap(long)]
+    pub log_level: Option<String>,
+
+    /// Logging output type (valid: "json", "plain", "coloured")
+    #[clap(long)]
+    pub log_type: Option<String>,
+
     /// Command
     #[clap(subcommand)]
     pub command: Option<Command>,

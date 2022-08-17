@@ -17,15 +17,18 @@ pub(crate) use menu::Menu;
 use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
+use tracing::{error, warn, Level};
 
 use bip39::{Language, Mnemonic, MnemonicType};
 use blake3::Hash;
 
 #[cfg(not(windows))]
 use dusk_wallet::TransportUDS;
+
 use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
 
-use io::prompt;
+use io::{prompt, status};
 use io::{Config, GraphQL, WalletArgs};
 
 #[derive(Clone)]
@@ -48,7 +51,7 @@ impl SecureWalletFile for WalletFile {
 async fn main() -> Result<(), Error> {
     if let Err(err) = exec().await {
         // display the error message (if any)
-        println!("{}", err);
+        error!("{}", err);
         // give cursor back to the user
         io::prompt::show_cursor()?;
     }
@@ -78,6 +81,29 @@ async fn exec() -> Result<(), Error> {
 
     // merge static config with parsed args
     cfg.merge(args);
+
+    // generate a subscriber with the desired log level
+    let level = Level::from_str(cfg.logging.level.as_str())?;
+    let subscriber = tracing_subscriber::fmt::Subscriber::builder()
+        .with_max_level(level)
+        .with_writer(std::io::stderr);
+
+    // set the subscriber as global
+    match cfg.logging.r#type.as_str() {
+        "json" => {
+            let subscriber = subscriber.json().flatten_event(true).finish();
+            tracing::subscriber::set_global_default(subscriber)?;
+        }
+        "plain" => {
+            let subscriber = subscriber.with_ansi(false).finish();
+            tracing::subscriber::set_global_default(subscriber)?;
+        }
+        "coloured" => {
+            let subscriber = subscriber.finish();
+            tracing::subscriber::set_global_default(subscriber)?;
+        }
+        _ => unreachable!(),
+    };
 
     // get command or default to interactive mode
     let cmd = cmd.unwrap_or(Command::Interactive);
@@ -141,11 +167,17 @@ async fn exec() -> Result<(), Error> {
         }
     };
 
+    // set our status callback
+    let status_cb = match cmd.is_headless() {
+        true => status::headless,
+        false => status::interactive,
+    };
+
     // attempt to connect wallet
     #[cfg(windows)]
     let con = {
         let t = TransportTCP::new(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr);
-        wallet.connect_with_status(t, io::status).await
+        wallet.connect_with_status(t, status_cb).await
     };
     #[cfg(not(windows))]
     let con = {
@@ -153,23 +185,22 @@ async fn exec() -> Result<(), Error> {
         match ipc {
             "uds" => {
                 let t = TransportUDS::new(&cfg.rusk.rusk_addr);
-                wallet.connect_with_status(t, io::status).await
+                wallet.connect_with_status(t, status_cb).await
             }
             "tcp_ip" => {
                 let t = TransportTCP::new(
                     &cfg.rusk.rusk_addr,
                     &cfg.rusk.prover_addr,
                 );
-                wallet.connect_with_status(t, io::status).await
+                wallet.connect_with_status(t, status_cb).await
             }
             _ => panic!("IPC method not supported"),
         }
     };
 
     // check for connection errors
-    if let Err(e) = con {
-        println!("Connection to Rusk failed: {}", e);
-        println!("Some operations won't be available");
+    if con.is_err() {
+        warn!("Connection to Rusk Failed, some operations won't be available.");
     }
 
     // run command
@@ -196,7 +227,8 @@ async fn exec() -> Result<(), Error> {
             RunResult::Tx(hash) => {
                 let txh = format!("{:x}", hash);
                 if cfg.chain.wait_for_tx {
-                    let gql = GraphQL::new(&cfg.chain.gql_url, io::status);
+                    let gql =
+                        GraphQL::new(&cfg.chain.gql_url, status::headless);
                     gql.wait_for(&txh).await?;
                 }
                 println!("{}", txh);

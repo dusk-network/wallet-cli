@@ -21,6 +21,8 @@ pub enum Error {
     NotSupported,
     /// Transaction verification errors
     Transaction(String),
+    /// Logging-related error
+    LoggingError(String),
 }
 
 impl From<crate::io::GraphQLError> for Error {
@@ -53,6 +55,18 @@ impl From<dusk_wallet::Error> for Error {
     }
 }
 
+impl From<tracing::dispatcher::SetGlobalDefaultError> for Error {
+    fn from(err: tracing::dispatcher::SetGlobalDefaultError) -> Self {
+        Self::LoggingError(err.to_string())
+    }
+}
+
+impl From<tracing::metadata::ParseLevelError> for Error {
+    fn from(err: tracing::metadata::ParseLevelError) -> Self {
+        Self::LoggingError(err.to_string())
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -73,6 +87,7 @@ impl std::fmt::Display for Error {
                 write!(f, "This command doesn't need a wallet.")
             }
             Error::Transaction(err) => write!(f, "Transaction failed: {}", err),
+            Error::LoggingError(err) => write!(f, "Logging error: {}", err),
         }
     }
 }

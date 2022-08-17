@@ -33,7 +33,7 @@ pub(crate) enum Command {
         spendable: bool,
     },
 
-    /// Generate new addresses or list of your existing ones
+    /// Generate new addresses or list your existing ones
     Address {
         /// Returns list of existing addresses
         #[clap(short, long, action)]
@@ -143,6 +143,11 @@ pub(crate) enum Command {
 }
 
 impl Command {
+    /// Returns true if command runs in headless mode
+    pub fn is_headless(&self) -> bool {
+        !matches!(*self, Self::Interactive)
+    }
+
     /// Runs the command with the provided wallet
     pub async fn run(
         self,

@@ -7,11 +7,10 @@
 mod args;
 mod config;
 mod gql;
-mod status;
 
 pub(crate) mod prompt;
+pub(crate) mod status;
 
 pub(crate) use args::WalletArgs;
 pub(crate) use config::Config;
 pub(crate) use gql::{GraphQL, GraphQLError};
-pub(crate) use status::status;

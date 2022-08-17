@@ -7,9 +7,13 @@
 use std::io::{stdout, Write};
 use std::thread;
 use std::time::Duration;
+
+use tracing::info;
+
 const STATUS_SIZE: usize = 35;
 
-pub(crate) fn status(status: &str) {
+/// Prints an interactive status message
+pub(crate) fn interactive(status: &str) {
     let filln = STATUS_SIZE - status.len();
     let fill = if filln > 0 {
         " ".repeat(filln)
@@ -20,4 +24,9 @@ pub(crate) fn status(status: &str) {
     let mut stdout = stdout();
     stdout.flush().unwrap();
     thread::sleep(Duration::from_millis(85));
+}
+
+/// Logs the status message at info level
+pub(crate) fn headless(status: &str) {
+    info!(status);
 }

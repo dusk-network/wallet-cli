@@ -78,7 +78,7 @@ pub(crate) async fn run_loop(
                                     if cfg.chain.wait_for_tx {
                                         let gql = GraphQL::new(
                                             &cfg.chain.gql_url,
-                                            io::status,
+                                            io::status::interactive,
                                         );
                                         gql.wait_for(&txh).await?;
                                     }
