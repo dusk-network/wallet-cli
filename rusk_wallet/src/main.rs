@@ -14,6 +14,7 @@ pub(crate) use command::{Command, RunResult};
 pub(crate) use error::Error;
 pub(crate) use menu::Menu;
 
+use crate::dusk_wallet;
 use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
