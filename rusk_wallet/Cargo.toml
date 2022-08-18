@@ -8,4 +8,4 @@ edition = "2021"
 
 #  add lib as dependency
 [dependencies]
-dusk-wallet = {path ="../dusk-wallet"}
+dusk-wallet = {path ="../dusk_wallet"}
