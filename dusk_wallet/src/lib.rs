@@ -23,6 +23,7 @@ mod rusk;
 mod store;
 mod wallet;
 
+
 pub use dusk::{Dusk, Lux};
 pub use error::Error;
 pub use rusk::{RuskEndpoint, TransportTCP, TransportUDS};
