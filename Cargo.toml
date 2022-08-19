@@ -1,19 +1,18 @@
 [package]
-
-name = "rusk-wallet"
+name = "dusk-wallet"
 version = "0.11.0"
 edition = "2021"
 autobins = false
-
-[lib]
-name = "dusk_wallet"
-path = "src/lib.rs"
+description = "A library providing functionalities to create wallets compatible with Dusk Network"
+categories = ["cryptography", "cryptography::cryptocurrencies"]
+keywords = ["wallet", "dusk", "cryptocurrency", "blockchain"]
+repository = "https://github.com/dusk-network/wallet-cli"
+license = "MPL-2.0"
+exclude = [".github/*", ".gitignore"]
 
 [[bin]]
 name = "rusk-wallet"
 path = "src/bin/main.rs"
-
-
 
 [dependencies]
 clap = { version = "3.1", features = ["derive"] }
