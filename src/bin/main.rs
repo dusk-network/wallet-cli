@@ -25,8 +25,6 @@ use blake3::Hash;
 
 #[cfg(not(windows))]
 use dusk_wallet::TransportUDS;
-#[cfg(windows)]
-use requestty::symbols;
 
 use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
 
@@ -67,7 +65,7 @@ async fn exec() -> Result<(), Error> {
 
     // set symbols to ASCII for Windows terminal compatibility
     #[cfg(windows)]
-    symbols::set(symbols::ASCII);
+    requestty::symbols::set(requestty::symbols::ASCII);
 
     // data directory needs to be clear from the start
     let data_dir = args
