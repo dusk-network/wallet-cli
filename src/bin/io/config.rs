@@ -30,7 +30,7 @@ mod parser {
         pub rusk: ParsedRuskConfig,
         pub explorer: ParsedExplorerConfig,
         pub chain: ParsedChainConfig,
-        pub logging: LoggingConfig,
+        pub logging: Option<LoggingConfig>,
     }
 
     #[derive(Deserialize)]
@@ -250,12 +250,16 @@ impl From<parser::ParsedConfig> for Config {
             logging: LoggingConfig {
                 level: parsed
                     .logging
-                    .level
-                    .unwrap_or_else(|| "info".to_string()),
+                    .as_ref()
+                    .and_then(|parsed| parsed.level.as_ref())
+                    .unwrap_or(&"info".to_string())
+                    .into(),
                 r#type: parsed
                     .logging
-                    .r#type
-                    .unwrap_or_else(|| "coloured".to_string()),
+                    .as_ref()
+                    .and_then(|parsed| parsed.r#type.as_ref())
+                    .unwrap_or(&"coloured".to_string())
+                    .into(),
             },
         }
     }
