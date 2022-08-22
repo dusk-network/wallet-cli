@@ -18,7 +18,7 @@ use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use tracing::{error, warn, Level};
+use tracing::{warn, Level};
 
 use bip39::{Language, Mnemonic, MnemonicType};
 use blake3::Hash;
@@ -51,7 +51,7 @@ impl SecureWalletFile for WalletFile {
 async fn main() -> Result<(), Error> {
     if let Err(err) = exec().await {
         // display the error message (if any)
-        error!("{}", err);
+        eprintln!("{}", err);
         // give cursor back to the user
         io::prompt::show_cursor()?;
     }
@@ -87,6 +87,16 @@ async fn exec() -> Result<(), Error> {
     cfg.merge(args);
 
     // generate a subscriber with the desired log level
+    //
+    // TODO: we should have the logger instantiate sooner, otherwise we cannot
+    // catch errors that are happened before its instantiation.
+    //
+    // Therefore, the logger details such as `type` and `level` cannot be part
+    // of the configuration, since it won't catch any configuration error
+    // otherwise.
+    //
+    // See: <https://github.com/dusk-network/wallet-cli/issues/73>
+    //
     let level = Level::from_str(cfg.logging.level.as_str())?;
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
         .with_max_level(level)
