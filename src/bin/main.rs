@@ -63,6 +63,10 @@ async fn exec() -> Result<(), Error> {
     let args = WalletArgs::parse();
     let cmd = args.command.clone();
 
+    // set symbols to ASCII for Windows terminal compatibility
+    #[cfg(windows)]
+    requestty::symbols::set(requestty::symbols::ASCII);
+
     // data directory needs to be clear from the start
     let data_dir = args
         .data_dir

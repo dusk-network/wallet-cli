@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add Windows terminal compatibility [#68]
+
 ## [0.11.0] - 2022-08-17
 
 ### Added
@@ -233,6 +235,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#68]: https://github.com/dusk-network/wallet-cli/issues/68
 [#11]: https://github.com/dusk-network/wallet-cli/issues/11
 [#59]: https://github.com/dusk-network/wallet-cli/issues/59
 [#54]: https://github.com/dusk-network/wallet-cli/issues/54
