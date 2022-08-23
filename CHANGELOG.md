@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add prompt confirm_recovery_phrase to display the recovery phrase [#70]
 - Add Windows terminal compatibility [#68]
 
 ### Changed
@@ -242,6 +243,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#70]: https://github.com/dusk-network/wallet-cli/issues/70
 [#73]: https://github.com/dusk-network/wallet-cli/issues/73
 [#68]: https://github.com/dusk-network/wallet-cli/issues/68
 [#11]: https://github.com/dusk-network/wallet-cli/issues/11
