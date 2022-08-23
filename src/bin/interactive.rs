@@ -261,6 +261,8 @@ pub(crate) fn load_wallet(
             let name = prompt::request_wallet_name(&wallet_dir);
             // ask user for a password to secure the wallet
             let pwd = prompt::create_password();
+            // display the recovery phrase
+            prompt::confirm_recovery_phrase(&mnemonic);
             // create and store the wallet
             let mut w = Wallet::new(mnemonic)?;
             let path = WalletPath::new(&wallet_dir, name);
