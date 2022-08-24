@@ -119,7 +119,7 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> AddrSelect {
     }
 
     let action_menu = Menu::title("Other actions...")
-        .add(AddrSelect::NewAddress, "New adddress")
+        .add(AddrSelect::NewAddress, "New address")
         .separator()
         .add(AddrSelect::Exit, "Exit");
 
