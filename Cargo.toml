@@ -15,9 +15,11 @@ name = "rusk-wallet"
 path = "src/bin/main.rs"
 
 [dependencies]
-clap = { version = "3.1", features = ["derive"] }
+clap = { version = "3.1", features = ["derive", "env"] }
+
 tokio = { version = "1.15", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
+url = { version = "2", features = ["serde"] }
 async-trait = "0.1"
 block-modes = "0.8"
 gql_client = "1.0"

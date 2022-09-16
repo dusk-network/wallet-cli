@@ -5,12 +5,10 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 mod args;
-mod config;
 mod gql;
 
 pub(crate) mod prompt;
 pub(crate) mod status;
 
 pub(crate) use args::WalletArgs;
-pub(crate) use config::Config;
 pub(crate) use gql::{GraphQL, GraphQLError};

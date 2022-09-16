@@ -4,20 +4,23 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+mod address;
+mod file;
+pub mod gas;
+
+pub use address::Address;
+pub use file::{SecureWalletFile, WalletPath};
+
 use bip39::{Language, Mnemonic, Seed};
 use blake3::Hash;
-use dusk_bytes::Serializable;
+use dusk_bytes::{DeserializableSlice, Serializable};
 use serde::Serialize;
-use std::fmt;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::fs;
-use std::hash::Hasher;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 use dusk_bls12_381_sign::{PublicKey, SecretKey};
 use dusk_jubjub::BlsScalar;
-use dusk_pki::PublicSpendKey;
 use dusk_wallet_core::{
     BalanceInfo, StakeInfo, Store, Transaction, Wallet as WalletCore,
 };
@@ -26,16 +29,16 @@ use rand::SeedableRng;
 
 use crate::clients::{Prover, State};
 use crate::crypto::{decrypt, encrypt};
-use crate::dusk::{Dusk, Lux};
+use crate::currency::Dusk;
 use crate::rusk::{RuskClient, RuskEndpoint};
 use crate::store::LocalStore;
 use crate::Error;
-use crate::{DEFAULT_GAS_LIMIT, DEFAULT_GAS_PRICE, MIN_GAS_LIMIT, SEED_SIZE};
+use gas::Gas;
 
-/// Default data directory name
-pub(crate) const DATA_DIR: &str = ".dusk";
+use crate::store;
+
 /// Binary prefix for Dusk wallet files
-const MAGIC: &[u8] = &[21, 12, 29];
+const MAGIC: u32 = 0x1d0c15;
 /// Specifies the encoding used to save files
 const VERSION: &[u8] = &[2, 0];
 
@@ -52,22 +55,22 @@ const VERSION: &[u8] = &[2, 0];
 /// A wallet must connect to the network using a [`RuskEndpoint`] in order to be
 /// able to perform common operations such as checking balance, transfernig
 /// funds, or staking Dusk.
-
-pub struct Wallet<F: SecureWalletFile> {
+pub struct Wallet<F: SecureWalletFile + Debug> {
     wallet: Option<WalletCore<LocalStore, State, Prover>>,
-    addrs: Addresses,
+    addresses: Vec<Address>,
     store: LocalStore,
     file: Option<F>,
     status: fn(status: &str),
 }
 
-/// Provides access to a secure wallet file
-pub trait SecureWalletFile {
-    fn path(&self) -> &WalletPath;
-    fn pwd(&self) -> Hash;
+impl<F: SecureWalletFile + Debug> Wallet<F> {
+    /// Returns the file used for the wallet
+    pub fn file(&self) -> &Option<F> {
+        &self.file
+    }
 }
 
-impl<F: SecureWalletFile> Wallet<F> {
+impl<F: SecureWalletFile + Debug> Wallet<F> {
     /// Creates a new wallet instance deriving its seed from a valid BIP39
     /// mnemonic
     pub fn new<P>(phrase: P) -> Result<Self, Error>
@@ -79,16 +82,28 @@ impl<F: SecureWalletFile> Wallet<F> {
         let try_mnem = Mnemonic::from_phrase(&phrase, Language::English);
 
         if let Ok(mnemonic) = try_mnem {
-            // derive the seed
+            // derive the mnemonic seed
             let seed = Seed::new(&mnemonic, "");
-            let mut seed_bytes = [0u8; SEED_SIZE];
-            seed_bytes.copy_from_slice(seed.as_bytes());
+            // Takes the mnemonic seed as bytes
+            let mut bytes = seed.as_bytes();
+
+            // Generate a Store Seed type from the mnemonic Seed bytes
+            let seed = store::Seed::from_reader(&mut bytes)?;
+
+            let store = LocalStore::new(seed);
+
+            // Generate the default address
+            let ssk = store
+                .retrieve_ssk(0)
+                .expect("wallet seed should be available");
+
+            let address = Address::new(0, ssk.public_spend_key());
 
             // return new wallet instance
             Ok(Wallet {
                 wallet: None,
-                addrs: Addresses::default(),
-                store: LocalStore::new(seed_bytes),
+                addresses: vec![address],
+                store,
                 file: None,
                 status: |_| {},
             })
@@ -112,49 +127,64 @@ impl<F: SecureWalletFile> Wallet<F> {
         let mut bytes = fs::read(&pb)?;
 
         // check for magic number
-        for i in 0..3 {
-            if bytes[i] != MAGIC[i] {
-                return Self::from_legacy_file(file);
-            }
+        let magic =
+            u32::from_le_bytes(bytes[0..4].try_into().unwrap()) & 0x00ffffff;
+
+        if magic != MAGIC {
+            return Self::from_legacy_file(file);
         }
+
         bytes.drain(..3);
 
         // check for version information
         let [major, minor] = [bytes[0], bytes[1]];
         bytes.drain(..2);
 
-        // prepare our receiver structs
-        let mut seed = [0u8; SEED_SIZE];
-        let mut addrs = Addresses::default();
-
         // decrypt and interpret file contents
-        match (major, minor) {
+        let result: Result<(store::Seed, u8), Error> = match (major, minor) {
             (1, 0) => {
                 bytes = decrypt(&bytes, pwd)?;
-                if bytes.len() != SEED_SIZE {
-                    return Err(Error::WalletFileCorrupted);
-                }
-                seed.copy_from_slice(&bytes);
+
+                let seed = store::Seed::from_reader(&mut &bytes[..])
+                    .map_err(|_| Error::WalletFileCorrupted)?;
+
+                Ok((seed, 1))
             }
             (2, 0) => {
                 let content = decrypt(&bytes, pwd)?;
+                let mut buff = &content[..];
+
                 // extract seed
-                seed.copy_from_slice(&content[0..SEED_SIZE]);
-                // extract addrs
-                let mut addrs_bytes = [0u8; 8];
-                addrs_bytes.copy_from_slice(&content[SEED_SIZE..]);
-                addrs = Addresses::from_bytes(&addrs_bytes)?
+                let seed = store::Seed::from_reader(&mut buff)
+                    .map_err(|_| Error::WalletFileCorrupted)?;
+
+                // extract addresses count
+                Ok((seed, buff[0]))
             }
             _ => {
                 return Err(Error::UnknownFileVersion(major, minor));
             }
         };
 
+        let (seed, address_count) = result?;
+
+        let store = LocalStore::new(seed);
+
+        let addresses: Vec<_> = (0..address_count)
+            .map(|i| {
+                let ssk = store
+                    .retrieve_ssk(i as u64)
+                    .expect("wallet seed should be available");
+
+                Address::new(i, ssk.public_spend_key())
+            })
+            .collect();
+
         // create and return
         Ok(Self {
             wallet: None,
-            addrs,
-            store: LocalStore::new(seed),
+            addresses,
+            store,
             file: Some(file),
             status: |_| {},
         })
@@ -174,44 +204,52 @@ impl<F: SecureWalletFile> Wallet<F> {
         }
 
         bytes = decrypt(&bytes, pwd)?;
-        if bytes.len() != SEED_SIZE {
-            return Err(Error::WalletFileCorrupted);
-        }
 
         // get our seed
-        let mut seed = [0u8; SEED_SIZE];
-        seed.copy_from_slice(&bytes);
+        let seed = store::Seed::from_reader(&mut &bytes[..])
+            .map_err(|_| Error::WalletFileCorrupted)?;
+
+        let store = LocalStore::new(seed);
+        let ssk = store
+            .retrieve_ssk(0)
+            .expect("wallet seed should be available");
+
+        let address = Address::new(0, ssk.public_spend_key());
 
         // return the store
         Ok(Self {
             wallet: None,
-            addrs: Addresses::default(),
-            store: LocalStore::new(seed),
+            addresses: vec![address],
+            store,
             file: Some(file),
             status: |_| {},
         })
     }
 
     /// Saves wallet to file from which it was loaded
-    pub fn save(&self) -> Result<(), Error> {
+    pub fn save(&mut self) -> Result<(), Error> {
         match &self.file {
             Some(f) => {
-                // create file content
+                let mut header = Vec::with_capacity(5);
+                header.extend_from_slice(&MAGIC.to_le_bytes()[..3]);
+                header.extend_from_slice(VERSION);
+
+                // create file payload
                 let seed = self.store.get_seed()?;
-                let mut content = seed.to_vec();
-                content.append(&mut self.addrs.to_bytes().to_vec());
+                let mut payload = seed.to_vec();
+                payload.push(self.addresses.len() as u8);
 
-                // encrypt everything
-                content = encrypt(&content, f.pwd())?;
+                // encrypt the payload
+                payload = encrypt(&payload, f.pwd())?;
 
-                // prepend magic number and encoding version information
-                let mut prefix = [0u8; MAGIC.len() + VERSION.len()];
-                prefix[..MAGIC.len()].copy_from_slice(MAGIC);
-                prefix[MAGIC.len()..].copy_from_slice(VERSION);
-                content.splice(0..0, prefix.iter().cloned());
+                let mut content =
+                    Vec::with_capacity(header.len() + payload.len());
 
-                // write to file
-                fs::write(Path::new(&f.path().0), content)?;
+                content.extend_from_slice(&header);
+                content.extend_from_slice(&payload);
+
+                // write the content to file
+                fs::write(&f.path().0, content)?;
                 Ok(())
             }
             None => Err(Error::WalletFileMissing),
@@ -275,7 +313,7 @@ impl<F: SecureWalletFile> Wallet<F> {
 
         // get balance
         if let Some(wallet) = &self.wallet {
-            let index = addr.index()?;
+            let index = addr.index()? as u64;
             Ok(wallet.get_balance(index)?)
         } else {
             Err(Error::Offline)
@@ -284,39 +322,26 @@ impl<F: SecureWalletFile> Wallet<F> {
 
     /// Creates a new public address.
     /// The addresses generated are deterministic across sessions.
-    pub fn new_address(&mut self) -> Address {
-        let addr = self.get_address(self.addrs.count);
-        self.addrs.count += 1;
-        addr
+    pub fn new_address(&mut self) -> &Address {
+        let len = self.addresses.len();
+        let ssk = self
+            .store
+            .retrieve_ssk(len as u64)
+            .expect("wallet seed should be available");
+        let addr = Address::new(len as u8, ssk.public_spend_key());
+
+        self.addresses.push(addr);
+        self.addresses.last().unwrap()
     }
 
     /// Default public address for this wallet
-    pub fn default_address(&self) -> Address {
-        let ssk = self
-            .store
-            .retrieve_ssk(0)
-            .expect("wallet seed should be available");
-        Address::new(0, ssk.public_spend_key())
-    }
-
-    fn get_address(&self, index: u64) -> Address {
-        let ssk = self
-            .store
-            .retrieve_ssk(index)
-            .expect("wallet seed should be available");
-        Address::new(index, ssk.public_spend_key())
+    pub fn default_address(&self) -> &Address {
+        &self.addresses[0]
     }
 
     /// Addresses that have been generated by the user
-    pub fn addresses(&self) -> Vec<Address> {
-        (0..self.address_count())
-            .map(|i| self.get_address(i))
-            .collect()
-    }
-
-    /// Generated address count for this wallet
-    pub fn address_count(&self) -> u64 {
-        self.addrs.count
+    pub fn addresses(&self) -> &Vec<Address> {
+        &self.addresses
     }
 
     /// Transfers funds between addresses
@@ -337,7 +362,7 @@ impl<F: SecureWalletFile> Wallet<F> {
                 return Err(Error::AmountIsZero);
             }
             // check gas limits
-            if gas.limit < MIN_GAS_LIMIT {
+            if gas.is_enough() {
                 return Err(Error::NotEnoughGas);
             }
 
@@ -349,12 +374,12 @@ impl<F: SecureWalletFile> Wallet<F> {
             // transfer
             let tx = wallet.transfer(
                 &mut rng,
-                sender_index,
+                sender_index as u64,
                 sender.psk(),
                 rcvr.psk(),
                 *amt,
-                gas.limit(),
-                gas.price(),
+                gas.limit,
+                gas.price,
                 ref_id,
             )?;
             Ok(tx)
@@ -379,8 +404,8 @@ impl<F: SecureWalletFile> Wallet<F> {
             if amt == 0 {
                 return Err(Error::AmountIsZero);
             }
-            // check gas limits
-            if gas.limit < MIN_GAS_LIMIT {
+            // check if the gas is enough
+            if gas.is_enough() {
                 return Err(Error::NotEnoughGas);
             }
 
@@ -390,12 +415,12 @@ impl<F: SecureWalletFile> Wallet<F> {
             // stake
             let tx = wallet.stake(
                 &mut rng,
-                sender_index,
-                sender_index,
+                sender_index as u64,
+                sender_index as u64,
                 addr.psk(),
                 *amt,
-                gas.limit(),
-                gas.price(),
+                gas.limit,
+                gas.price,
             )?;
             Ok(tx)
         } else {
@@ -410,7 +435,7 @@ impl<F: SecureWalletFile> Wallet<F> {
             if !addr.is_owned() {
                 return Err(Error::Unauthorized);
             }
-            let index = addr.index()?;
+            let index = addr.index()? as u64;
             wallet.get_stake(index).map_err(Error::from)
         } else {
             Err(Error::Offline)
@@ -430,15 +455,15 @@ impl<F: SecureWalletFile> Wallet<F> {
             }
 
             let mut rng = StdRng::from_entropy();
-            let index = addr.index()?;
+            let index = addr.index()? as u64;
 
             let tx = wallet.unstake(
                 &mut rng,
                 index,
                 index,
                 addr.psk(),
-                gas.limit(),
-                gas.price(),
+                gas.limit,
+                gas.price,
             )?;
             Ok(tx)
         } else {
@@ -460,15 +485,15 @@ impl<F: SecureWalletFile> Wallet<F> {
             }
 
             let mut rng = StdRng::from_entropy();
-            let index = addr.index()?;
+            let index = addr.index()? as u64;
 
             let tx = wallet.withdraw(
                 &mut rng,
                 index,
                 index,
                 refund_addr.psk(),
-                gas.limit(),
-                gas.price(),
+                gas.limit,
+                gas.price,
             )?;
             Ok(tx)
         } else {
@@ -486,7 +511,7 @@ impl<F: SecureWalletFile> Wallet<F> {
             return Err(Error::Unauthorized);
         }
 
-        let index = addr.index()?;
+        let index = addr.index()? as u64;
 
         // retrieve keys
         let sk = self.store.retrieve_sk(index)?;
@@ -512,11 +537,11 @@ impl<F: SecureWalletFile> Wallet<F> {
 
         // set up the path
         let mut path = PathBuf::from(dir);
-        path.push(addr.preview());
+        path.push(addr.to_string());
 
         // export public key to disk
         let bytes = keys.0.to_bytes();
-        fs::write(&path.with_extension("key"), bytes)?;
+        fs::write(&path.with_extension("cpk"), bytes)?;
 
         // create node-compatible json structure
         let bls = BlsKeyPair {
@@ -530,312 +555,19 @@ impl<F: SecureWalletFile> Wallet<F> {
         bytes = crate::crypto::encrypt(&bytes, pwd)?;
 
         // export key pair to disk
-        fs::write(&path.with_extension("cpk"), bytes)?;
+        fs::write(&path.with_extension("key"), bytes)?;
 
         Ok((path.with_extension("key"), path.with_extension("cpk")))
     }
 
     /// Obtain the owned `Address` for a given address
-    pub fn claim_as_address(&self, addr: Address) -> Result<Address, Error> {
+    pub fn claim_as_address(&self, addr: Address) -> Result<&Address, Error> {
         self.addresses()
-            .into_iter()
+            .iter()
             .find(|a| a.psk == addr.psk)
             .ok_or(Error::AddressNotOwned)
     }
 }
-
-/// A public address within the Dusk Network
-#[derive(Clone, Eq)]
-pub struct Address {
-    index: Option<u64>,
-    psk: PublicSpendKey,
-}
-
-impl Address {
-    pub(crate) fn new(index: u64, psk: PublicSpendKey) -> Self {
-        Self {
-            index: Some(index),
-            psk,
-        }
-    }
-
-    /// Returns true if the current user owns this address
-    pub fn is_owned(&self) -> bool {
-        self.index.is_some()
-    }
-
-    pub(crate) fn psk(&self) -> &PublicSpendKey {
-        &self.psk
-    }
-
-    pub(crate) fn index(&self) -> Result<u64, Error> {
-        self.index.ok_or(Error::AddressNotOwned)
-    }
-
-    /// A trimmed version of the address to display as preview
-    pub fn preview(&self) -> String {
-        let addr = bs58::encode(self.psk.to_bytes()).into_string();
-        (&addr[..10]).to_string()
-    }
-}
-
-impl FromStr for Address {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let dec = bs58::decode(s).into_vec()?;
-        if dec.len() != SEED_SIZE {
-            return Err(Error::BadAddress);
-        }
-        let mut addr_bytes = [0u8; SEED_SIZE];
-        addr_bytes.copy_from_slice(&dec);
-        let addr = Address {
-            index: None,
-            psk: dusk_pki::PublicSpendKey::from_bytes(&addr_bytes)?,
-        };
-        Ok(addr)
-    }
-}
-
-impl TryFrom<String> for Address {
-    type Error = Error;
-
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        let dec = bs58::decode(s).into_vec()?;
-        if dec.len() != SEED_SIZE {
-            return Err(Error::BadAddress);
-        }
-        let mut addr_bytes = [0u8; SEED_SIZE];
-        addr_bytes.copy_from_slice(&dec);
-        let addr = Address {
-            index: None,
-            psk: dusk_pki::PublicSpendKey::from_bytes(&addr_bytes)?,
-        };
-        Ok(addr)
-    }
-}
-
-impl TryFrom<&[u8; 64]> for Address {
-    type Error = Error;
-
-    fn try_from(bytes: &[u8; 64]) -> Result<Self, Self::Error> {
-        let addr = Address {
-            index: None,
-            psk: dusk_pki::PublicSpendKey::from_bytes(bytes)?,
-        };
-        Ok(addr)
-    }
-}
-
-impl PartialEq for Address {
-    fn eq(&self, other: &Self) -> bool {
-        self.index == other.index && self.psk == other.psk
-    }
-}
-
-impl std::hash::Hash for Address {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.index.hash(state);
-        self.psk.to_bytes().hash(state);
-    }
-}
-
-impl Display for Address {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", bs58::encode(self.psk.to_bytes()).into_string())
-    }
-}
-
-impl Debug for Address {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", bs58::encode(self.psk.to_bytes()).into_string())
-    }
-}
-
-/// Addresses holds address-related metadata that needs to be
-/// persisted in the wallet file.
-struct Addresses {
-    count: u64,
-}
-
-impl Default for Addresses {
-    fn default() -> Self {
-        Self { count: 1 }
-    }
-}
-
-impl Serializable<8> for Addresses {
-    const SIZE: usize = 8;
-
-    type Error = Error;
-
-    fn from_bytes(buf: &[u8; 8]) -> Result<Self, Self::Error>
-    where
-        Self: Sized,
-    {
-        Ok(Self {
-            count: u64::from_le_bytes(*buf),
-        })
-    }
-
-    fn to_bytes(&self) -> [u8; 8] {
-        self.count.to_le_bytes()
-    }
-}
-
-/// Wrapper around `PathBuf` for wallet paths
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-pub struct WalletPath(PathBuf);
-
-impl WalletPath {
-    /// Create a new wallet path from a directory and a name
-    pub fn new(dir: &Path, name: String) -> Self {
-        let mut pb = PathBuf::from(dir);
-        pb.push(name);
-        pb.set_extension("dat");
-        Self(pb)
-    }
-
-    /// Returns the filename of this path
-    pub fn name(&self) -> Option<String> {
-        // extract the name
-        let name = self.0.file_stem()?.to_str()?;
-        Some(String::from(name))
-    }
-
-    /// Returns current directory for this path
-    pub fn dir(&self) -> Option<PathBuf> {
-        self.0.parent().map(PathBuf::from)
-    }
-
-    /// Returns a reference to the `PathBuf` holding the path
-    pub fn inner(&self) -> &PathBuf {
-        &self.0
-    }
-
-    /// Sets the directory for the state cache
-    pub fn set_cache_dir(path: &Path) -> Result<(), Error> {
-        Ok(State::set_cache_dir(path.to_path_buf())?)
-    }
-
-    /// Wallet name defaults to user's username
-    pub fn default_name() -> String {
-        // get default user as default wallet name (remove whitespace)
-        let mut user: String = whoami::username();
-        user.retain(|c| !c.is_whitespace());
-        user
-    }
-
-    /// Wallet default directory defaults to user's home directory
-    pub fn default_dir() -> PathBuf {
-        let home = dirs::home_dir().expect("OS not supported");
-        Path::new(home.as_os_str()).join(DATA_DIR)
-    }
-
-    /// Checks if a wallet with this name already exists
-    pub fn exists(dir: &Path, name: &str) -> bool {
-        let mut pb = dir.to_path_buf();
-        pb.push(name);
-        pb.set_extension("dat");
-        pb.is_file()
-    }
-
-    /// Get full paths of all wallet files found in `dir`
-    pub fn wallets_in(dir: &Path) -> Result<Vec<WalletPath>, Error> {
-        let dir = fs::read_dir(dir)?;
-        let wallets = dir
-            .filter_map(|el| el.ok().map(|d| d.path()))
-            .filter(|path| path.is_file())
-            .filter(|path| match path.extension() {
-                Some(ext) => ext == "dat",
-                None => false,
-            })
-            .map(WalletPath)
-            .collect();
-
-        Ok(wallets)
-    }
-}
-
-impl Default for WalletPath {
-    fn default() -> Self {
-        let mut pb = Self::default_dir();
-        pb.push(Self::default_name());
-        pb.set_extension("dat");
-        WalletPath(pb)
-    }
-}
-
-impl FromStr for WalletPath {
-    type Err = crate::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let p = Path::new(s);
-        Ok(Self(p.to_owned()))
-    }
-}
-
-impl From<PathBuf> for WalletPath {
-    fn from(p: PathBuf) -> Self {
-        Self(p)
-    }
-}
-
-impl From<&Path> for WalletPath {
-    fn from(p: &Path) -> Self {
-        Self(p.to_owned())
-    }
-}
-
-impl Display for WalletPath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.display())
-    }
-}
-
-#[derive(Debug)]
-/// Gas price and limit for any transaction
-pub struct Gas {
-    price: Lux,
-    limit: u64,
-}
-
-impl Gas {
-    /// Default gas price and limit
-    pub fn new() -> Self {
-        Gas {
-            price: DEFAULT_GAS_PRICE,
-            limit: DEFAULT_GAS_LIMIT,
-        }
-    }
-
-    /// Set a custom gas price in Lux
-    pub fn set_price(&mut self, price: Lux) {
-        self.price = price;
-    }
-
-    /// Set a custom gas limit amount
-    pub fn set_limit(&mut self, limit: u64) {
-        self.limit = limit;
-    }
-
-    /// Get gas price
-    pub fn price(&self) -> Lux {
-        self.price
-    }
-
-    /// Get gas limit
-    pub fn limit(&self) -> u64 {
-        self.limit
-    }
-}
-
-impl Default for Gas {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Bls key pair helper structure
 #[derive(Serialize)]
 struct BlsKeyPair {
@@ -862,7 +594,7 @@ mod tests {
 
     const TEST_ADDR: &str = "2w7fRQW23Jn9Bgm1GQW9eC2bD9U883dAwqP7HAr2F8g1syzPQaPYrxSyyVZ81yDS5C1rv9L8KjdPBsvYawSx3QCW";
 
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     struct WalletFile {
         path: WalletPath,
         pwd: Hash,
@@ -884,12 +616,12 @@ mod tests {
         let mut wallet: Wallet<WalletFile> = Wallet::new("uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;
 
         // check address generation
-        let default_addr = wallet.default_address();
+        let default_addr = wallet.default_address().clone();
         let other_addr = wallet.new_address();
 
         assert!(format!("{}", default_addr).eq(TEST_ADDR));
-        assert!(default_addr.ne(&other_addr));
-        assert!(wallet.address_count() == 2);
+        assert_ne!(&default_addr, other_addr);
+        assert_eq!(wallet.addresses.len(), 2);
 
         // create another wallet with different mnemonic
         let wallet: Wallet<WalletFile> = Wallet::new("demise monitor elegant cradle squeeze cheap parrot venture stereo humor scout denial action receive flat")?;
@@ -926,16 +658,8 @@ mod tests {
 
         let original_addr = wallet.default_address();
         let loaded_addr = loaded_wallet.default_address();
-        assert!(original_addr.eq(&loaded_addr));
+        assert!(original_addr.eq(loaded_addr));
 
-        Ok(())
-    }
-
-    #[test]
-    fn addresses_serde() -> Result<(), Box<dyn std::error::Error>> {
-        let addrs = Addresses { count: 6 };
-        let read = Addresses::from_bytes(&addrs.to_bytes())?;
-        assert!(read.count == addrs.count);
         Ok(())
     }
 }

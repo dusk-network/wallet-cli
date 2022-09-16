@@ -41,7 +41,7 @@ where
     where
         T: Into<String>,
     {
-        let title = format!("{:─<12}", format!("{} ", title.into()));
+        let title = format!("─ {:─<12}", format!("{} ", title.into()));
         let title = Separator(title);
         let items = vec![title];
         let keys = HashMap::new();

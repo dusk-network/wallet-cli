@@ -7,33 +7,25 @@ USAGE:
     rusk-wallet [OPTIONS] [SUBCOMMAND]
 
 OPTIONS:
-    -d, --data-dir <DATA_DIR>
-            Directory to store user data [default: `$HOME/.dusk`]
+    -p, --profile <PROFILE>
+            Directory to store user data [default: `$HOME/.dusk/rusk-wallet`]
 
-    -n, --wallet-name <NAME>
-            Name for your wallet [default: `$(whoami)`]
+    -n, --network <NETWORK>
+            Network to connect
 
-    -f, --wallet-file <PATH>
-            Path to a wallet file. Overrides `data-dir` and `wallet-name`, useful when loading a
-            wallet that's not in the default directory
+        --password <PASSWORD>
+            Set the password for wallet's creation [env: RUSK_WALLET_PWD=]
 
-    -i, --ipc-method <IPC_METHOD>
-            IPC method for communication with rusk [uds, tcp_ip]
+        --state <STATE>
+            The state server socket path or fully qualified URL
 
-    -r, --rusk-addr <RUSK_ADDR>
-            Rusk address: socket path or fully quallified URL
-
-    -p, --prover-addr <PROVER_ADDR>
-            Prover service address
-
-        --skip-recovery <SKIP_RECOVERY>
-            Skip wallet recovery phrase (useful for headless wallet creation)
-
-        --wait-for-tx <WAIT_FOR_TX>
-            Wait for transaction confirmation from network [possible values: true, false]
+        --prover <PROVER>
+            The prover server socket path or fully qualified URL
 
         --log-level <LOG_LEVEL>
-            Output log level
+            Output log level [default: info] [possible values: trace, debug,
+                                                               info, warn,
+                                                               error]
 
         --log-type <LOG_TYPE>
             Logging output type (valid: "json", "plain", "coloured")
@@ -44,27 +36,29 @@ OPTIONS:
     -V, --version
             Print version information
 
+
 SUBCOMMANDS:
-    create         Create a new wallet
-    restore        Restore a lost wallet
-    balance        Check your current balance
-    address        Generate new addresses or list your existing ones
-    transfer       Send DUSK through the network
-    stake          Start staking DUSK
-    stake-info     Check your stake information
-    unstake        Unstake a key's stake
-    withdraw       Withdraw accumulated reward for a stake key
-    export         Export BLS provisioner key pair
-    interactive    Run in interactive mode (default)
-    help           Print this message or the help of the given subcommand(s)
+    create        Create a new wallet
+    restore       Restore a lost wallet
+    balance       Check your current balance
+    addresses     List your existing addresses and generate new ones
+    transfer      Send DUSK through the network
+    stake         Start staking DUSK
+    stake-info    Check your stake information
+    unstake       Unstake a key's stake
+    withdraw      Withdraw accumulated reward for a stake key
+    export        Export BLS provisioner key pair
+    settings      Show current settings
+    help          Print this message or the help of the given subcommand(s)
 ```
 
 ## Good to know
 
 Some commands can be run in standalone (offline) operation:
+
 - `create`: Create a new wallet
 - `restore`: Access (and restore) a lost wallet
-- `address`: Retrieve public spend key
+- `addresses`: Retrieve your addresses
 - `export`: Export BLS provisioner key pair
 
 All other commands involve transactions, and thus require an active connection to [**Rusk**](https://github.com/dusk-network/rusk).
@@ -74,7 +68,7 @@ All other commands involve transactions, and thus require an active connection t
 [Install rust](https://www.rust-lang.org/tools/install) and then:
 
 ```
-git clone git@github.com:dusk-network/wallet-cli.git 
+git clone git@github.com:dusk-network/wallet-cli.git
 cd wallet-cli
 make install
 ```
@@ -83,11 +77,17 @@ make install
 
 You will need to connect to a running [**Rusk**](https://github.com/dusk-network/rusk) instance for full wallet capabilities.
 
-The default settings are located in [config.toml](config.toml).
+The default settings can be seen [here](https://github.com/dusk-network/wallet-cli/blob/main/default.config.toml).
 
-The base data directory will be provided via the `--data-dir` argument. It defaults to `$HOME/.dusk/config.toml`.
+It's possible to override those settings by create a `config.toml` file with the same structure, in one of the following
+directory:
 
-The configuration file `config.toml` will be read from the base data directory. If none is present, the default settings will be copied to the base data directory, and used.
+- The profile folder (provided via the `--profile` argument, defaults to `$HOME/.dusk/rusk-wallet/`)
+- The global configuration folder (`$HOME/.config/rusk-wallet/`)
+
+Having the `config.toml` in the global configuration folder is useful in case of multiple wallets (each one with its own profile folder) that shares the same settings.
+
+If a `config.toml` exists in both locations, the one found in the profile folder will be used.
 
 The CLI arguments takes precedence and overrides any configuration present in the configuration file.
 
@@ -108,11 +108,13 @@ rusk-wallet
 Wallet can be run in headless mode by providing all the options required for a given subcommand. It is usually convenient to have a config file with the wallet settings, and then call the wallet with the desired subcommand and its options.
 
 To explore available options and commands, use the `help` command:
+
 ```
 rusk-wallet help
 ```
 
 To further explore any specific command you can use `--help` on the command itself. For example, the following command will print all the information about the `stake` subcommand:
+
 ```
 rusk-wallet stake --help
 ```
@@ -120,6 +122,7 @@ rusk-wallet stake --help
 By default, you will always be prompted to enter the wallet password. To prevent this behavior, you can provide the password using the `RUSK_WALLET_PWD` environment variable. This is useful in CI or any other headless environment.
 
 Please note that `RUSK_WALLET_PWD` is effectively used for:
+
 - Wallet decryption (in all commands that use a wallet)
 - Wallet encryption (in `create`)
 - BLS key encryption (in `export`)

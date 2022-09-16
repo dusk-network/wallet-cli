@@ -8,36 +8,48 @@ use clap::Subcommand;
 use dusk_jubjub::BlsScalar;
 use std::{fmt, path::PathBuf};
 
+use crate::io::prompt;
+use crate::settings::Settings;
 use crate::Error;
-use crate::{io::prompt, WalletFile};
-use dusk_wallet::{Address, Dusk, Gas, Lux, Wallet};
+use crate::{WalletFile, WalletPath};
+
+use dusk_wallet::gas::Gas;
+use dusk_wallet::{Address, Dusk, Lux, Wallet};
 use dusk_wallet_core::{BalanceInfo, StakeInfo};
 
 /// Commands that can be run against the Dusk wallet
 #[derive(PartialEq, Eq, Hash, Clone, Subcommand, Debug)]
 pub(crate) enum Command {
     /// Create a new wallet
-    Create,
+    Create {
+        /// Skip wallet recovery phrase (useful for headless wallet creation)
+        #[clap(long, action)]
+        skip_recovery: bool,
+    },
 
     /// Restore a lost wallet
-    Restore,
+    Restore {
+        /// Set the wallet .dat file to restore from
+        #[clap(short, long)]
+        file: Option<WalletPath>,
+    },
 
     /// Check your current balance
     Balance {
         /// Address
         #[clap(short, long)]
-        addr: Address,
+        addr: Option<Address>,
 
         /// Check maximum spendable balance
         #[clap(long)]
         spendable: bool,
     },
 
-    /// Generate new addresses or list your existing ones
-    Address {
-        /// Returns list of existing addresses
+    /// List your existing addresses and generate new ones
+    Addresses {
+        /// Create new address
         #[clap(short, long, action)]
-        list: bool,
+        new: bool,
     },
 
     /// Send DUSK through the network
@@ -138,33 +150,34 @@ pub(crate) enum Command {
         dir: PathBuf,
     },
 
-    /// Run in interactive mode (default)
-    Interactive,
+    /// Show current settings
+    Settings,
 }
 
 impl Command {
-    /// Returns true if command runs in headless mode
-    pub fn is_headless(&self) -> bool {
-        !matches!(*self, Self::Interactive)
-    }
-
     /// Runs the command with the provided wallet
     pub async fn run(
         self,
         wallet: &mut Wallet<WalletFile>,
+        settings: &Settings,
     ) -> Result<RunResult, Error> {
         match self {
             Command::Balance { addr, spendable } => {
-                let balance = wallet.get_balance(&addr).await?;
+                let addr = match addr {
+                    Some(addr) => wallet.claim_as_address(addr)?,
+                    None => wallet.default_address(),
+                };
+
+                let balance = wallet.get_balance(addr).await?;
                 Ok(RunResult::Balance(balance, spendable))
             }
-            Command::Address { list } => {
-                if list {
-                    Ok(RunResult::Addresses(wallet.addresses()))
-                } else {
-                    let addr = wallet.new_address();
+            Command::Addresses { new } => {
+                if new {
+                    let addr = wallet.new_address().clone();
                     wallet.save()?;
                     Ok(RunResult::Address(Box::new(addr)))
+                } else {
+                    Ok(RunResult::Addresses(wallet.addresses().clone()))
                 }
             }
             Command::Transfer {
@@ -178,8 +191,11 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let gas = gas_from_args(gas_price, gas_limit);
-                let tx = wallet.transfer(&sender, &rcvr, amt, gas).await?;
+                let mut gas = Gas::new();
+                gas.set_price(gas_price);
+                gas.set_limit(gas_limit);
+
+                let tx = wallet.transfer(sender, &rcvr, amt, gas).await?;
                 Ok(RunResult::Tx(tx.hash()))
             }
             Command::Stake {
@@ -192,8 +208,11 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let gas = gas_from_args(gas_price, gas_limit);
-                let tx = wallet.stake(&addr, amt, gas).await?;
+                let mut gas = Gas::new();
+                gas.set_price(gas_price);
+                gas.set_limit(gas_limit);
+
+                let tx = wallet.stake(addr, amt, gas).await?;
                 Ok(RunResult::Tx(tx.hash()))
             }
             Command::StakeInfo { addr, reward } => {
@@ -201,7 +220,7 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let si = wallet.stake_info(&addr).await?;
+                let si = wallet.stake_info(addr).await?;
                 Ok(RunResult::StakeInfo(si, reward))
             }
             Command::Unstake {
@@ -213,8 +232,12 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let gas = gas_from_args(gas_price, gas_limit);
-                let tx = wallet.unstake(&addr, gas).await?;
+
+                let mut gas = Gas::new();
+                gas.set_price(gas_price);
+                gas.set_limit(gas_limit);
+
+                let tx = wallet.unstake(addr, gas).await?;
                 Ok(RunResult::Tx(tx.hash()))
             }
             Command::Withdraw {
@@ -227,9 +250,13 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let gas = gas_from_args(gas_price, gas_limit);
+
+                let mut gas = Gas::new();
+                gas.set_price(gas_price);
+                gas.set_limit(gas_limit);
+
                 let tx =
-                    wallet.withdraw_reward(&addr, &refund_addr, gas).await?;
+                    wallet.withdraw_reward(addr, &refund_addr, gas).await?;
                 Ok(RunResult::Tx(tx.hash()))
             }
             Command::Export { addr, dir } => {
@@ -237,16 +264,17 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let pwd = prompt::request_auth("Encryption password");
+                let pwd = prompt::request_auth(
+                    "Encryption password",
+                    &settings.password,
+                );
                 let (pub_key, key_pair) =
-                    wallet.export_keys(&addr, &dir, pwd)?;
+                    wallet.export_keys(addr, &dir, pwd)?;
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))
             }
-            _ => {
-                // commands that don't use a wallet (like create or restore)
-                // cannot be run directly
-                Err(Error::NotSupported)
-            }
+            Command::Create { .. } => Ok(RunResult::Create()),
+            Command::Restore { .. } => Ok(RunResult::Restore()),
+            Command::Settings => Ok(RunResult::Settings()),
         }
     }
 }
@@ -259,6 +287,9 @@ pub enum RunResult {
     Address(Box<Address>),
     Addresses(Vec<Address>),
     ExportedKeys(PathBuf, PathBuf),
+    Create(),
+    Restore(),
+    Settings(),
 }
 
 impl fmt::Display for RunResult {
@@ -310,18 +341,7 @@ impl fmt::Display for RunResult {
                     kp.display()
                 )
             }
+            Create() | Restore() | Settings() => unreachable!(),
         }
     }
-}
-
-/// Obtains a `Gas` object from runtime arguments
-fn gas_from_args(price: Option<Lux>, limit: Option<u64>) -> Gas {
-    let mut gas = Gas::new();
-    if let Some(value) = price {
-        gas.set_price(value);
-    }
-    if let Some(value) = limit {
-        gas.set_limit(value)
-    }
-    gas
 }
