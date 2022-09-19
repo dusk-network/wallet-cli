@@ -202,7 +202,6 @@ fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
         })),
         CMI::Withdraw => AddrOp::Run(Box::new(Command::Withdraw {
             addr: Some(addr),
-            refund_addr: prompt::request_rcvr_addr("refund"),
             gas_limit: Some(prompt::request_gas_limit()),
             gas_price: Some(prompt::request_gas_price()),
         })),
@@ -392,7 +391,6 @@ fn confirm(cmd: &Command) -> bool {
         }
         Command::Withdraw {
             addr,
-            refund_addr,
             gas_limit,
             gas_price,
         } => {
@@ -401,7 +399,6 @@ fn confirm(cmd: &Command) -> bool {
             let gas_price = gas_price.expect("gas price not set");
             let max_fee = gas_limit * gas_price;
             println!("   > Reward from {}", addr.preview());
-            println!("   > Refund into {}", refund_addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             prompt::ask_confirm()
         }
