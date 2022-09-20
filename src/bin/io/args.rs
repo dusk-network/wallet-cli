@@ -4,57 +4,45 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use crate::settings::{LogFormat, LogLevel};
 use crate::Command;
 use clap::{AppSettings, Parser};
 use std::path::PathBuf;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[clap(version)]
 #[clap(name = "Dusk Wallet CLI")]
 #[clap(author = "Dusk Network B.V.")]
 #[clap(about = "A user-friendly, reliable command line interface to the Dusk wallet!", long_about = None)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 pub(crate) struct WalletArgs {
-    /// Directory to store user data [default: `$HOME/.dusk`]
+    /// Directory to store user data [default: `$HOME/.dusk/rusk-wallet`]
     #[clap(short, long)]
-    pub data_dir: Option<PathBuf>,
+    pub profile: Option<PathBuf>,
 
-    /// Name for your wallet [default: `$(whoami)`]
-    #[clap(short = 'n', long, value_name = "NAME")]
-    pub wallet_name: Option<String>,
+    /// Network to connect
+    #[clap(short, long)]
+    pub network: Option<String>,
 
-    /// Path to a wallet file. Overrides `data-dir` and `wallet-name`, useful
-    /// when loading a wallet that's not in the default directory.
-    #[clap(short = 'f', long, parse(from_os_str), value_name = "PATH")]
-    pub wallet_file: Option<PathBuf>,
+    /// Set the password for wallet's creation
+    #[clap(long, env = "RUSK_WALLET_PWD")]
+    pub password: Option<String>,
 
-    /// IPC method for communication with rusk [uds, tcp_ip]
-    #[clap(short = 'i', long)]
-    pub ipc_method: Option<String>,
-
-    /// Rusk address: socket path or fully quallified URL
-    #[clap(short = 'r', long)]
-    pub rusk_addr: Option<String>,
-
-    /// Prover service address
-    #[clap(short = 'p', long)]
-    pub prover_addr: Option<String>,
-
-    /// Skip wallet recovery phrase (useful for headless wallet creation)
+    /// The state server socket path or fully qualified URL
     #[clap(long)]
-    pub skip_recovery: Option<bool>,
+    pub state: Option<String>,
 
-    /// Wait for transaction confirmation from network
-    #[clap(long, action)]
-    pub wait_for_tx: Option<bool>,
+    /// The state server socket path or fully qualified URL
+    #[clap(long)]
+    pub prover: Option<String>,
 
     /// Output log level
-    #[clap(long)]
-    pub log_level: Option<String>,
+    #[clap(long, value_enum, default_value_t = LogLevel::Info)]
+    pub log_level: LogLevel,
 
     /// Logging output type (valid: "json", "plain", "coloured")
-    #[clap(long)]
-    pub log_type: Option<String>,
+    #[clap(long, value_enum, default_value_t = LogFormat::Coloured)]
+    pub log_type: LogFormat,
 
     /// Command
     #[clap(subcommand)]

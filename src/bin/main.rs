@@ -5,10 +5,12 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 mod command;
+mod config;
 mod error;
 mod interactive;
 mod io;
 mod menu;
+mod settings;
 
 pub(crate) use command::{Command, RunResult};
 pub(crate) use error::Error;
@@ -16,22 +18,23 @@ pub(crate) use menu::Menu;
 
 use clap::Parser;
 use std::fs;
-use std::path::PathBuf;
-use std::str::FromStr;
 use tracing::{warn, Level};
 
 use bip39::{Language, Mnemonic, MnemonicType};
 use blake3::Hash;
+
+use crate::settings::{LogFormat, Settings};
 
 #[cfg(not(windows))]
 use dusk_wallet::TransportUDS;
 
 use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
 
+use config::{Config, TransportMethod};
 use io::{prompt, status};
-use io::{Config, GraphQL, WalletArgs};
+use io::{GraphQL, WalletArgs};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct WalletFile {
     path: WalletPath,
     pwd: Hash,
@@ -58,33 +61,70 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
+async fn connect<F>(
+    mut wallet: Wallet<F>,
+    settings: &Settings,
+    status: fn(&str),
+) -> Wallet<F>
+where
+    F: SecureWalletFile + std::fmt::Debug,
+{
+    let con = match (&settings.state.method(), &settings.prover.method()) {
+        (TransportMethod::Tcp, TransportMethod::Tcp) => {
+            wallet
+                .connect_with_status(
+                    TransportTCP::new(&settings.state, &settings.prover),
+                    status,
+                )
+                .await
+        }
+        #[cfg(not(windows))]
+        (TransportMethod::Uds, _) => {
+            wallet
+                .connect_with_status(TransportUDS::new(&settings.state), status)
+                .await
+        }
+
+        (_, _) => panic!("IPC method not supported"),
+    };
+
+    // check for connection errors
+    if con.is_err() {
+        warn!("Connection to Rusk Failed, some operations won't be available.");
+    }
+
+    wallet
+}
+
 async fn exec() -> Result<(), Error> {
     // parse user args
     let args = WalletArgs::parse();
+    // get the subcommand, if any
     let cmd = args.command.clone();
 
     // set symbols to ASCII for Windows terminal compatibility
     #[cfg(windows)]
     requestty::symbols::set(requestty::symbols::ASCII);
 
-    // data directory needs to be clear from the start
-    let data_dir = args
-        .data_dir
-        .as_ref()
-        .cloned()
-        .unwrap_or_else(WalletPath::default_dir);
+    // Get the initial settings from the args
+    let settings = Settings::args(args);
 
-    // create directories
-    fs::create_dir_all(&data_dir)?;
+    // Obtain the profile dir from the settings
+    let profile_folder = settings.profile().clone();
 
-    // set cache directory straight away
-    WalletPath::set_cache_dir(&data_dir)?;
+    fs::create_dir_all(&profile_folder)?;
+
+    // prepare wallet path
+    let wallet_path = WalletPath::from(profile_folder.join("wallet.dat"));
 
     // load configuration (or use default)
-    let mut cfg = Config::load(data_dir)?;
+    let cfg = Config::load(&profile_folder)?;
 
-    // merge static config with parsed args
-    cfg.merge(args);
+    // Finally complete the settings by set the network
+    let settings = settings.network(cfg.network);
+
+    // set cache directory straight away
+    WalletPath::set_cache_dir(&profile_folder)?;
 
     // generate a subscriber with the desired log level
     //
@@ -97,132 +137,124 @@ async fn exec() -> Result<(), Error> {
     //
     // See: <https://github.com/dusk-network/wallet-cli/issues/73>
     //
-    let level = Level::from_str(cfg.logging.level.as_str())?;
+    let level = &settings.logging.level;
+    let level: Level = level.into();
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
         .with_max_level(level)
         .with_writer(std::io::stderr);
 
     // set the subscriber as global
-    match cfg.logging.r#type.as_str() {
-        "json" => {
+    match settings.logging.format {
+        LogFormat::Json => {
             let subscriber = subscriber.json().flatten_event(true).finish();
             tracing::subscriber::set_global_default(subscriber)?;
         }
-        "plain" => {
+        LogFormat::Plain => {
             let subscriber = subscriber.with_ansi(false).finish();
             tracing::subscriber::set_global_default(subscriber)?;
         }
-        "coloured" => {
+        LogFormat::Coloured => {
             let subscriber = subscriber.finish();
             tracing::subscriber::set_global_default(subscriber)?;
         }
-        _ => unreachable!(),
     };
 
-    // get command or default to interactive mode
-    let cmd = cmd.unwrap_or(Command::Interactive);
+    let is_headless = cmd.is_some();
 
-    // prepare wallet path
-    let wallet_path = match cfg.wallet.file {
-        Some(ref p) => WalletPath::from(p.with_extension("dat")),
-        None => {
-            let mut pb = PathBuf::new();
-            pb.push(&cfg.wallet.data_dir);
-            pb.push(&cfg.wallet.name);
-            pb.set_extension("dat");
-            WalletPath::from(pb)
+    let password = &settings.password;
+
+    match cmd {
+        Some(ref cmd) if cmd == &Command::Settings => {
+            println!("{}", &settings);
+            return Ok(());
         }
+        _ => {}
     };
 
     // get our wallet ready
     let mut wallet: Wallet<WalletFile> = match cmd {
-        Command::Create => {
-            // create a new randomly generated mnemonic phrase
-            let mnemonic =
-                Mnemonic::new(MnemonicType::Words12, Language::English);
-            // ask user for a password to secure the wallet
-            let pwd = prompt::create_password();
-            // skip phrase confirmation if explicitly
-            if !cfg.wallet.skip_recovery {
-                prompt::confirm_recovery_phrase(&mnemonic);
+        Some(ref cmd) => match cmd {
+            Command::Create { skip_recovery } => {
+                // create a new randomly generated mnemonic phrase
+                let mnemonic =
+                    Mnemonic::new(MnemonicType::Words12, Language::English);
+                // ask user for a password to secure the wallet
+                let pwd = prompt::create_password(password);
+                // skip phrase confirmation if explicitly
+                if !skip_recovery {
+                    prompt::confirm_recovery_phrase(&mnemonic);
+                }
+
+                // create wallet
+                let mut w = Wallet::new(mnemonic)?;
+                w.save_to(WalletFile {
+                    path: wallet_path,
+                    pwd,
+                })?;
+                w
             }
-            // create wallet
-            let mut w = Wallet::new(mnemonic)?;
-            w.save_to(WalletFile {
-                path: wallet_path,
-                pwd,
-            })?;
-            w
-        }
-        Command::Restore => {
-            // ask user for 12-word recovery phrase
-            let phrase = prompt::request_recovery_phrase();
-            // ask user for a password to secure the wallet
-            let pwd = prompt::create_password();
-            // create wallet
-            let mut w = Wallet::new(phrase)?;
-            w.save_to(WalletFile {
-                path: wallet_path,
-                pwd,
-            })?;
-            w
-        }
-        Command::Interactive => {
+            Command::Restore { file } => {
+                let (mut w, pwd) = match file {
+                    Some(file) => {
+                        let pwd = prompt::request_auth(
+                            "Please enter wallet password",
+                            password,
+                        );
+
+                        let w = Wallet::from_file(WalletFile {
+                            path: file.clone(),
+                            pwd,
+                        })?;
+                        (w, pwd)
+                    }
+                    None => {
+                        // ask user for 12-word recovery phrase
+                        let phrase = prompt::request_recovery_phrase();
+                        // ask user for a password to secure the wallet
+                        let pwd = prompt::create_password(password);
+                        // create wallet
+                        let w = Wallet::new(phrase)?;
+
+                        (w, pwd)
+                    }
+                };
+
+                w.save_to(WalletFile {
+                    path: wallet_path,
+                    pwd,
+                })?;
+                w
+            }
+
+            _ => {
+                // load wallet from file
+                let pwd = prompt::request_auth(
+                    "Please enter wallet password",
+                    password,
+                );
+                Wallet::from_file(WalletFile {
+                    path: wallet_path,
+                    pwd,
+                })?
+            }
+        },
+        None => {
             // load a wallet in interactive mode
-            interactive::load_wallet(&wallet_path)?
-        }
-        _ => {
-            // load wallet from file
-            let pwd = prompt::request_auth("Please enter wallet password");
-            Wallet::from_file(WalletFile {
-                path: wallet_path,
-                pwd,
-            })?
+            interactive::load_wallet(&wallet_path, &settings)?
         }
     };
 
     // set our status callback
-    let status_cb = match cmd.is_headless() {
+    let status_cb = match is_headless {
         true => status::headless,
         false => status::interactive,
     };
 
-    // attempt to connect wallet
-    #[cfg(windows)]
-    let con = {
-        let t = TransportTCP::new(&cfg.rusk.rusk_addr, &cfg.rusk.prover_addr);
-        wallet.connect_with_status(t, status_cb).await
-    };
-    #[cfg(not(windows))]
-    let con = {
-        let ipc = cfg.rusk.ipc_method.as_str();
-        match ipc {
-            "uds" => {
-                let t = TransportUDS::new(&cfg.rusk.rusk_addr);
-                wallet.connect_with_status(t, status_cb).await
-            }
-            "tcp_ip" => {
-                let t = TransportTCP::new(
-                    &cfg.rusk.rusk_addr,
-                    &cfg.rusk.prover_addr,
-                );
-                wallet.connect_with_status(t, status_cb).await
-            }
-            _ => panic!("IPC method not supported"),
-        }
-    };
-
-    // check for connection errors
-    if con.is_err() {
-        warn!("Connection to Rusk Failed, some operations won't be available.");
-    }
+    wallet = connect(wallet, &settings, status_cb).await;
 
     // run command
     match cmd {
-        Command::Interactive => {
-            interactive::run_loop(&mut wallet, &cfg).await?;
-        }
-        _ => match cmd.run(&mut wallet).await? {
+        Some(cmd) => match cmd.run(&mut wallet, &settings).await? {
             RunResult::Balance(balance, spendable) => {
                 if spendable {
                     println!("{}", balance.spendable);
@@ -240,11 +272,14 @@ async fn exec() -> Result<(), Error> {
             }
             RunResult::Tx(hash) => {
                 let txh = format!("{:x}", hash);
-                if cfg.chain.wait_for_tx {
-                    let gql =
-                        GraphQL::new(&cfg.chain.gql_url, status::headless);
-                    gql.wait_for(&txh).await?;
-                }
+
+                // Wait for transaction confirmation from network
+                let gql = GraphQL::new(
+                    &settings.graphql.to_string(),
+                    status::headless,
+                );
+                gql.wait_for(&txh).await?;
+
                 println!("{}", txh);
             }
             RunResult::StakeInfo(si, reward) => {
@@ -260,7 +295,12 @@ async fn exec() -> Result<(), Error> {
             RunResult::ExportedKeys(pub_key, key_pair) => {
                 println!("{},{}", pub_key.display(), key_pair.display())
             }
+            RunResult::Settings() => {}
+            RunResult::Create() | RunResult::Restore() => {}
         },
+        None => {
+            interactive::run_loop(&mut wallet, &settings).await?;
+        }
     }
 
     Ok(())

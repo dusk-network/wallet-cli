@@ -12,28 +12,26 @@
 //! Clients can use `Wallet` to create their Dusk wallet, send transactions
 //! through the network of their choice, stake and withdraw rewards, etc.
 
+#![deny(missing_docs)]
+
 mod block;
 mod cache;
 mod clients;
 mod crypto;
 
-mod dusk;
+mod currency;
 mod error;
 mod rusk;
 mod store;
 mod wallet;
 
-pub use dusk::{Dusk, Lux};
+pub use currency::{Dusk, Lux};
 pub use error::Error;
 pub use rusk::{RuskEndpoint, TransportTCP, TransportUDS};
-pub use wallet::{Address, Gas, SecureWalletFile, Wallet, WalletPath};
+pub use wallet::gas;
+pub use wallet::{Address, SecureWalletFile, Wallet, WalletPath};
 
-pub const SEED_SIZE: usize = 64;
-
+/// The largest amount of Dusk that is possible to convert
 pub const MAX_CONVERTIBLE: Dusk = Dusk::MAX;
+/// The smallest amount of Dusk that is possible to convert
 pub const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
-
-pub const MIN_GAS_LIMIT: u64 = 350_000_000;
-pub const DEFAULT_GAS_LIMIT: u64 = 500_000_000;
-
-pub const DEFAULT_GAS_PRICE: Lux = 1;

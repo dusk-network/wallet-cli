@@ -21,9 +21,12 @@ pub type Lux = u64;
 pub struct Dusk(Lux);
 
 impl Dusk {
+    /// The smallest value that can be represented by Dusk currency
     pub const MIN: Dusk = Dusk(0);
+    /// The largest value that can be represented by Dusk currency
     pub const MAX: Dusk = Dusk(dusk::dusk(f64::MAX / dusk::dusk(1.0) as f64));
 
+    /// Returns a new Dusk based on the [Lux] given
     pub const fn new(lux: Lux) -> Dusk {
         Self(lux)
     }
@@ -122,7 +125,7 @@ impl PartialEq<f64> for Dusk {
 /// Comparison
 impl Ord for Dusk {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&*other)
+        self.0.cmp(other)
     }
 }
 

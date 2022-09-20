@@ -238,7 +238,7 @@ impl StateClient for State {
 
         self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
-        let last_height = state.cache.last_height(psk)?;
+        let mut last_height = state.cache.last_height(psk)?;
 
         self.status("Fetching fresh notes...");
         let msg = GetNotesRequest {
@@ -251,8 +251,12 @@ impl StateClient for State {
 
         self.status("Streaming notes...");
 
+        self.status(format!("From block: {}", last_height).as_str());
+
         while let Some(item) = stream.next().wait() {
             let rsp = item?;
+
+            last_height = std::cmp::max(last_height, rsp.height);
 
             let note = Note::from_slice(&rsp.note)?;
             let note = match vk.owns(&note) {
@@ -262,6 +266,8 @@ impl StateClient for State {
 
             state.cache.insert(psk, rsp.height, note)?;
         }
+
+        println!("Last block: {}", last_height);
 
         state.cache.persist()?;
 

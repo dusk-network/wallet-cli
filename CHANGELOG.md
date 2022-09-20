@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `default.config.toml` for the default configuration settings [#57]
+- Add `settings` subcommand to show the current settings [#57]
+- Add `--password` as global argument [#57]
+- Add `--skip-recovery` to `create` subcommand [#57]
+- Add `--file` to `restore` subcommand [#57]
+- Add `Settings` type to merge `Config` (from toml) and `WalletArgs` (from CLI) [#57]
+- Add `address` module
+- Add `gas` module
+- Add `settings` module [#57]
+- Add `is_enough` method to `Gas`
+- Add `Create`, `Restore` and `Settings` for both `Command` and `RunResult` enums [#72]
+- Add `LogFormat` and `LogLevel` enums to enforce the set of value from args [#57]
+- Add `From block` and `Last block` during fetching
+- Add missing documentations
+- Add `Seed` type in `store` module
+
+### Changed
+
+- Change `config.toml` format [#57]
+- Change from multiple wallets to one wallet for a single profile dir [#72]
+- Rename `dusk` module to `currency` module
+- Rename `address` subcommand to `addresses`
+- Change `set_price` and `set_limit` for `Gas` to works with `Option`
+- Change part of the functions to either receive the `password` or the `settings` [#57]
+- Move `config` module outside `io` [#57]
+- Change few UI strings
+- Update rust-toolchain from `nightly-2022-02-19` to `nightly-2022-08-28`
+
+### Removed
+
+- Rename `--data-dir` argument option to `--profile` [#57]
+- Remove `--wallet-name` argument option [#72]
+- Remove `--network` argument option to chose the network to connect with [#57]
+- Remove `interactive` subcommand [#57]
+- Remove `--skip-recovery` as global argument [#57]
+- Remove `--wait-for-tx` (now all the transaction wait by default) [#57]
+- Remove `merge` method from `Config` in favour of `Settings` type [#57]
+- Remove `Command::NotSupported` [#57]
+- Rename `DEFAULT_GAS_LIMIT`, `DEFAULT_GAS_PRICE`, `MIN_GAS_LIMIT`
+- Remove `Addresses` type in favour of `Vec<Address>`
+
+### Fixed
+
+- Fix `balance` subcommand: it didn't work because the address given wasn't claimed
+- Fix BLS keys exported with wrong extensions [#84]
+
 ## [0.11.1] - 2022-08-24
 
 ### Added
@@ -18,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Change `LoggingConfig` to be optional [#73]
 - Replace `error!` macro with `eprintln!` macro [#73]
+- Change `Return` to `Back` in the menu
 
 ## [0.11.0] - 2022-08-17
 
@@ -245,6 +294,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#84]: https://github.com/dusk-network/wallet-cli/issues/84
+[#72]: https://github.com/dusk-network/wallet-cli/issues/72
+[#57]: https://github.com/dusk-network/wallet-cli/issues/57
 [#70]: https://github.com/dusk-network/wallet-cli/issues/70
 [#73]: https://github.com/dusk-network/wallet-cli/issues/73
 [#68]: https://github.com/dusk-network/wallet-cli/issues/68

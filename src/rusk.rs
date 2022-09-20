@@ -92,7 +92,9 @@ impl Interceptor for RuskVersionInterceptor {
 /// Transport details for the Dusk Network
 #[async_trait]
 pub trait RuskEndpoint {
+    /// Returns the [Channel] used to communicate with the state server
     async fn state(&self) -> Result<Channel, Error>;
+    /// Returns the [Channel] used to communicate with the prover server
     async fn prover(&self) -> Result<Channel, Error>;
 }
 
@@ -105,6 +107,8 @@ pub struct TransportTCP {
 }
 
 impl TransportTCP {
+    /// Creates a new TCP IP transport with the given addresses for the state
+    /// and the prover
     pub fn new<S>(rusk_addr: S, prov_addr: S) -> Self
     where
         S: Into<String>,
@@ -134,6 +138,7 @@ pub struct TransportUDS {
 }
 
 impl TransportUDS {
+    /// Creates a new UDS transport with the given address.
     pub fn new<S>(path: S) -> Self
     where
         S: Into<String>,
@@ -150,7 +155,7 @@ impl RuskEndpoint for TransportUDS {
         Ok(Endpoint::try_from("http://[::]:50051")
             .expect("parse address")
             .connect_with_connector(service_fn(move |_: Uri| {
-                let path = (&addr[..]).to_string();
+                let path = (addr[..]).to_string();
                 UnixStream::connect(path)
             }))
             .await?)

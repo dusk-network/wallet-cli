@@ -9,25 +9,26 @@ use dusk_wallet::{Address, Dusk, Wallet, WalletPath};
 use requestty::Question;
 
 use crate::io;
-use crate::io::Config;
 use crate::io::GraphQL;
 use crate::prompt;
+use crate::settings::Settings;
 use crate::Error;
 use crate::Menu;
 use crate::WalletFile;
 use crate::{Command, RunResult};
+use std::path::PathBuf;
 
 /// Run the interactive UX loop with a loaded wallet
 pub(crate) async fn run_loop(
     wallet: &mut Wallet<WalletFile>,
-    cfg: &Config,
+    settings: &Settings,
 ) -> Result<(), Error> {
     loop {
         // let the user choose (or create) an address
         let addr = match menu_addr(wallet) {
             AddrSelect::Address(addr) => *addr,
             AddrSelect::NewAddress => {
-                let addr = wallet.new_address();
+                let addr = wallet.new_address().clone();
                 wallet.save()?;
                 addr
             }
@@ -51,12 +52,12 @@ pub(crate) async fn run_loop(
                 );
 
                 // operations menu
-                menu_op(addr.clone(), balance.spendable.into())
+                menu_op(addr.clone(), balance.spendable.into(), settings)
             } else {
                 // display address information
                 println!("\rAddress: {}", addr);
                 println!("Balance:\n - Spendable: [n/a]\n - Total: [n/a]");
-                menu_op_offline(addr.clone())
+                menu_op_offline(addr.clone(), settings)
             };
 
             // perform operations with this address
@@ -66,24 +67,26 @@ pub(crate) async fn run_loop(
                     if confirm(&cmd) {
                         // run command
                         prompt::hide_cursor()?;
-                        let result = cmd.run(wallet).await;
+                        let result = cmd.run(wallet, settings).await;
                         prompt::show_cursor()?;
-
                         // output results
                         match result {
                             Ok(res) => {
                                 println!("\r{}", res);
                                 if let RunResult::Tx(hash) = res {
                                     let txh = format!("{:x}", hash);
-                                    if cfg.chain.wait_for_tx {
-                                        let gql = GraphQL::new(
-                                            &cfg.chain.gql_url,
-                                            io::status::interactive,
-                                        );
-                                        gql.wait_for(&txh).await?;
-                                    }
-                                    if let Some(base_url) = &cfg.explorer.tx_url
-                                    {
+
+                                    // Wait for transaction confirmation from
+                                    // network
+                                    let gql = GraphQL::new(
+                                        &settings.graphql.to_string(),
+                                        io::status::interactive,
+                                    );
+                                    gql.wait_for(&txh).await?;
+
+                                    if let Some(explorer) = &settings.explorer {
+                                        let base_url = explorer.to_string();
+
                                         let url =
                                             format!("{}{}", base_url, txh);
                                         println!("> URL: {}", url);
@@ -95,7 +98,7 @@ pub(crate) async fn run_loop(
                         }
                     }
                 }
-                AddrOp::Return => break,
+                AddrOp::Back => break,
             }
         }
     }
@@ -111,14 +114,15 @@ enum AddrSelect {
 /// Allows the user to choose an address from the selected wallet
 /// to start performing operations.
 fn menu_addr(wallet: &Wallet<WalletFile>) -> AddrSelect {
-    let mut address_menu = Menu::title("Use an existing address:");
+    let mut address_menu = Menu::title("Addresses");
     for addr in wallet.addresses() {
         let preview = addr.preview();
-        address_menu =
-            address_menu.add(AddrSelect::Address(Box::new(addr)), preview);
+        address_menu = address_menu
+            .add(AddrSelect::Address(Box::new(addr.clone())), preview);
     }
 
-    let action_menu = Menu::title("Other actions...")
+    let action_menu = Menu::new()
+        .separator()
         .add(AddrSelect::NewAddress, "New adddress")
         .separator()
         .add(AddrSelect::Exit, "Exit");
@@ -136,7 +140,7 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> AddrSelect {
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 enum AddrOp {
     Run(Box<Command>),
-    Return,
+    Back,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
@@ -147,15 +151,15 @@ enum CommandMenuItem {
     Unstake,
     Withdraw,
     Export,
-    Return,
+    Back,
 }
 
 /// Allows the user to chose the operation to perform for the
 /// selected address
-fn menu_op(addr: Address, balance: Dusk) -> AddrOp {
+fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
     use CommandMenuItem as CMI;
 
-    let cmd_menu = Menu::title("Operations:")
+    let cmd_menu = Menu::new()
         .add(CMI::Transfer, "Transfer Dusk")
         .add(CMI::Stake, "Stake Dusk")
         .add(CMI::StakeInfo, "Check existing stake")
@@ -163,7 +167,7 @@ fn menu_op(addr: Address, balance: Dusk) -> AddrOp {
         .add(CMI::Withdraw, "Withdraw staking reward")
         .add(CMI::Export, "Export provisioner key-pair")
         .separator()
-        .add(CMI::Return, "Return to wallet dashboard");
+        .add(CMI::Back, "Back");
 
     let q = Question::select("theme")
         .message("What would you like to do?")
@@ -204,21 +208,22 @@ fn menu_op(addr: Address, balance: Dusk) -> AddrOp {
         })),
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
-            dir: prompt::request_dir("export keys"),
+            dir: prompt::request_dir("export keys", settings.profile.clone()),
         })),
-        CMI::Return => AddrOp::Return,
+        CMI::Back => AddrOp::Back,
     }
 }
 
 /// Allows the user to chose the operation to perform for the
 /// selected address while in offline mode
-fn menu_op_offline(addr: Address) -> AddrOp {
+fn menu_op_offline(addr: Address, settings: &Settings) -> AddrOp {
     use CommandMenuItem as CMI;
 
-    let cmd_menu = Menu::title("Operations:")
+    let cmd_menu = Menu::new()
+        .separator()
         .add(CMI::Export, "Export provisioner key-pair")
         .separator()
-        .add(CMI::Return, "Return to wallet dashboard");
+        .add(CMI::Back, "Back");
 
     let q = Question::select("theme")
         .message("What would you like to do?")
@@ -231,9 +236,9 @@ fn menu_op_offline(addr: Address) -> AddrOp {
     match cmd {
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
-            dir: prompt::request_dir("export keys"),
+            dir: prompt::request_dir("export keys", settings.profile.clone()),
         })),
-        CMI::Return => AddrOp::Return,
+        CMI::Back => AddrOp::Back,
         _ => unreachable!(),
     }
 }
@@ -241,44 +246,46 @@ fn menu_op_offline(addr: Address) -> AddrOp {
 /// Allows the user to load a wallet interactively
 pub(crate) fn load_wallet(
     wallet_path: &WalletPath,
+    settings: &Settings,
 ) -> Result<Wallet<WalletFile>, Error> {
-    // find wallets in the specified data directory
-    let wallet_dir = wallet_path.dir().unwrap_or_else(WalletPath::default_dir);
-    let wallets_found = WalletPath::wallets_in(&wallet_dir)?;
+    let wallet_found = wallet_path
+        .inner()
+        .exists()
+        .then(|| wallet_path.inner().clone());
+
+    let password = &settings.password;
 
     // display main menu
-    let wallet = match menu_wallet(&wallets_found) {
+    let wallet = match menu_wallet(wallet_found) {
         MainMenu::Load(path) => {
-            let pwd =
-                prompt::request_auth("Please enter you wallet's password");
+            let pwd = prompt::request_auth(
+                "Please enter you wallet's password",
+                password,
+            );
             Wallet::from_file(WalletFile { path, pwd })?
         }
         MainMenu::Create => {
             // create a new randomly generated mnemonic phrase
             let mnemonic =
                 Mnemonic::new(MnemonicType::Words12, Language::English);
-            // let the user give this wallet a name
-            let name = prompt::request_wallet_name(&wallet_dir);
             // ask user for a password to secure the wallet
-            let pwd = prompt::create_password();
+            let pwd = prompt::create_password(password);
             // display the recovery phrase
             prompt::confirm_recovery_phrase(&mnemonic);
             // create and store the wallet
             let mut w = Wallet::new(mnemonic)?;
-            let path = WalletPath::new(&wallet_dir, name);
+            let path = wallet_path.clone();
             w.save_to(WalletFile { path, pwd })?;
             w
         }
         MainMenu::Recover => {
             // ask user for 12-word recovery phrase
             let phrase = prompt::request_recovery_phrase();
-            // let the user give this wallet a name
-            let name = prompt::request_wallet_name(&wallet_dir);
             // ask user for a password to secure the wallet
-            let pwd = prompt::create_password();
+            let pwd = prompt::create_password(&None);
             // create and store the recovered wallet
             let mut w = Wallet::new(phrase)?;
-            let path = WalletPath::new(&wallet_dir, name);
+            let path = wallet_path.clone();
             w.save_to(WalletFile { path, pwd })?;
             w
         }
@@ -298,33 +305,32 @@ enum MainMenu {
 
 /// Allows the user to load an existing wallet, recover a lost one
 /// or create a new one.
-fn menu_wallet(wallets: &Vec<WalletPath>) -> MainMenu {
+fn menu_wallet(wallet_found: Option<PathBuf>) -> MainMenu {
     // create the wallet menu
-    let mut wallet_menu = Menu::title("Access an existing wallet:");
-    for wallet in wallets {
-        let name = wallet.name().unwrap_or_else(|| "[no name]".to_string());
-        wallet_menu = wallet_menu.add(MainMenu::Load(wallet.clone()), name);
-    }
+    let mut menu = Menu::new();
 
-    // create the action menu
-    let action_menu = Menu::title("Other actions...")
-        .add(
-            MainMenu::Create,
-            "Create a new wallet and store it in this computer",
-        )
-        .add(
+    if let Some(wallet_path) = wallet_found {
+        menu = menu
+            .separator()
+            .add(
+                MainMenu::Load(WalletPath::from(wallet_path)),
+                "Access your wallet",
+            )
+            .separator()
+            .add(MainMenu::Create, "Replace your wallet with a new one")
+            .add(
+                MainMenu::Recover,
+                "Replace your wallet with a lost one using the recovery phrase",
+            )
+    } else {
+        menu = menu.add(MainMenu::Create, "Create a new wallet").add(
             MainMenu::Recover,
             "Access a lost wallet using the recovery phrase",
         )
-        .separator()
-        .add(MainMenu::Exit, "Exit");
+    }
 
-    // don't display wallet menu if there are no wallets
-    let menu = if !wallets.is_empty() {
-        wallet_menu.extend(action_menu)
-    } else {
-        action_menu
-    };
+    // create the action menu
+    menu = menu.separator().add(MainMenu::Exit, "Exit");
 
     // let the user choose an option
     let questions = Question::select("theme")

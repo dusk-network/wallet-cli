@@ -5,27 +5,47 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use crate::error::StoreError;
-use crate::SEED_SIZE;
+use dusk_bytes::{Error as BytesError, Serializable};
 use dusk_wallet_core::Store;
+
+#[derive(Clone)]
+pub struct Seed([u8; 64]);
+
+impl Default for Seed {
+    fn default() -> Self {
+        Self([0u8; 64])
+    }
+}
+
+impl Serializable<64> for Seed {
+    type Error = BytesError;
+
+    fn from_bytes(buff: &[u8; Seed::SIZE]) -> Result<Self, Self::Error> {
+        Ok(Self(*buff))
+    }
+    fn to_bytes(&self) -> [u8; Seed::SIZE] {
+        self.0
+    }
+}
 
 /// Provides a valid wallet seed to dusk_wallet_core
 #[derive(Clone)]
 pub(crate) struct LocalStore {
-    seed: [u8; SEED_SIZE],
+    seed: Seed,
 }
 
 impl Store for LocalStore {
     type Error = StoreError;
 
     /// Retrieves the seed used to derive keys.
-    fn get_seed(&self) -> Result<[u8; SEED_SIZE], Self::Error> {
-        Ok(self.seed)
+    fn get_seed(&self) -> Result<[u8; Seed::SIZE], Self::Error> {
+        Ok(self.seed.to_bytes())
     }
 }
 
 impl LocalStore {
     /// Creates a new store from a known seed
-    pub(crate) fn new(seed: [u8; SEED_SIZE]) -> Self {
+    pub(crate) fn new(seed: Seed) -> Self {
         LocalStore { seed }
     }
 }

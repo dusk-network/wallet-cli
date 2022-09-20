@@ -17,8 +17,6 @@ pub enum Error {
     GraphQL(crate::io::GraphQLError),
     /// Dusk wallet error
     Wallet(dusk_wallet::Error),
-    /// Command not supported
-    NotSupported,
     /// Transaction verification errors
     Transaction(String),
     /// Logging-related error
@@ -83,9 +81,6 @@ impl std::fmt::Display for Error {
                 "An error occured within dusk_wallet library:\n{}",
                 err
             ),
-            Error::NotSupported => {
-                write!(f, "This command doesn't need a wallet.")
-            }
             Error::Transaction(err) => write!(f, "Transaction failed: {}", err),
             Error::LoggingError(err) => write!(f, "Logging error: {}", err),
         }
