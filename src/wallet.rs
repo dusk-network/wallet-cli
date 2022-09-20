@@ -362,7 +362,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 return Err(Error::AmountIsZero);
             }
             // check gas limits
-            if gas.is_enough() {
+            if !gas.is_enough() {
                 return Err(Error::NotEnoughGas);
             }
 
@@ -405,7 +405,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 return Err(Error::AmountIsZero);
             }
             // check if the gas is enough
-            if gas.is_enough() {
+            if !gas.is_enough() {
                 return Err(Error::NotEnoughGas);
             }
 
