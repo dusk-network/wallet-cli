@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix wrong condition involved `gas.is_enough()`[#91]
 - Fix `balance` subcommand: it didn't work because the address given wasn't claimed
 - Fix BLS keys exported with wrong extensions [#84]
 
