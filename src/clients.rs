@@ -32,7 +32,7 @@ use super::block::Block;
 use super::cache::Cache;
 
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
-use crate::error::{ProverError, StateError};
+use crate::Error;
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -74,7 +74,7 @@ impl Prover {
 
 impl ProverClient for Prover {
     /// Error returned by the prover client.
-    type Error = ProverError;
+    type Error = Error;
 
     /// Requests that a node prove the given transaction and later propagates it
     fn compute_proof_and_propagate(
@@ -91,8 +91,7 @@ impl ProverClient for Prover {
         self.status("Proof success!");
 
         self.status("Attempt to preverify tx...");
-        let proof =
-            Proof::from_slice(&proof_bytes).map_err(ProverError::Bytes)?;
+        let proof = Proof::from_slice(&proof_bytes).map_err(Error::Bytes)?;
         let tx = utx.clone().prove(proof);
         let tx_bytes = tx.to_var_bytes();
         let tx_proto = TransactionProto {
@@ -206,7 +205,7 @@ impl State {
     ///
     /// # Panics
     /// If called before [`set_cache_dir`].
-    pub fn new(client: RuskStateClient) -> Result<Self, StateError> {
+    pub fn new(client: RuskStateClient) -> Result<Self, Error> {
         let cache = Cache::new()?;
         let inner = Mutex::new(InnerState { client, cache });
         Ok(State {
@@ -217,7 +216,7 @@ impl State {
 
     /// Sets the directory where the cache be stored. Should be called before
     /// [`new`].
-    pub fn set_cache_dir(data_dir: PathBuf) -> Result<(), StateError> {
+    pub fn set_cache_dir(data_dir: PathBuf) -> Result<(), Error> {
         Cache::set_data_path(data_dir)
     }
 
@@ -230,7 +229,7 @@ impl State {
 /// Types that are clients of the state API.
 impl StateClient for State {
     /// Error returned by the node client.
-    type Error = StateError;
+    type Error = Error;
 
     /// Find notes for a view key, starting from the given block height.
     fn fetch_notes(&self, vk: &ViewKey) -> Result<Vec<Note>, Self::Error> {

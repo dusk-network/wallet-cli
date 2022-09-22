@@ -8,7 +8,7 @@ use std::fmt;
 
 use tokio::time::{sleep, Duration};
 
-use crate::Error;
+use dusk_wallet::Error;
 use gql_client::Client;
 use serde::Deserialize;
 use serde_json::Value;
@@ -44,14 +44,14 @@ impl GraphQL {
     }
 
     /// Wait for a transaction to be confirmed (included in a block)
-    pub async fn wait_for(&self, tx_id: &str) -> Result<(), Error> {
+    pub async fn wait_for(&self, tx_id: &str) -> anyhow::Result<()> {
         const TIMEOUT_SECS: i32 = 30;
         let mut i = 1;
         while i <= TIMEOUT_SECS {
             let status = self.tx_status(tx_id).await?;
             match status {
                 TxStatus::Ok => break,
-                TxStatus::Error(err) => return Err(Error::Transaction(err)),
+                TxStatus::Error(err) => return Err(Error::Transaction(err))?,
                 TxStatus::NotFound => {
                     (self.status)(
                         format!(
@@ -139,6 +139,7 @@ impl GraphQL {
 }
 
 /// Errors generated from GraphQL
+#[derive(thiserror::Error)]
 pub enum GraphQLError {
     /// Generic errors
     Generic(gql_client::GraphQLError),

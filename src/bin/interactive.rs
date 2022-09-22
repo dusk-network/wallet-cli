@@ -12,7 +12,6 @@ use crate::io;
 use crate::io::GraphQL;
 use crate::prompt;
 use crate::settings::Settings;
-use crate::Error;
 use crate::Menu;
 use crate::WalletFile;
 use crate::{Command, RunResult};
@@ -22,7 +21,7 @@ use std::path::PathBuf;
 pub(crate) async fn run_loop(
     wallet: &mut Wallet<WalletFile>,
     settings: &Settings,
-) -> Result<(), Error> {
+) -> anyhow::Result<()> {
     loop {
         // let the user choose (or create) an address
         let addr = match menu_addr(wallet) {
@@ -94,6 +93,7 @@ pub(crate) async fn run_loop(
                                     }
                                 }
                             }
+
                             Err(err) => println!("{}", err),
                         }
                     }
@@ -247,7 +247,7 @@ fn menu_op_offline(addr: Address, settings: &Settings) -> AddrOp {
 pub(crate) fn load_wallet(
     wallet_path: &WalletPath,
     settings: &Settings,
-) -> Result<Wallet<WalletFile>, Error> {
+) -> anyhow::Result<Wallet<WalletFile>> {
     let wallet_found = wallet_path
         .inner()
         .exists()

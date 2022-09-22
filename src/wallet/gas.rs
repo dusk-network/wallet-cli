@@ -46,7 +46,7 @@ impl Gas {
     where
         T: Into<Option<Lux>>,
     {
-        self.price = price.into().unwrap_or(DEFAULT_PRICE)
+        self.price = price.into().unwrap_or(DEFAULT_PRICE);
     }
 
     /// Set the limit
