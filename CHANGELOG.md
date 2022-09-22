@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `From block` and `Last block` during fetching
 - Add missing documentations
 - Add `Seed` type in `store` module
+- Add `stake-allow` command [#83]
 
 ### Changed
 
@@ -304,6 +305,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#46]: https://github.com/dusk-network/wallet-cli/issues/46
 [#87]: https://github.com/dusk-network/wallet-cli/issues/87
 [#86]: https://github.com/dusk-network/wallet-cli/issues/86
+[#83]: https://github.com/dusk-network/wallet-cli/issues/83
 [#84]: https://github.com/dusk-network/wallet-cli/issues/84
 [#72]: https://github.com/dusk-network/wallet-cli/issues/72
 [#57]: https://github.com/dusk-network/wallet-cli/issues/57
