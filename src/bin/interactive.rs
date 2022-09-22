@@ -15,6 +15,7 @@ use crate::settings::Settings;
 use crate::Menu;
 use crate::WalletFile;
 use crate::{Command, RunResult};
+use dusk_wallet::Error;
 use std::path::PathBuf;
 
 /// Run the interactive UX loop with a loaded wallet
@@ -202,7 +203,6 @@ fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
         })),
         CMI::Withdraw => AddrOp::Run(Box::new(Command::Withdraw {
             addr: Some(addr),
-            refund_addr: prompt::request_rcvr_addr("refund"),
             gas_limit: Some(prompt::request_gas_limit()),
             gas_price: Some(prompt::request_gas_price()),
         })),
@@ -258,11 +258,26 @@ pub(crate) fn load_wallet(
     // display main menu
     let wallet = match menu_wallet(wallet_found) {
         MainMenu::Load(path) => {
-            let pwd = prompt::request_auth(
-                "Please enter you wallet's password",
-                password,
-            );
-            Wallet::from_file(WalletFile { path, pwd })?
+            let mut attempt = 1;
+            loop {
+                let pwd = prompt::request_auth(
+                    "Please enter you wallet's password",
+                    password,
+                );
+                match Wallet::from_file(WalletFile {
+                    path: path.clone(),
+                    pwd,
+                }) {
+                    Ok(wallet) => break wallet,
+                    Err(_) if attempt > 2 => {
+                        return Err(Error::AttemptsExhausted)?;
+                    }
+                    Err(_) => {
+                        println!("Invalid password please try again");
+                        attempt += 1;
+                    }
+                }
+            }
         }
         MainMenu::Create => {
             // create a new randomly generated mnemonic phrase
@@ -280,7 +295,7 @@ pub(crate) fn load_wallet(
         }
         MainMenu::Recover => {
             // ask user for 12-word recovery phrase
-            let phrase = prompt::request_recovery_phrase();
+            let phrase = prompt::request_recovery_phrase()?;
             // ask user for a password to secure the wallet
             let pwd = prompt::create_password(&None);
             // create and store the recovered wallet
@@ -392,7 +407,6 @@ fn confirm(cmd: &Command) -> bool {
         }
         Command::Withdraw {
             addr,
-            refund_addr,
             gas_limit,
             gas_price,
         } => {
@@ -401,7 +415,6 @@ fn confirm(cmd: &Command) -> bool {
             let gas_price = gas_price.expect("gas price not set");
             let max_fee = gas_limit * gas_price;
             println!("   > Reward from {}", addr.preview());
-            println!("   > Refund into {}", refund_addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             prompt::ask_confirm()
         }

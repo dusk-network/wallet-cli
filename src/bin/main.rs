@@ -207,7 +207,7 @@ async fn exec() -> anyhow::Result<()> {
                     }
                     None => {
                         // ask user for 12-word recovery phrase
-                        let phrase = prompt::request_recovery_phrase();
+                        let phrase = prompt::request_recovery_phrase()?;
                         // ask user for a password to secure the wallet
                         let pwd = prompt::create_password(password);
                         // create wallet

@@ -17,6 +17,7 @@ use dusk_wallet::{Address, Dusk, Lux, Wallet};
 use dusk_wallet_core::{BalanceInfo, StakeInfo};
 
 /// Commands that can be run against the Dusk wallet
+#[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Hash, Clone, Subcommand, Debug)]
 pub(crate) enum Command {
     /// Create a new wallet
@@ -121,13 +122,9 @@ pub(crate) enum Command {
 
     /// Withdraw accumulated reward for a stake key
     Withdraw {
-        /// Address to pay transaction costs
+        /// Address from which your DUSK was staked
         #[clap(short, long)]
         addr: Option<Address>,
-
-        /// Address to which the reward will be sent to
-        #[clap(short, long)]
-        refund_addr: Address,
 
         /// Max amt of gas for this transaction
         #[clap(short = 'l', long)]
@@ -241,7 +238,6 @@ impl Command {
             }
             Command::Withdraw {
                 addr,
-                refund_addr,
                 gas_limit,
                 gas_price,
             } => {
@@ -254,8 +250,7 @@ impl Command {
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
-                let tx =
-                    wallet.withdraw_reward(addr, &refund_addr, gas).await?;
+                let tx = wallet.withdraw_reward(addr, gas).await?;
                 Ok(RunResult::Tx(tx.hash()))
             }
             Command::Export { addr, dir } => {
