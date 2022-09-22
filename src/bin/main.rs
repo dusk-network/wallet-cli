@@ -6,14 +6,12 @@
 
 mod command;
 mod config;
-mod error;
 mod interactive;
 mod io;
 mod menu;
 mod settings;
 
 pub(crate) use command::{Command, RunResult};
-pub(crate) use error::Error;
 pub(crate) use menu::Menu;
 
 use clap::Parser;
@@ -51,7 +49,7 @@ impl SecureWalletFile for WalletFile {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     if let Err(err) = exec().await {
         // display the error message (if any)
         eprintln!("{}", err);
@@ -96,7 +94,7 @@ where
     wallet
 }
 
-async fn exec() -> Result<(), Error> {
+async fn exec() -> anyhow::Result<()> {
     // parse user args
     let args = WalletArgs::parse();
     // get the subcommand, if any

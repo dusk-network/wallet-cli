@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::error::StoreError;
+use crate::Error;
 use dusk_bytes::{Error as BytesError, Serializable};
 use dusk_wallet_core::Store;
 
@@ -35,7 +35,7 @@ pub(crate) struct LocalStore {
 }
 
 impl Store for LocalStore {
-    type Error = StoreError;
+    type Error = Error;
 
     /// Retrieves the seed used to derive keys.
     fn get_seed(&self) -> Result<[u8; Seed::SIZE], Self::Error> {

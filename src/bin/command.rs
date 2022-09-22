@@ -10,7 +10,6 @@ use std::{fmt, path::PathBuf};
 
 use crate::io::prompt;
 use crate::settings::Settings;
-use crate::Error;
 use crate::{WalletFile, WalletPath};
 
 use dusk_wallet::gas::Gas;
@@ -160,7 +159,7 @@ impl Command {
         self,
         wallet: &mut Wallet<WalletFile>,
         settings: &Settings,
-    ) -> Result<RunResult, Error> {
+    ) -> anyhow::Result<RunResult> {
         match self {
             Command::Balance { addr, spendable } => {
                 let addr = match addr {

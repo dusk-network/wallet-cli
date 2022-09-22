@@ -49,7 +49,7 @@ impl WalletPath {
 
     /// Sets the directory for the state cache
     pub fn set_cache_dir(path: &Path) -> Result<(), Error> {
-        Ok(State::set_cache_dir(path.to_path_buf())?)
+        State::set_cache_dir(path.to_path_buf())
     }
 }
 

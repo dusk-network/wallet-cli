@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::error::StateError;
+use crate::error::Error;
 
 use canonical::{Canon, Sink, Source};
 use std::cmp::Ordering;
@@ -42,7 +42,7 @@ impl Cache {
     ///
     /// # Panics
     /// If called before [`set_data_path`].
-    pub(crate) fn new() -> Result<Self, StateError> {
+    pub(crate) fn new() -> Result<Self, Error> {
         let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
         let id_path = data_dir.join("cache.id");
 
@@ -65,7 +65,7 @@ impl Cache {
     ///
     /// # Panics
     /// If called more than once or if unable to remove old cache file.
-    pub(crate) fn set_data_path(data_dir: PathBuf) -> Result<(), StateError> {
+    pub(crate) fn set_data_path(data_dir: PathBuf) -> Result<(), Error> {
         // remove old cache if it's still there
         let db_path = data_dir.join("cache.db");
         if db_path.exists()
@@ -85,7 +85,7 @@ impl Cache {
     }
 
     /// Persist the cache to the internal backend.
-    pub(crate) fn persist(&self) -> Result<(), StateError> {
+    pub(crate) fn persist(&self) -> Result<(), Error> {
         let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
         let id_path = data_dir.join("cache.id");
 
@@ -108,7 +108,7 @@ impl Cache {
         psk: PublicSpendKey,
         height: u64,
         note: Option<Note>,
-    ) -> Result<(), StateError> {
+    ) -> Result<(), Error> {
         if self.data.get(&psk)?.is_none() {
             self.data.insert(
                 psk,
@@ -137,7 +137,7 @@ impl Cache {
     pub(crate) fn last_height(
         &self,
         psk: PublicSpendKey,
-    ) -> Result<u64, StateError> {
+    ) -> Result<u64, Error> {
         Ok(self
             .data
             .get(&psk)?
@@ -149,7 +149,7 @@ impl Cache {
     pub(crate) fn notes(
         &self,
         psk: PublicSpendKey,
-    ) -> Result<BTreeSet<NoteData>, StateError> {
+    ) -> Result<BTreeSet<NoteData>, Error> {
         Ok(self
             .data
             .get(&psk)?

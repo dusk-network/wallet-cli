@@ -25,6 +25,7 @@ use rusk_schema::prover_client::ProverClient as GrpcProverClient;
 use rusk_schema::state_client::StateClient as GrpcStateClient;
 
 use crate::error::Error;
+use anyhow::Result;
 
 /// Supported Rusk version
 const REQUIRED_RUSK_VERSION: &str = "0.5.0-rc.0";

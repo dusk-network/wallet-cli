@@ -13,13 +13,13 @@ use crossterm::{
     ExecutableCommand,
 };
 
+use anyhow::Result;
 use bip39::{Language, Mnemonic};
 use blake3::Hash;
 use requestty::Question;
 
 use dusk_wallet::{Address, Dusk, Lux};
 
-use crate::Error;
 use dusk_wallet::gas;
 use dusk_wallet::{MAX_CONVERTIBLE, MIN_CONVERTIBLE};
 
@@ -263,14 +263,14 @@ pub(crate) fn launch_explorer(url: String) -> bool {
 }
 
 /// Shows the terminal cursor
-pub(crate) fn show_cursor() -> Result<(), Error> {
+pub(crate) fn show_cursor() -> anyhow::Result<()> {
     let mut stdout = stdout();
     stdout.execute(Show)?;
     Ok(())
 }
 
 /// Hides the terminal cursor
-pub(crate) fn hide_cursor() -> Result<(), Error> {
+pub(crate) fn hide_cursor() -> anyhow::Result<()> {
     let mut stdout = stdout();
     stdout.execute(Hide)?;
     Ok(())
