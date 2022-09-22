@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Change error handling to use the `anyhow` crate in `bin`[#87]
+- Change error handling to use the `thiserror` crate in `lib`[#87]
 - Change `config.toml` format [#57]
 - Change from multiple wallets to one wallet for a single profile dir [#72]
 - Rename `dusk` module to `currency` module
