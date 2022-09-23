@@ -17,6 +17,7 @@ use dusk_wallet::{Address, Dusk, Lux, Wallet};
 use dusk_wallet_core::{BalanceInfo, StakeInfo};
 
 /// Commands that can be run against the Dusk wallet
+#[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Hash, Clone, Subcommand, Debug)]
 pub(crate) enum Command {
     /// Create a new wallet
