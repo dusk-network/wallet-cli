@@ -5,6 +5,8 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use clap::Subcommand;
+use dusk_bls12_381_sign::PublicKey;
+use dusk_bytes::DeserializableSlice;
 use dusk_jubjub::BlsScalar;
 use std::{fmt, path::PathBuf};
 
@@ -103,6 +105,25 @@ pub(crate) enum Command {
         /// Check accumulated reward
         #[clap(long, action)]
         reward: bool,
+    },
+
+    /// Allow a provisioner key to stake
+    StakeAllow {
+        /// Address used to perform the operation
+        #[clap(short, long)]
+        addr: Option<Address>,
+
+        /// Provisioner key to allow
+        #[clap(short, long)]
+        key: String,
+
+        /// Max amt of gas for this transaction
+        #[clap(short = 'l', long)]
+        gas_limit: Option<u64>,
+
+        /// Max price you're willing to pay for gas used (in LUX)
+        #[clap(short = 'p', long)]
+        gas_price: Option<Lux>,
     },
 
     /// Unstake a key's stake
@@ -209,6 +230,28 @@ impl Command {
                 gas.set_limit(gas_limit);
 
                 let tx = wallet.stake(addr, amt, gas).await?;
+                Ok(RunResult::Tx(tx.hash()))
+            }
+            Command::StakeAllow {
+                addr,
+                key,
+                gas_limit,
+                gas_price,
+            } => {
+                let addr = match addr {
+                    Some(addr) => wallet.claim_as_address(addr)?,
+                    None => wallet.default_address(),
+                };
+
+                let mut gas = Gas::new();
+                gas.set_price(gas_price);
+                gas.set_limit(gas_limit);
+
+                let key_data = bs58::decode(key).into_vec()?;
+                let key = PublicKey::from_slice(&key_data[..])
+                    .map_err(dusk_wallet::Error::from)?;
+
+                let tx = wallet.stake_allow(addr, &key, gas).await?;
                 Ok(RunResult::Tx(tx.hash()))
             }
             Command::StakeInfo { addr, reward } => {
