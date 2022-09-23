@@ -475,7 +475,6 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     pub async fn withdraw_reward(
         &self,
         addr: &Address,
-        refund_addr: &Address,
         gas: Gas,
     ) -> Result<Transaction, Error> {
         if let Some(wallet) = &self.wallet {
@@ -491,7 +490,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 &mut rng,
                 index,
                 index,
-                refund_addr.psk(),
+                addr.psk(),
                 gas.limit,
                 gas.price,
             )?;

@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove `Command::NotSupported` [#57]
 - Rename `DEFAULT_GAS_LIMIT`, `DEFAULT_GAS_PRICE`, `MIN_GAS_LIMIT`
 - Remove `Addresses` type in favour of `Vec<Address>`
+- Remove `refund-addr` arg in `withdraw` command [#86]
 
 ### Fixed
 
@@ -297,6 +298,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#86]: https://github.com/dusk-network/wallet-cli/issues/86
 [#84]: https://github.com/dusk-network/wallet-cli/issues/84
 [#72]: https://github.com/dusk-network/wallet-cli/issues/72
 [#57]: https://github.com/dusk-network/wallet-cli/issues/57
