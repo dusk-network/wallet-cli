@@ -32,7 +32,7 @@ pub(crate) struct WalletArgs {
     #[clap(long)]
     pub state: Option<String>,
 
-    /// The state server socket path or fully qualified URL
+    /// The prover server socket path or fully qualified URL
     #[clap(long)]
     pub prover: Option<String>,
 
@@ -40,7 +40,7 @@ pub(crate) struct WalletArgs {
     #[clap(long, value_enum, default_value_t = LogLevel::Info)]
     pub log_level: LogLevel,
 
-    /// Logging output type (valid: "json", "plain", "coloured")
+    /// Logging output type
     #[clap(long, value_enum, default_value_t = LogFormat::Coloured)]
     pub log_type: LogFormat,
 
