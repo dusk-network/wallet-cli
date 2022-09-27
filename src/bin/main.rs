@@ -14,6 +14,7 @@ mod settings;
 pub(crate) use command::{Command, RunResult};
 pub(crate) use menu::Menu;
 
+use anyhow::Context;
 use clap::Parser;
 use std::fs;
 use tracing::{warn, Level};
@@ -122,7 +123,8 @@ async fn exec() -> anyhow::Result<()> {
     let settings = settings.network(cfg.network);
 
     // set cache directory straight away
-    WalletPath::set_cache_dir(&profile_folder)?;
+    WalletPath::set_cache_dir(&profile_folder)
+        .context("Cannot create cache directory")?;
 
     // generate a subscriber with the desired log level
     //
@@ -184,7 +186,8 @@ async fn exec() -> anyhow::Result<()> {
                 }
 
                 // create wallet
-                let mut w = Wallet::new(mnemonic)?;
+                let mut w = Wallet::new(mnemonic)
+                    .context("Failed to make a new wallet")?;
                 w.save_to(WalletFile {
                     path: wallet_path,
                     pwd,
@@ -252,7 +255,11 @@ async fn exec() -> anyhow::Result<()> {
 
     // run command
     match cmd {
-        Some(cmd) => match cmd.run(&mut wallet, &settings).await? {
+        Some(cmd) => match cmd
+            .run(&mut wallet, &settings)
+            .await
+            .context("Are you interactive?")?
+        {
             RunResult::Balance(balance, spendable) => {
                 if spendable {
                     println!("{}", balance.spendable);
@@ -297,7 +304,9 @@ async fn exec() -> anyhow::Result<()> {
             RunResult::Create() | RunResult::Restore() => {}
         },
         None => {
-            interactive::run_loop(&mut wallet, &settings).await?;
+            interactive::run_loop(&mut wallet, &settings)
+                .await
+                .context("Failed to run in interactive mode")?;
         }
     }
 
