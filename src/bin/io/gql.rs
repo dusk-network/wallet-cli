@@ -12,7 +12,7 @@ use dusk_wallet::Error;
 use gql_client::Client;
 use serde::Deserialize;
 use serde_json::Value;
-
+use anyhow::Context;
 /// GraphQL is a helper struct that aggregates all queries done
 /// to the Dusk GraphQL database.
 /// This helps avoid having helper structs and boilerplate code
@@ -51,7 +51,7 @@ impl GraphQL {
             let status = self.tx_status(tx_id).await?;
             match status {
                 TxStatus::Ok => break,
-                TxStatus::Error(err) => return Err(Error::Transaction(err))?,
+                TxStatus::Error(err) => return Err(Error::Transaction(err)).context("failed to perform an transaction GQL")?,
                 TxStatus::NotFound => {
                     (self.status)(
                         format!(
@@ -108,6 +108,8 @@ impl GraphQL {
 
         // fetch and parse the response data
         let data = response.expect("GQL response failed");
+
+
         match data {
             Some(txs) => {
                 if txs.transactions.is_empty() {
@@ -139,11 +141,13 @@ impl GraphQL {
 }
 
 /// Errors generated from GraphQL
-#[derive(thiserror::Error)]
+#[derive(Debug,thiserror::Error)]
 pub enum GraphQLError {
     /// Generic errors
+    #[error("Error fetching data from the node: {0}")]
     Generic(gql_client::GraphQLError),
     /// Failed to fetch transaction status
+    #[error("Failed to obtain transaction status: ")]
     TxStatus,
 }
 
@@ -153,38 +157,38 @@ impl From<gql_client::GraphQLError> for GraphQLError {
     }
 }
 
-impl fmt::Display for GraphQLError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            GraphQLError::Generic(err) => {
-                write!(
-                    f,
-                    "Error fetching data from the node:\n{}\n{:#?}",
-                    err.message(),
-                    err.json()
-                )
-            }
-            GraphQLError::TxStatus => {
-                write!(f, "Failed to obtain transaction status")
-            }
-        }
-    }
-}
+// impl fmt::Display for GraphQLError {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match self {
+//             GraphQLError::Generic(err) => {
+//                 write!(
+//                     f,
+//                     "Error fetching data from the node:\n{}\n{:#?}",
+//                     err.message(),
+//                     err.json()
+//                 )
+//             }
+//             GraphQLError::TxStatus => {
+//                 write!(f, "Failed to obtain transaction status")
+//             }
+//         }
+//     }
+// }
 
-impl fmt::Debug for GraphQLError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            GraphQLError::Generic(err) => {
-                write!(
-                    f,
-                    "Error fetching data from the node:\n{}\n{:#?}",
-                    err.message(),
-                    err.json()
-                )
-            }
-            GraphQLError::TxStatus => {
-                write!(f, "Failed to obtain transaction status")
-            }
-        }
-    }
-}
+// impl fmt::Debug for GraphQLError {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match self {
+//             GraphQLError::Generic(err) => {
+//                 write!(
+//                     f,
+//                     "Error fetching data from the node:\n{}\n{:#?}",
+//                     err.message(),
+//                     err.json()
+//                 )
+//             }
+//             GraphQLError::TxStatus => {
+//                 write!(f, "Failed to obtain transaction status")
+//             }
+//         }
+//     }
+// }
