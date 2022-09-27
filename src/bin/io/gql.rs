@@ -92,59 +92,52 @@ impl GraphQL {
 
         let response = client.query::<Transactions>(&query).await;
 
-        // we're interested in different types of errors
-        if response.is_err() {
-            let err = response.err().unwrap();
-
-            return match err.json() {
-                Some(json) => {
-                    // we stringify the json and use String.contains()
-                    // because GraphQLErrorMessage fields are private
-                    let json_str = format!("{:?}", json[0]);
-                    if json_str.contains("database: transaction not found") {
+        match response {
+            Ok(data) => match data {
+                Some(txs) => {
+                    if txs.transactions.is_empty() {
                         Ok(TxStatus::NotFound)
                     } else {
-                        Err(GraphQLError::Generic(err))
-                    }
-                }
-                None => Err(GraphQLError::Generic(err)),
-            };
-        }
-
-        // fetch and parse the response data
-        //let data = response.expect("GQL response failed");
-
-        let data = match response {
-            Ok(res) => res,
-            _ => Err
-        };
-
-        match data {
-            Some(txs) => {
-                if txs.transactions.is_empty() {
-                    Ok(TxStatus::NotFound)
-                } else {
-                    let tx = &txs.transactions[0];
-                    if tx.txerror.is_empty() {
-                        Ok(TxStatus::Ok)
-                    } else {
-                        let err_str = tx.txerror.as_str();
-                        let tx_err = serde_json::from_str::<Value>(err_str);
-                        match tx_err {
-                            Ok(data) => match data["data"].as_str() {
-                                Some(msg) => {
-                                    Ok(TxStatus::Error(msg.to_string()))
+                        let tx = &txs.transactions[0];
+                        if tx.txerror.is_empty() {
+                            Ok(TxStatus::Ok)
+                        } else {
+                            let err_str = tx.txerror.as_str();
+                            let tx_err = serde_json::from_str::<Value>(err_str);
+                            match tx_err {
+                                Ok(data) => match data["data"].as_str() {
+                                    Some(msg) => {
+                                        Ok(TxStatus::Error(msg.to_string()))
+                                    }
+                                    None => {
+                                        Ok(TxStatus::Error(err_str.to_string()))
+                                    }
+                                },
+                                Err(err) => {
+                                    Ok(TxStatus::Error(err.to_string()))
                                 }
-                                None => {
-                                    Ok(TxStatus::Error(err_str.to_string()))
-                                }
-                            },
-                            Err(err) => Ok(TxStatus::Error(err.to_string())),
+                            }
                         }
                     }
                 }
+                None => Err(GraphQLError::TxStatus),
+            },
+            Err(err) => {
+                match err.json() {
+                    Some(json) => {
+                        // we stringify the json and use String.contains()
+                        // because GraphQLErrorMessage fields are private
+                        let json_str = format!("{:?}", json[0]);
+                        if json_str.contains("database: transaction not found")
+                        {
+                            Ok(TxStatus::NotFound)
+                        } else {
+                            Err(GraphQLError::Generic(err))
+                        }
+                    }
+                    None => Err(GraphQLError::Generic(err)),
+                }
             }
-            None => Err(GraphQLError::TxStatus),
         }
     }
 }
@@ -158,9 +151,6 @@ pub enum GraphQLError {
     /// Failed to fetch transaction status
     #[error("Failed to obtain transaction status: ")]
     TxStatus,
-    /// response failed 
-    #[error("GQL response failed")]
-    Esponse(gql_client::GraphQLError),
 }
 
 impl From<gql_client::GraphQLError> for GraphQLError {
@@ -168,39 +158,3 @@ impl From<gql_client::GraphQLError> for GraphQLError {
         Self::Generic(e)
     }
 }
-
-// impl fmt::Display for GraphQLError {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match self {
-//             GraphQLError::Generic(err) => {
-//                 write!(
-//                     f,
-//                     "Error fetching data from the node:\n{}\n{:#?}",
-//                     err.message(),
-//                     err.json()
-//                 )
-//             }
-//             GraphQLError::TxStatus => {
-//                 write!(f, "Failed to obtain transaction status")
-//             }
-//         }
-//     }
-// }
-
-// impl fmt::Debug for GraphQLError {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match self {
-//             GraphQLError::Generic(err) => {
-//                 write!(
-//                     f,
-//                     "Error fetching data from the node:\n{}\n{:#?}",
-//                     err.message(),
-//                     err.json()
-//                 )
-//             }
-//             GraphQLError::TxStatus => {
-//                 write!(f, "Failed to obtain transaction status")
-//             }
-//         }
-//     }
-// }
