@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Change program behavior to quit if wrong seed phrase is given [#49] 
+- Change program behavior to have three attempts for entering a password [#46]
 - Change error handling to use the `anyhow` crate in `bin`[#87]
 - Change error handling to use the `thiserror` crate in `lib`[#87]
 - Change `config.toml` format [#57]
@@ -298,6 +300,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#49]: https://github.com/dusk-network/wallet-cli/issues/49
+[#46]: https://github.com/dusk-network/wallet-cli/issues/46
+[#87]: https://github.com/dusk-network/wallet-cli/issues/87
 [#86]: https://github.com/dusk-network/wallet-cli/issues/86
 [#84]: https://github.com/dusk-network/wallet-cli/issues/84
 [#72]: https://github.com/dusk-network/wallet-cli/issues/72

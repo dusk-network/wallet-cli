@@ -14,8 +14,9 @@ use crossterm::{
 };
 
 use anyhow::Result;
-use bip39::{Language, Mnemonic};
+use bip39::{ErrorKind, Language, Mnemonic};
 use blake3::Hash;
+use dusk_wallet::Error;
 use requestty::Question;
 
 use dusk_wallet::{Address, Dusk, Lux};
@@ -112,25 +113,32 @@ where
 }
 
 /// Request the user to input the recovery phrase
-pub(crate) fn request_recovery_phrase() -> String {
+pub(crate) fn request_recovery_phrase() -> anyhow::Result<String> {
     // let the user input the recovery phrase
-    let q = Question::input("phrase")
-        .message("Please enter the recovery phrase:")
-        .validate_on_key(|phrase, _| {
-            Mnemonic::from_phrase(phrase, Language::English).is_ok()
-        })
-        .validate(|phrase, _| {
-            if Mnemonic::from_phrase(phrase, Language::English).is_ok() {
-                Ok(())
-            } else {
-                Err("Please enter a valid recovery phrase".to_string())
-            }
-        })
-        .build();
+    let mut attempt = 1;
+    loop {
+        let q = Question::input("phrase")
+            .message("Please enter the recovery phrase:")
+            .build();
 
-    let a = requestty::prompt_one(q).expect("recovery phrase");
-    let phrase = a.as_string().unwrap().to_string();
-    phrase
+        let a = requestty::prompt_one(q).expect("recovery phrase");
+        let phrase = a.as_string().unwrap_or_default();
+
+        match Mnemonic::from_phrase(phrase, Language::English) {
+            Ok(phrase) => break Ok(phrase.to_string()),
+
+            Err(err) if attempt > 2 => match err.downcast_ref::<ErrorKind>() {
+                Some(ErrorKind::InvalidWord) => {
+                    return Err(Error::AttemptsExhausted)?
+                }
+                _ => return Err(err),
+            },
+            Err(_) => {
+                println!("Invalid recovery phrase please try again");
+                attempt += 1;
+            }
+        }
+    }
 }
 
 fn is_valid_dir(dir: &str) -> bool {
