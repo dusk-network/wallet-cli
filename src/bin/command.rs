@@ -4,6 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use anyhow::Context;
 use clap::Subcommand;
 use dusk_jubjub::BlsScalar;
 use std::{fmt, path::PathBuf};
@@ -160,11 +161,13 @@ impl Command {
         match self {
             Command::Balance { addr, spendable } => {
                 let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
+                    Some(addr) => wallet.claim_as_address(addr).context("Failed to claim address")?,
                     None => wallet.default_address(),
                 };
-
-                let balance = wallet.get_balance(addr).await?;
+                let balance = wallet
+                    .get_balance(addr)
+                    .await
+                    .context("Failed to get balance ")?;
                 Ok(RunResult::Balance(balance, spendable))
             }
             Command::Addresses { new } => {
@@ -184,14 +187,14 @@ impl Command {
                 gas_price,
             } => {
                 let sender = match sndr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
+                    Some(addr) => wallet.claim_as_address(addr).context("failed to claim address")?,
                     None => wallet.default_address(),
                 };
                 let mut gas = Gas::new();
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
-                let tx = wallet.transfer(sender, &rcvr, amt, gas).await?;
+                let tx = wallet.transfer(sender, &rcvr, amt, gas).await.context("failed to proceed the transfer")?;
                 Ok(RunResult::Tx(tx.hash()))
             }
             Command::Stake {

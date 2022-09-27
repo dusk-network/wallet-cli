@@ -13,7 +13,7 @@ use crossterm::{
     ExecutableCommand,
 };
 
-use anyhow::Result;
+// use anyhow::{Result, Context};
 use bip39::{Language, Mnemonic};
 use blake3::Hash;
 use requestty::Question;
