@@ -4,15 +4,13 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::fmt;
-
 use tokio::time::{sleep, Duration};
 
+use anyhow::Context;
 use dusk_wallet::Error;
 use gql_client::Client;
 use serde::Deserialize;
 use serde_json::Value;
-use anyhow::Context;
 /// GraphQL is a helper struct that aggregates all queries done
 /// to the Dusk GraphQL database.
 /// This helps avoid having helper structs and boilerplate code
@@ -21,6 +19,16 @@ use anyhow::Context;
 pub struct GraphQL {
     url: String,
     status: fn(&str),
+}
+
+// helper structs to deserialize response
+#[derive(Deserialize)]
+struct Tx {
+    pub txerror: String,
+}
+#[derive(Deserialize)]
+struct Transactions {
+    pub transactions: Vec<Tx>,
 }
 
 /// Transaction status
@@ -51,7 +59,10 @@ impl GraphQL {
             let status = self.tx_status(tx_id).await?;
             match status {
                 TxStatus::Ok => break,
-                TxStatus::Error(err) => return Err(Error::Transaction(err)).context("failed to perform an transaction GQL")?,
+                TxStatus::Error(err) => {
+                    return Err(Error::Transaction(err))
+                        .context("failed to perform an transaction GQL")?
+                }
                 TxStatus::NotFound => {
                     (self.status)(
                         format!(
@@ -69,19 +80,12 @@ impl GraphQL {
     }
 
     /// Obtain transaction status
-    async fn tx_status(&self, tx_id: &str) -> Result<TxStatus, GraphQLError> {
+    async fn tx_status(
+        &self,
+        tx_id: &str,
+    ) -> anyhow::Result<TxStatus, GraphQLError> {
         // graphql connection
         let client = Client::new(&self.url);
-
-        // helper structs to deserialize response
-        #[derive(Deserialize)]
-        struct Tx {
-            pub txerror: String,
-        }
-        #[derive(Deserialize)]
-        struct Transactions {
-            pub transactions: Vec<Tx>,
-        }
 
         let query =
             "{transactions(txid:\"####\"){ txerror }}".replace("####", tx_id);
@@ -91,6 +95,7 @@ impl GraphQL {
         // we're interested in different types of errors
         if response.is_err() {
             let err = response.err().unwrap();
+
             return match err.json() {
                 Some(json) => {
                     // we stringify the json and use String.contains()
@@ -107,8 +112,12 @@ impl GraphQL {
         }
 
         // fetch and parse the response data
-        let data = response.expect("GQL response failed");
+        //let data = response.expect("GQL response failed");
 
+        let data = match response {
+            Ok(res) => res,
+            _ => Err
+        };
 
         match data {
             Some(txs) => {
@@ -141,7 +150,7 @@ impl GraphQL {
 }
 
 /// Errors generated from GraphQL
-#[derive(Debug,thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum GraphQLError {
     /// Generic errors
     #[error("Error fetching data from the node: {0}")]
@@ -149,6 +158,9 @@ pub enum GraphQLError {
     /// Failed to fetch transaction status
     #[error("Failed to obtain transaction status: ")]
     TxStatus,
+    /// response failed 
+    #[error("GQL response failed")]
+    Esponse(gql_client::GraphQLError),
 }
 
 impl From<gql_client::GraphQLError> for GraphQLError {
