@@ -119,8 +119,11 @@ pub enum Error {
     #[error("Wallet file is missing")]
     WalletFileMissing,
     /// Wrong wallet password
-    #[error("Wrong password")]
-    InvalidPassword(#[from] block_modes::BlockModeError),
+    #[error("Block Mode Error")]
+    BlockMode(#[from] block_modes::BlockModeError),
+    /// Reached the maximum number of attempts
+    #[error("Reached the maximum number of attempts")]
+    AttemptsExhausted,
     /// Socket connection is not available on Windows
     #[error("Socket connection to {0} is not available on Windows")]
     SocketsNotSupported(String),

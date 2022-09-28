@@ -124,7 +124,7 @@ async fn exec() -> anyhow::Result<()> {
 
     // set cache directory straight away
     WalletPath::set_cache_dir(&profile_folder)
-        .context("Cannot create cache directory")?;
+        .context("persistence error")?;
 
     // generate a subscriber with the desired log level
     //
@@ -210,7 +210,7 @@ async fn exec() -> anyhow::Result<()> {
                     }
                     None => {
                         // ask user for 12-word recovery phrase
-                        let phrase = prompt::request_recovery_phrase();
+                        let phrase = prompt::request_recovery_phrase()?;
                         // ask user for a password to secure the wallet
                         let pwd = prompt::create_password(password);
                         // create wallet
