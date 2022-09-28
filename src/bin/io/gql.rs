@@ -56,7 +56,15 @@ impl GraphQL {
         const TIMEOUT_SECS: i32 = 30;
         let mut i = 1;
         while i <= TIMEOUT_SECS {
-            let status = self.tx_status(tx_id).await?;
+
+
+
+
+            let status = self.tx_status(tx_id).await.context("failed to get the status")?;
+
+
+
+            
             match status {
                 TxStatus::Ok => break,
                 TxStatus::Error(err) => {
