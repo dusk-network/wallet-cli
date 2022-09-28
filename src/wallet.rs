@@ -428,6 +428,43 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         }
     }
 
+    /// Allow a `staker` BLS key to stake
+    pub async fn stake_allow(
+        &self,
+        addr: &Address,
+        staker: &PublicKey,
+        gas: Gas,
+    ) -> Result<Transaction, Error> {
+        if let Some(wallet) = &self.wallet {
+            // make sure we own the staking address
+            if !addr.is_owned() {
+                return Err(Error::Unauthorized);
+            }
+
+            // check if the gas is enough
+            // TODO: This should be tuned with the right usage for this tx
+            if !gas.is_enough() {
+                return Err(Error::NotEnoughGas);
+            }
+
+            let mut rng = StdRng::from_entropy();
+            let index = addr.index()? as u64;
+
+            let tx = wallet.allow(
+                &mut rng,
+                index,
+                index,
+                addr.psk(),
+                staker,
+                gas.limit,
+                gas.price,
+            )?;
+            Ok(tx)
+        } else {
+            Err(Error::Offline)
+        }
+    }
+
     /// Obtains stake information for a given address
     pub async fn stake_info(&self, addr: &Address) -> Result<StakeInfo, Error> {
         if let Some(wallet) = &self.wallet {
