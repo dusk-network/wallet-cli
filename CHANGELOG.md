@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add missing documentations
 - Add `Seed` type in `store` module
 - Add `stake-allow` command [#83]
+- Add `ESC` handler to cancel current operation [#97]
 
 ### Changed
 
@@ -301,6 +302,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#97]: https://github.com/dusk-network/wallet-cli/issues/97
 [#49]: https://github.com/dusk-network/wallet-cli/issues/49
 [#46]: https://github.com/dusk-network/wallet-cli/issues/46
 [#87]: https://github.com/dusk-network/wallet-cli/issues/87
