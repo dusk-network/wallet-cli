@@ -6,6 +6,7 @@
 
 use bip39::{Language, Mnemonic, MnemonicType};
 use dusk_wallet::{Address, Dusk, Wallet, WalletPath};
+use requestty::ErrorKind;
 use requestty::Question;
 
 use crate::io;
@@ -59,50 +60,66 @@ pub(crate) async fn run_loop(
                 println!("Balance:\n - Spendable: [n/a]\n - Total: [n/a]");
                 menu_op_offline(addr.clone(), settings)
             };
-
-            // perform operations with this address
             match op {
-                AddrOp::Run(cmd) => {
-                    // request confirmation before running
-                    if confirm(&cmd) {
-                        // run command
-                        prompt::hide_cursor()?;
-                        let result = cmd.run(wallet, settings).await;
-                        prompt::show_cursor()?;
-                        // output results
-                        match result {
-                            Ok(res) => {
-                                println!("\r{}", res);
-                                if let RunResult::Tx(hash) = res {
-                                    let txh = format!("{:x}", hash);
-
-                                    // Wait for transaction confirmation from
-                                    // network
-                                    let gql = GraphQL::new(
-                                        &settings.graphql.to_string(),
-                                        io::status::interactive,
-                                    );
-                                    gql.wait_for(&txh).await?;
-
-                                    if let Some(explorer) = &settings.explorer {
-                                        let base_url = explorer.to_string();
-
-                                        let url =
-                                            format!("{}{}", base_url, txh);
-                                        println!("> URL: {}", url);
-                                        prompt::launch_explorer(url);
-                                    }
-                                }
-                            }
-
-                            Err(err) => println!("{}", err),
-                        }
+                Ok(op) => {
+                    // perform operations with this address
+                    match op {
+                        AddrOp::Run(cmd) => exec(cmd, wallet, settings).await?,
+                        AddrOp::Back => break,
                     }
                 }
-                AddrOp::Back => break,
+                Err(e) => match e.downcast_ref::<ErrorKind>() {
+                    Some(ErrorKind::Aborted) | Some(ErrorKind::Interrupted) => {
+                        println!("Operation canceled")
+                    }
+                    _ => {
+                        println!("A generic error occourred {:?}", e);
+                        Err(e)?
+                    }
+                },
             }
         }
     }
+}
+
+async fn exec(
+    cmd: Box<Command>,
+    wallet: &mut Wallet<WalletFile>,
+    settings: &Settings,
+) -> anyhow::Result<()> {
+    // request confirmation before running
+    if confirm(&cmd) {
+        // run command
+        prompt::hide_cursor()?;
+        let result = cmd.run(wallet, settings).await;
+        prompt::show_cursor()?;
+        // output results
+        match result {
+            Ok(res) => {
+                println!("\r{}", res);
+                if let RunResult::Tx(hash) = res {
+                    let txh = format!("{:x}", hash);
+                    // Wait for transaction confirmation from network
+                    let gql = GraphQL::new(
+                        &settings.graphql.to_string(),
+                        io::status::interactive,
+                    );
+                    gql.wait_for(&txh).await?;
+
+                    if let Some(explorer) = &settings.explorer {
+                        let base_url = explorer.to_string();
+
+                        let url = format!("{}{}", base_url, txh);
+                        println!("> URL: {}", url);
+                        prompt::launch_explorer(url)?;
+                    }
+                }
+            }
+
+            Err(err) => println!("{}", err),
+        }
+    }
+    Ok(())
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -157,7 +174,11 @@ enum CommandMenuItem {
 
 /// Allows the user to chose the operation to perform for the
 /// selected address
-fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
+fn menu_op(
+    addr: Address,
+    balance: Dusk,
+    settings: &Settings,
+) -> anyhow::Result<AddrOp> {
     use CommandMenuItem as CMI;
 
     let cmd_menu = Menu::new()
@@ -178,19 +199,19 @@ fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
     let answer = requestty::prompt_one(q).expect("An answer");
     let cmd = cmd_menu.answer(&answer).to_owned();
 
-    match cmd {
+    let res = match cmd {
         CMI::Transfer => AddrOp::Run(Box::new(Command::Transfer {
             sndr: Some(addr),
-            rcvr: prompt::request_rcvr_addr("recipient"),
-            amt: prompt::request_token_amt("transfer", balance),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            rcvr: prompt::request_rcvr_addr("recipient")?,
+            amt: prompt::request_token_amt("transfer", balance)?,
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Stake => AddrOp::Run(Box::new(Command::Stake {
             addr: Some(addr),
-            amt: prompt::request_token_amt("stake", balance),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            amt: prompt::request_token_amt("stake", balance)?,
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::StakeInfo => AddrOp::Run(Box::new(Command::StakeInfo {
             addr: Some(addr),
@@ -198,25 +219,29 @@ fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
         })),
         CMI::Unstake => AddrOp::Run(Box::new(Command::Unstake {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Withdraw => AddrOp::Run(Box::new(Command::Withdraw {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
-            dir: prompt::request_dir("export keys", settings.profile.clone()),
+            dir: prompt::request_dir("export keys", settings.profile.clone())?,
         })),
         CMI::Back => AddrOp::Back,
-    }
+    };
+    Ok(res)
 }
 
 /// Allows the user to chose the operation to perform for the
 /// selected address while in offline mode
-fn menu_op_offline(addr: Address, settings: &Settings) -> AddrOp {
+fn menu_op_offline(
+    addr: Address,
+    settings: &Settings,
+) -> anyhow::Result<AddrOp> {
     use CommandMenuItem as CMI;
 
     let cmd_menu = Menu::new()
@@ -233,14 +258,15 @@ fn menu_op_offline(addr: Address, settings: &Settings) -> AddrOp {
     let answer = requestty::prompt_one(q).expect("An answer");
     let cmd = cmd_menu.answer(&answer).to_owned();
 
-    match cmd {
+    let res = match cmd {
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
-            dir: prompt::request_dir("export keys", settings.profile.clone()),
+            dir: prompt::request_dir("export keys", settings.profile.clone())?,
         })),
         CMI::Back => AddrOp::Back,
         _ => unreachable!(),
-    }
+    };
+    Ok(res)
 }
 
 /// Allows the user to load a wallet interactively
