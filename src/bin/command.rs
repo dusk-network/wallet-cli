@@ -304,7 +304,7 @@ impl Command {
                 let pwd = prompt::request_auth(
                     "Encryption password",
                     &settings.password,
-                );
+                )?;
                 let (pub_key, key_pair) =
                     wallet.export_keys(addr, &dir, pwd)?;
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))

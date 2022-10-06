@@ -25,7 +25,10 @@ use dusk_wallet::gas;
 use dusk_wallet::{MAX_CONVERTIBLE, MIN_CONVERTIBLE};
 
 /// Request the user to authenticate with a password
-pub(crate) fn request_auth(msg: &str, password: &Option<String>) -> Hash {
+pub(crate) fn request_auth(
+    msg: &str,
+    password: &Option<String>,
+) -> anyhow::Result<Hash> {
     let pwd = match password.as_ref() {
         Some(p) => p.to_string(),
 
@@ -35,18 +38,18 @@ pub(crate) fn request_auth(msg: &str, password: &Option<String>) -> Hash {
                 .mask('*')
                 .build();
 
-            let a = requestty::prompt_one(q).expect("password");
-            let p = a.as_string().unwrap();
-
-            p.to_string()
+            let a = requestty::prompt_one(q)?;
+            a.as_string().expect("answer to be a string").into()
         }
     };
 
-    blake3::hash(pwd.as_bytes())
+    Ok(blake3::hash(pwd.as_bytes()))
 }
 
 /// Request the user to create a wallet password
-pub(crate) fn create_password(password: &Option<String>) -> Hash {
+pub(crate) fn create_password(
+    password: &Option<String>,
+) -> anyhow::Result<Hash> {
     let pwd = match password.as_ref() {
         Some(p) => p.to_string(),
         None => {
@@ -59,17 +62,16 @@ pub(crate) fn create_password(password: &Option<String>) -> Hash {
                     .message("Enter the password for the wallet:")
                     .mask('*')
                     .build();
-                let a = requestty::prompt_one(q).expect("password");
-                let pwd1 = a.as_string().unwrap_or("").to_string();
+                let a = requestty::prompt_one(q)?;
+                let pwd1 = a.as_string().expect("answer to be a string");
 
                 // confirm password
                 let q = Question::password("password")
                     .message("Please confirm the password:")
                     .mask('*')
                     .build();
-                let a =
-                    requestty::prompt_one(q).expect("password confirmation");
-                let pwd2 = a.as_string().unwrap_or("").to_string();
+                let a = requestty::prompt_one(q)?;
+                let pwd2 = a.as_string().expect("answer to be a string");
 
                 // check match
                 pwds_match = pwd1 == pwd2;
@@ -84,11 +86,11 @@ pub(crate) fn create_password(password: &Option<String>) -> Hash {
     };
 
     let pwd = blake3::hash(pwd.as_bytes());
-    pwd
+    Ok(pwd)
 }
 
 /// Display the recovery phrase to the user and ask for confirmation
-pub(crate) fn confirm_recovery_phrase<S>(phrase: &S)
+pub(crate) fn confirm_recovery_phrase<S>(phrase: &S) -> anyhow::Result<()>
 where
     S: std::fmt::Display,
 {
@@ -105,9 +107,9 @@ where
             .message("Have you backed up your recovery phrase?")
             .build();
 
-        let a = requestty::prompt_one(q).expect("confirmation");
-        if a.as_bool().unwrap() {
-            return;
+        let a = requestty::prompt_one(q)?;
+        if a.as_bool().expect("answer to be a bool") {
+            return Ok(());
         }
     }
 }
@@ -121,8 +123,8 @@ pub(crate) fn request_recovery_phrase() -> anyhow::Result<String> {
             .message("Please enter the recovery phrase:")
             .build();
 
-        let a = requestty::prompt_one(q).expect("recovery phrase");
-        let phrase = a.as_string().unwrap_or_default();
+        let a = requestty::prompt_one(q)?;
+        let phrase = a.as_string().expect("answer to be a string");
 
         match Mnemonic::from_phrase(phrase, Language::English) {
             Ok(phrase) => break Ok(phrase.to_string()),
@@ -151,7 +153,7 @@ fn is_valid_dir(dir: &str) -> bool {
 pub(crate) fn request_dir(
     what_for: &str,
     profile: PathBuf,
-) -> std::path::PathBuf {
+) -> Result<std::path::PathBuf> {
     let q = Question::input("name")
         .message(format!("Please enter a directory to {}:", what_for))
         .default(profile.as_os_str().to_str().expect("default dir"))
@@ -165,23 +167,23 @@ pub(crate) fn request_dir(
         })
         .build();
 
-    let a = requestty::prompt_one(q).expect("a directory");
+    let a = requestty::prompt_one(q)?;
     let mut p = std::path::PathBuf::new();
-    p.push(a.as_string().unwrap());
-    p
+    p.push(a.as_string().expect("answer to be a string"));
+    Ok(p)
 }
 
 /// Asks the user for confirmation
-pub(crate) fn ask_confirm() -> bool {
+pub(crate) fn ask_confirm() -> anyhow::Result<bool> {
     let q = requestty::Question::confirm("confirm")
         .message("Transaction ready. Proceed?")
         .build();
-    let a = requestty::prompt_one(q).expect("confirmation");
-    a.as_bool().unwrap_or(false)
+    let a = requestty::prompt_one(q)?;
+    Ok(a.as_bool().expect("answer to be a bool"))
 }
 
 /// Request a receiver address
-pub(crate) fn request_rcvr_addr(addr_for: &str) -> Address {
+pub(crate) fn request_rcvr_addr(addr_for: &str) -> anyhow::Result<Address> {
     // let the user input the receiver address
     let q = Question::input("addr")
         .message(format!("Please enter the {} address:", addr_for))
@@ -195,8 +197,10 @@ pub(crate) fn request_rcvr_addr(addr_for: &str) -> Address {
         })
         .build();
 
-    let a = requestty::prompt_one(q).expect("receiver address");
-    Address::from_str(a.as_string().unwrap()).expect("correct address")
+    let a = requestty::prompt_one(q)?;
+    Ok(Address::from_str(
+        a.as_string().expect("answer to be a string"),
+    )?)
 }
 
 /// Checks for a valid DUSK denomination
@@ -213,7 +217,10 @@ fn check_valid_denom(value: f64, balance: Dusk) -> Result<(), String> {
 }
 
 /// Request amount of tokens
-pub(crate) fn request_token_amt(action: &str, balance: Dusk) -> Dusk {
+pub(crate) fn request_token_amt(
+    action: &str,
+    balance: Dusk,
+) -> anyhow::Result<Dusk> {
     let question = requestty::Question::float("amt")
         .message(format!("Introduce the amount of DUSK to {}:", action))
         .default(MIN_CONVERTIBLE.into())
@@ -221,12 +228,12 @@ pub(crate) fn request_token_amt(action: &str, balance: Dusk) -> Dusk {
         .validate(|f, _| check_valid_denom(f, balance))
         .build();
 
-    let a = requestty::prompt_one(question).expect("token amount");
-    a.as_float().unwrap().into()
+    let a = requestty::prompt_one(question)?;
+    Ok(a.as_float().expect("answer to be a float").into())
 }
 
 /// Request gas limit
-pub(crate) fn request_gas_limit() -> u64 {
+pub(crate) fn request_gas_limit() -> anyhow::Result<u64> {
     let question = requestty::Question::int("amt")
         .message("Introduce the gas limit for this transaction:")
         .default(gas::DEFAULT_LIMIT as i64)
@@ -240,12 +247,12 @@ pub(crate) fn request_gas_limit() -> u64 {
         })
         .build();
 
-    let a = requestty::prompt_one(question).expect("gas limit");
-    a.as_int().unwrap() as u64
+    let a = requestty::prompt_one(question)?;
+    Ok(a.as_int().expect("answer to be an int") as u64)
 }
 
 /// Request gas price
-pub(crate) fn request_gas_price() -> Lux {
+pub(crate) fn request_gas_price() -> anyhow::Result<Lux> {
     let question = requestty::Question::float("amt")
         .message("Introduce the gas price for this transaction:")
         .default(Dusk::from(gas::DEFAULT_PRICE).into())
@@ -253,21 +260,23 @@ pub(crate) fn request_gas_price() -> Lux {
         .validate(|f, _| check_valid_denom(f, MAX_CONVERTIBLE))
         .build();
 
-    let a = requestty::prompt_one(question).expect("gas price");
-    let price = Dusk::from(a.as_float().unwrap());
-    *price
+    let a = requestty::prompt_one(question)?;
+    let price = Dusk::from(a.as_float().expect("answer to be a float"));
+    Ok(*price)
 }
 
 /// Request Dusk block explorer open
-pub(crate) fn launch_explorer(url: String) -> bool {
+pub(crate) fn launch_explorer(url: String) -> Result<()> {
     let q = requestty::Question::confirm("launch")
         .message("Launch block explorer?")
         .build();
 
-    let a = requestty::prompt_one(q).expect("confirmation");
-    let open = a.as_bool().unwrap_or(false);
-
-    open && open::that(url).is_ok()
+    let a = requestty::prompt_one(q)?;
+    let open = a.as_bool().expect("answer to be a bool");
+    if open {
+        open::that(url)?;
+    }
+    Ok(())
 }
 
 /// Shows the terminal cursor

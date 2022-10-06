@@ -52,7 +52,13 @@ impl SecureWalletFile for WalletFile {
 async fn main() -> anyhow::Result<()> {
     if let Err(err) = exec().await {
         // display the error message (if any)
-        eprintln!("{}", err);
+        match err.downcast_ref::<requestty::ErrorKind>() {
+            Some(requestty::ErrorKind::Interrupted) => {
+                // TODO: Handle this error properly
+                // See also https://github.com/dusk-network/wallet-cli/issues/104
+            }
+            _ => eprintln!("{err}"),
+        };
         // give cursor back to the user
         io::prompt::show_cursor()?;
     }
@@ -177,10 +183,10 @@ async fn exec() -> anyhow::Result<()> {
                 let mnemonic =
                     Mnemonic::new(MnemonicType::Words12, Language::English);
                 // ask user for a password to secure the wallet
-                let pwd = prompt::create_password(password);
+                let pwd = prompt::create_password(password)?;
                 // skip phrase confirmation if explicitly
                 if !skip_recovery {
-                    prompt::confirm_recovery_phrase(&mnemonic);
+                    prompt::confirm_recovery_phrase(&mnemonic)?;
                 }
 
                 // create wallet
@@ -197,7 +203,7 @@ async fn exec() -> anyhow::Result<()> {
                         let pwd = prompt::request_auth(
                             "Please enter wallet password",
                             password,
-                        );
+                        )?;
 
                         let w = Wallet::from_file(WalletFile {
                             path: file.clone(),
@@ -209,7 +215,7 @@ async fn exec() -> anyhow::Result<()> {
                         // ask user for 12-word recovery phrase
                         let phrase = prompt::request_recovery_phrase()?;
                         // ask user for a password to secure the wallet
-                        let pwd = prompt::create_password(password);
+                        let pwd = prompt::create_password(password)?;
                         // create wallet
                         let w = Wallet::new(phrase)?;
 
@@ -229,7 +235,7 @@ async fn exec() -> anyhow::Result<()> {
                 let pwd = prompt::request_auth(
                     "Please enter wallet password",
                     password,
-                );
+                )?;
                 Wallet::from_file(WalletFile {
                     path: wallet_path,
                     pwd,
