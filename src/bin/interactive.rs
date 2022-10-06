@@ -25,7 +25,7 @@ pub(crate) async fn run_loop(
 ) -> anyhow::Result<()> {
     loop {
         // let the user choose (or create) an address
-        let addr = match menu_addr(wallet) {
+        let addr = match menu_addr(wallet)? {
             AddrSelect::Address(addr) => *addr,
             AddrSelect::NewAddress => {
                 let addr = wallet.new_address().clone();
@@ -61,10 +61,10 @@ pub(crate) async fn run_loop(
             };
 
             // perform operations with this address
-            match op {
+            match op? {
                 AddrOp::Run(cmd) => {
                     // request confirmation before running
-                    if confirm(&cmd) {
+                    if confirm(&cmd)? {
                         // run command
                         prompt::hide_cursor()?;
                         let result = cmd.run(wallet, settings).await;
@@ -90,7 +90,7 @@ pub(crate) async fn run_loop(
                                         let url =
                                             format!("{}{}", base_url, txh);
                                         println!("> URL: {}", url);
-                                        prompt::launch_explorer(url);
+                                        prompt::launch_explorer(url)?;
                                     }
                                 }
                             }
@@ -114,7 +114,7 @@ enum AddrSelect {
 
 /// Allows the user to choose an address from the selected wallet
 /// to start performing operations.
-fn menu_addr(wallet: &Wallet<WalletFile>) -> AddrSelect {
+fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
     let mut address_menu = Menu::title("Addresses");
     for addr in wallet.addresses() {
         let preview = addr.preview();
@@ -134,8 +134,8 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> AddrSelect {
         .choices(menu.clone())
         .build();
 
-    let answer = requestty::prompt_one(questions).expect("An answer");
-    menu.answer(&answer).to_owned()
+    let answer = requestty::prompt_one(questions)?;
+    Ok(menu.answer(&answer).to_owned())
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -157,7 +157,11 @@ enum CommandMenuItem {
 
 /// Allows the user to chose the operation to perform for the
 /// selected address
-fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
+fn menu_op(
+    addr: Address,
+    balance: Dusk,
+    settings: &Settings,
+) -> anyhow::Result<AddrOp> {
     use CommandMenuItem as CMI;
 
     let cmd_menu = Menu::new()
@@ -175,22 +179,22 @@ fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
         .choices(cmd_menu.clone())
         .build();
 
-    let answer = requestty::prompt_one(q).expect("An answer");
+    let answer = requestty::prompt_one(q)?;
     let cmd = cmd_menu.answer(&answer).to_owned();
 
-    match cmd {
+    let res = match cmd {
         CMI::Transfer => AddrOp::Run(Box::new(Command::Transfer {
             sndr: Some(addr),
-            rcvr: prompt::request_rcvr_addr("recipient"),
-            amt: prompt::request_token_amt("transfer", balance),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            rcvr: prompt::request_rcvr_addr("recipient")?,
+            amt: prompt::request_token_amt("transfer", balance)?,
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Stake => AddrOp::Run(Box::new(Command::Stake {
             addr: Some(addr),
-            amt: prompt::request_token_amt("stake", balance),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            amt: prompt::request_token_amt("stake", balance)?,
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::StakeInfo => AddrOp::Run(Box::new(Command::StakeInfo {
             addr: Some(addr),
@@ -198,25 +202,29 @@ fn menu_op(addr: Address, balance: Dusk, settings: &Settings) -> AddrOp {
         })),
         CMI::Unstake => AddrOp::Run(Box::new(Command::Unstake {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Withdraw => AddrOp::Run(Box::new(Command::Withdraw {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit()),
-            gas_price: Some(prompt::request_gas_price()),
+            gas_limit: Some(prompt::request_gas_limit()?),
+            gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
-            dir: prompt::request_dir("export keys", settings.profile.clone()),
+            dir: prompt::request_dir("export keys", settings.profile.clone())?,
         })),
         CMI::Back => AddrOp::Back,
-    }
+    };
+    Ok(res)
 }
 
 /// Allows the user to chose the operation to perform for the
 /// selected address while in offline mode
-fn menu_op_offline(addr: Address, settings: &Settings) -> AddrOp {
+fn menu_op_offline(
+    addr: Address,
+    settings: &Settings,
+) -> anyhow::Result<AddrOp> {
     use CommandMenuItem as CMI;
 
     let cmd_menu = Menu::new()
@@ -230,17 +238,18 @@ fn menu_op_offline(addr: Address, settings: &Settings) -> AddrOp {
         .choices(cmd_menu.clone())
         .build();
 
-    let answer = requestty::prompt_one(q).expect("An answer");
+    let answer = requestty::prompt_one(q)?;
     let cmd = cmd_menu.answer(&answer).to_owned();
 
-    match cmd {
+    let res = match cmd {
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
-            dir: prompt::request_dir("export keys", settings.profile.clone()),
+            dir: prompt::request_dir("export keys", settings.profile.clone())?,
         })),
         CMI::Back => AddrOp::Back,
         _ => unreachable!(),
-    }
+    };
+    Ok(res)
 }
 
 /// Allows the user to load a wallet interactively
@@ -256,14 +265,14 @@ pub(crate) fn load_wallet(
     let password = &settings.password;
 
     // display main menu
-    let wallet = match menu_wallet(wallet_found) {
+    let wallet = match menu_wallet(wallet_found)? {
         MainMenu::Load(path) => {
             let mut attempt = 1;
             loop {
                 let pwd = prompt::request_auth(
                     "Please enter you wallet's password",
                     password,
-                );
+                )?;
                 match Wallet::from_file(WalletFile {
                     path: path.clone(),
                     pwd,
@@ -284,9 +293,9 @@ pub(crate) fn load_wallet(
             let mnemonic =
                 Mnemonic::new(MnemonicType::Words12, Language::English);
             // ask user for a password to secure the wallet
-            let pwd = prompt::create_password(password);
+            let pwd = prompt::create_password(password)?;
             // display the recovery phrase
-            prompt::confirm_recovery_phrase(&mnemonic);
+            prompt::confirm_recovery_phrase(&mnemonic)?;
             // create and store the wallet
             let mut w = Wallet::new(mnemonic)?;
             let path = wallet_path.clone();
@@ -297,7 +306,7 @@ pub(crate) fn load_wallet(
             // ask user for 12-word recovery phrase
             let phrase = prompt::request_recovery_phrase()?;
             // ask user for a password to secure the wallet
-            let pwd = prompt::create_password(&None);
+            let pwd = prompt::create_password(&None)?;
             // create and store the recovered wallet
             let mut w = Wallet::new(phrase)?;
             let path = wallet_path.clone();
@@ -320,7 +329,7 @@ enum MainMenu {
 
 /// Allows the user to load an existing wallet, recover a lost one
 /// or create a new one.
-fn menu_wallet(wallet_found: Option<PathBuf>) -> MainMenu {
+fn menu_wallet(wallet_found: Option<PathBuf>) -> anyhow::Result<MainMenu> {
     // create the wallet menu
     let mut menu = Menu::new();
 
@@ -353,12 +362,12 @@ fn menu_wallet(wallet_found: Option<PathBuf>) -> MainMenu {
         .choices(menu.clone())
         .build();
 
-    let answer = requestty::prompt_one(questions).expect("An answer");
-    menu.answer(&answer).to_owned()
+    let answer = requestty::prompt_one(questions)?;
+    Ok(menu.answer(&answer).to_owned())
 }
 
 /// Request user confirmation for a trasfer transaction
-fn confirm(cmd: &Command) -> bool {
+fn confirm(cmd: &Command) -> anyhow::Result<bool> {
     match cmd {
         Command::Transfer {
             sndr,
@@ -367,9 +376,9 @@ fn confirm(cmd: &Command) -> bool {
             gas_limit,
             gas_price,
         } => {
-            let sndr = sndr.as_ref().expect("valid address");
-            let gas_limit = gas_limit.expect("gas limit not set");
-            let gas_price = gas_price.expect("gas price not set");
+            let sndr = sndr.as_ref().expect("sender to be a valid address");
+            let gas_limit = gas_limit.expect("gas limit to be set");
+            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Send from = {}", sndr.preview());
             println!("   > Recipient = {}", rcvr.preview());
@@ -383,9 +392,9 @@ fn confirm(cmd: &Command) -> bool {
             gas_limit,
             gas_price,
         } => {
-            let addr = addr.as_ref().expect("valid address");
-            let gas_limit = gas_limit.expect("gas limit not set");
-            let gas_price = gas_price.expect("gas price not set");
+            let addr = addr.as_ref().expect("address to be valid");
+            let gas_limit = gas_limit.expect("gas limit to be set");
+            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Stake from {}", addr.preview());
             println!("   > Amount to stake = {} DUSK", amt);
@@ -397,9 +406,9 @@ fn confirm(cmd: &Command) -> bool {
             gas_limit,
             gas_price,
         } => {
-            let addr = addr.as_ref().expect("valid address");
-            let gas_limit = gas_limit.expect("gas limit not set");
-            let gas_price = gas_price.expect("gas price not set");
+            let addr = addr.as_ref().expect("address to be valid");
+            let gas_limit = gas_limit.expect("gas limit to be set");
+            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Unstake from {}", addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
@@ -410,14 +419,14 @@ fn confirm(cmd: &Command) -> bool {
             gas_limit,
             gas_price,
         } => {
-            let addr = addr.as_ref().expect("valid address");
-            let gas_limit = gas_limit.expect("gas limit not set");
-            let gas_price = gas_price.expect("gas price not set");
+            let addr = addr.as_ref().expect("address to be valid");
+            let gas_limit = gas_limit.expect("gas limit to be set");
+            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Reward from {}", addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
             prompt::ask_confirm()
         }
-        _ => true,
+        _ => Ok(true),
     }
 }

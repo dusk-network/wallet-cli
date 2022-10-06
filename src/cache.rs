@@ -119,7 +119,7 @@ impl Cache {
             )?;
         }
 
-        let mut key_data = self.data.get_mut(&psk)?.unwrap();
+        let mut key_data = self.data.get_mut(&psk)?.expect("psk");
 
         if height > key_data.last_height {
             key_data.last_height = height;
