@@ -45,7 +45,7 @@ bs58 = "0.4"
 rand = "0.8"
 aes = "0.7"
 
-dusk-wallet-core = "0.14.1-rc"
+dusk-wallet-core = { git = "https://github.com/dusk-network/wallet-core.git" }
 canonical = "0.7"
 canonical_derive = "0.7"
 dusk-hamt = "0.10.0-rc"
