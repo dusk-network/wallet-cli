@@ -603,6 +603,11 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             .find(|a| a.psk == addr.psk)
             .ok_or(Error::AddressNotOwned)
     }
+
+    /// Obtain the inner wallet
+    pub fn get_wallet(self) -> Option<WalletCore<LocalStore, State, Prover>> {
+        self.wallet
+    }
 }
 /// Bls key pair helper structure
 #[derive(Serialize)]
