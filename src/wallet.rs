@@ -605,8 +605,8 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     }
 
     /// Obtain the inner raw wallet
-    pub fn into_wallet(self) -> Option<WalletCore<LocalStore, State, Prover>> {
-        self.wallet
+    pub fn wallet(&self) -> Option<&WalletCore<LocalStore, State, Prover>> {
+        self.wallet.as_ref()
     }
 }
 /// Bls key pair helper structure
