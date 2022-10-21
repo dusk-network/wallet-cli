@@ -604,8 +604,8 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             .ok_or(Error::AddressNotOwned)
     }
 
-    /// Obtain the inner wallet
-    pub fn get_wallet(self) -> Option<WalletCore<LocalStore, State, Prover>> {
+    /// Obtain the inner raw wallet
+    pub fn into_wallet(self) -> Option<WalletCore<LocalStore, State, Prover>> {
         self.wallet
     }
 }
