@@ -18,12 +18,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-11, windows-latest]
+        os: [ubuntu-20.04, ubuntu-22.04, macos-latest, macos-11, windows-latest]
         compiler: [cargo]
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             compiler: cargo
             target: linux-x64
+
+          - os: ubuntu-22.04
+            compiler: cargo
+            target: linux-x64-libssl3
 
           - os: macos-latest
             compiler: cargo
