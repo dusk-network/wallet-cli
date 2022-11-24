@@ -591,9 +591,9 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         bytes = crate::crypto::encrypt(&bytes, pwd)?;
 
         // export key pair to disk
-        fs::write(&path.with_extension("key"), bytes)?;
+        fs::write(&path.with_extension("keys"), bytes)?;
 
-        Ok((path.with_extension("key"), path.with_extension("cpk")))
+        Ok((path.with_extension("keys"), path.with_extension("cpk")))
     }
 
     /// Obtain the owned `Address` for a given address
