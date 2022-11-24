@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Change exported consensus keys extension to `.keys` [#114]
+
 ## [0.12.0] - 2022-10-19
 
 ### Added
@@ -303,6 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#114]: https://github.com/dusk-network/wallet-cli/issues/114
 [#49]: https://github.com/dusk-network/wallet-cli/issues/49
 [#46]: https://github.com/dusk-network/wallet-cli/issues/46
 [#87]: https://github.com/dusk-network/wallet-cli/issues/87
