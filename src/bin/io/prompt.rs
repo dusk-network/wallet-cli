@@ -233,10 +233,12 @@ pub(crate) fn request_token_amt(
 }
 
 /// Request gas limit
-pub(crate) fn request_gas_limit() -> anyhow::Result<u64> {
+pub(crate) fn request_gas_limit(
+    default_gas_limit: Option<i64>,
+) -> anyhow::Result<u64> {
     let question = requestty::Question::int("amt")
         .message("Introduce the gas limit for this transaction:")
-        .default(gas::DEFAULT_LIMIT as i64)
+        .default(default_gas_limit.unwrap_or(gas::DEFAULT_LIMIT as i64))
         .validate_on_key(|n, _| n > (gas::MIN_LIMIT as i64))
         .validate(|n, _| {
             if n < gas::MIN_LIMIT as i64 {
