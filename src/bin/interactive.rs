@@ -5,6 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use bip39::{Language, Mnemonic, MnemonicType};
+use dusk_wallet::gas;
 use dusk_wallet::{Address, Dusk, Wallet, WalletPath};
 use requestty::Question;
 
@@ -188,15 +189,15 @@ fn menu_op(
             sndr: Some(addr),
             rcvr: prompt::request_rcvr_addr("recipient")?,
             amt: prompt::request_token_amt("transfer", balance)?,
-            gas_limit: Some(prompt::request_gas_limit(None)?),
+            gas_limit: Some(prompt::request_gas_limit(gas::DEFAULT_LIMIT)?),
             gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Stake => AddrOp::Run(Box::new(Command::Stake {
             addr: Some(addr),
             amt: prompt::request_token_amt("stake", balance)?,
-            gas_limit: Some(prompt::request_gas_limit(Some(
+            gas_limit: Some(prompt::request_gas_limit(
                 DEFAULT_STAKE_GAS_LIMIT,
-            ))?),
+            )?),
             gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::StakeInfo => AddrOp::Run(Box::new(Command::StakeInfo {
@@ -205,16 +206,16 @@ fn menu_op(
         })),
         CMI::Unstake => AddrOp::Run(Box::new(Command::Unstake {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit(Some(
+            gas_limit: Some(prompt::request_gas_limit(
                 DEFAULT_STAKE_GAS_LIMIT,
-            ))?),
+            )?),
             gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Withdraw => AddrOp::Run(Box::new(Command::Withdraw {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit(Some(
+            gas_limit: Some(prompt::request_gas_limit(
                 DEFAULT_STAKE_GAS_LIMIT,
-            ))?),
+            )?),
             gas_price: Some(prompt::request_gas_price()?),
         })),
         CMI::Export => AddrOp::Run(Box::new(Command::Export {

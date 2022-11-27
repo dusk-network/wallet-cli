@@ -29,10 +29,10 @@ pub struct Gas {
 
 impl Gas {
     /// Default gas price and limit
-    pub fn new() -> Self {
+    pub fn new(limit: u64) -> Self {
         Gas {
             price: DEFAULT_PRICE,
-            limit: DEFAULT_LIMIT,
+            limit,
         }
     }
 
@@ -54,12 +54,14 @@ impl Gas {
     where
         T: Into<Option<u64>>,
     {
-        self.limit = limit.into().unwrap_or(DEFAULT_LIMIT)
+        if let Some(limit) = limit.into() {
+            self.limit = limit;
+        }
     }
 }
 
 impl Default for Gas {
     fn default() -> Self {
-        Self::new()
+        Self::new(DEFAULT_LIMIT)
     }
 }
