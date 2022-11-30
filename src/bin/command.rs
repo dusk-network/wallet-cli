@@ -18,6 +18,9 @@ use dusk_wallet::gas::Gas;
 use dusk_wallet::{Address, Dusk, Lux, Wallet};
 use dusk_wallet_core::{BalanceInfo, StakeInfo};
 
+/// The default stake gas limit
+pub const DEFAULT_STAKE_GAS_LIMIT: u64 = 2_900_000_000;
+
 /// Commands that can be run against the Dusk wallet
 #[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Hash, Clone, Subcommand, Debug)]
@@ -208,7 +211,7 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let mut gas = Gas::new();
+                let mut gas = Gas::default();
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
@@ -225,7 +228,7 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let mut gas = Gas::new();
+                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
@@ -243,7 +246,7 @@ impl Command {
                     None => wallet.default_address(),
                 };
 
-                let mut gas = Gas::new();
+                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
@@ -272,7 +275,7 @@ impl Command {
                     None => wallet.default_address(),
                 };
 
-                let mut gas = Gas::new();
+                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
@@ -289,7 +292,7 @@ impl Command {
                     None => wallet.default_address(),
                 };
 
-                let mut gas = Gas::new();
+                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
