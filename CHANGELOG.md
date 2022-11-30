@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed fn signature in `gas::new` to include the gas limit [#116]
 - Change `request_gas_limit` fn signature to accept a gas limit option [#116]
 - Change (un)stake, allow stake and withdraw default gas limits to sane defaults [#116]
 - Change exported consensus keys extension to `.keys` [#114]
