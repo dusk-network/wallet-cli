@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2022-11-30
+
 ### Changed
 
 - Changed fn signature in `gas::new` to include the gas limit [#116]
@@ -376,7 +378,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.12.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/dusk-network/wallet-cli/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/dusk-network/wallet-cli/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/dusk-network/wallet-cli/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/dusk-network/wallet-cli/compare/v0.10.0...v0.11.0
