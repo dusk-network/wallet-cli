@@ -38,8 +38,8 @@ pub enum Error {
     /// Command not available in offline mode
     #[error("This command cannot be performed while offline")]
     Offline,
-    /// Unauthorized access this address
-    #[error("Unauthorized access this address")]
+    /// Unauthorized access to this address
+    #[error("Unauthorized access to this address")]
     Unauthorized,
     /// Filesystem errors
     #[error(transparent)]
@@ -63,7 +63,7 @@ pub enum Error {
     #[error(transparent)]
     Rng(#[from] RngError),
     /// Transaction model errors
-    #[error("An error occured in Phoenix: {0:?}")]
+    #[error("An error occurred in Phoenix: {0:?}")]
     Phoenix(PhoenixError),
     /// Not enough balance to perform transaction
     #[error("Insufficient balance to perform this operation")]
