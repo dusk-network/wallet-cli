@@ -146,7 +146,7 @@ impl PartialOrd<f64> for Dusk {
 }
 
 /// Conversion ops
-/// Conveninent conversion of primitives to and from Dusk
+/// Convenient conversion of primitives to and from Dusk
 
 /// Floats are used directly as Dusk value
 impl From<f64> for Dusk {
@@ -196,7 +196,6 @@ impl Deref for Dusk {
 
 /// Display
 /// Let the user print stuff
-
 impl fmt::Display for Dusk {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let v: f64 = self.into();

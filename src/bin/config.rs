@@ -86,7 +86,7 @@ pub(crate) struct Network {
 
 use std::{fs, io};
 
-/// Config holds the settings for the CLI wallet]
+/// Config holds the settings for the CLI wallet
 #[derive(Debug)]
 pub struct Config {
     /// Network configuration

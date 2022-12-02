@@ -124,7 +124,7 @@ async fn exec() -> anyhow::Result<()> {
     // load configuration (or use default)
     let cfg = Config::load(&profile_folder)?;
 
-    // Finally complete the settings by set the network
+    // Finally complete the settings by setting the network
     let settings = settings.network(cfg.network);
 
     // set cache directory straight away

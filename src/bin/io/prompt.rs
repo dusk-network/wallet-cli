@@ -136,7 +136,7 @@ pub(crate) fn request_recovery_phrase() -> anyhow::Result<String> {
                 _ => return Err(err),
             },
             Err(_) => {
-                println!("Invalid recovery phrase please try again");
+                println!("Invalid recovery phrase, please try again");
                 attempt += 1;
             }
         }
@@ -265,7 +265,7 @@ pub(crate) fn request_gas_price() -> anyhow::Result<Lux> {
     Ok(*price)
 }
 
-/// Request Dusk block explorer open
+/// Request Dusk block explorer to be opened
 pub(crate) fn launch_explorer(url: String) -> Result<()> {
     let q = requestty::Question::confirm("launch")
         .message("Launch block explorer?")

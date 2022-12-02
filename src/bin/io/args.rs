@@ -20,7 +20,7 @@ pub(crate) struct WalletArgs {
     #[clap(short, long)]
     pub profile: Option<PathBuf>,
 
-    /// Network to connect
+    /// Network to connect to
     #[clap(short, long)]
     pub network: Option<String>,
 
