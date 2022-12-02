@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rename `--data-dir` argument option to `--profile` [#57]
 - Remove `--wallet-name` argument option [#72]
-- Remove `--network` argument option to chose the network to connect with [#57]
+- Remove `--network` argument option to choose the network to connect with [#57]
 - Remove `interactive` subcommand [#57]
 - Remove `--skip-recovery` as global argument [#57]
 - Remove `--wait-for-tx` (now all the transaction wait by default) [#57]
