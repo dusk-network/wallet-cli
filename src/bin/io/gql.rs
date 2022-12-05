@@ -16,7 +16,7 @@ use serde_json::Value;
 /// GraphQL is a helper struct that aggregates all queries done
 /// to the Dusk GraphQL database.
 /// This helps avoid having helper structs and boilerplate code
-/// mixed with the wallet logic
+/// mixed with the wallet logic.
 #[derive(Clone)]
 pub struct GraphQL {
     url: String,

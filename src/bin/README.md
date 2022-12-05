@@ -11,7 +11,7 @@ OPTIONS:
             Directory to store user data [default: `$HOME/.dusk/rusk-wallet`]
 
     -n, --network <NETWORK>
-            Network to connect
+            Network to connect to
 
         --password <PASSWORD>
             Set the password for wallet's creation [env: RUSK_WALLET_PWD=]

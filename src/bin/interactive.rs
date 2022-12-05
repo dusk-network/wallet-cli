@@ -126,7 +126,7 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
 
     let action_menu = Menu::new()
         .separator()
-        .add(AddrSelect::NewAddress, "New adddress")
+        .add(AddrSelect::NewAddress, "New address")
         .separator()
         .add(AddrSelect::Exit, "Exit");
 
@@ -157,7 +157,7 @@ enum CommandMenuItem {
     Back,
 }
 
-/// Allows the user to chose the operation to perform for the
+/// Allows the user to choose the operation to perform for the
 /// selected address
 fn menu_op(
     addr: Address,
@@ -227,7 +227,7 @@ fn menu_op(
     Ok(res)
 }
 
-/// Allows the user to chose the operation to perform for the
+/// Allows the user to choose the operation to perform for the
 /// selected address while in offline mode
 fn menu_op_offline(
     addr: Address,
@@ -278,7 +278,7 @@ pub(crate) fn load_wallet(
             let mut attempt = 1;
             loop {
                 let pwd = prompt::request_auth(
-                    "Please enter you wallet's password",
+                    "Please enter your wallet password",
                     password,
                 )?;
                 match Wallet::from_file(WalletFile {
@@ -290,7 +290,7 @@ pub(crate) fn load_wallet(
                         return Err(Error::AttemptsExhausted)?;
                     }
                     Err(_) => {
-                        println!("Invalid password please try again");
+                        println!("Invalid password, please try again");
                         attempt += 1;
                     }
                 }
@@ -374,7 +374,7 @@ fn menu_wallet(wallet_found: Option<PathBuf>) -> anyhow::Result<MainMenu> {
     Ok(menu.answer(&answer).to_owned())
 }
 
-/// Request user confirmation for a trasfer transaction
+/// Request user confirmation for a transfer transaction
 fn confirm(cmd: &Command) -> anyhow::Result<bool> {
     match cmd {
         Command::Transfer {
