@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix headless balance display [#123]
+
 ## [0.13.0] - 2022-11-30
 
 ### Changed
@@ -312,6 +316,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#123]: https://github.com/dusk-network/wallet-cli/issues/123
 [#116]: https://github.com/dusk-network/wallet-cli/issues/116
 [#114]: https://github.com/dusk-network/wallet-cli/issues/114
 [#49]: https://github.com/dusk-network/wallet-cli/issues/49
