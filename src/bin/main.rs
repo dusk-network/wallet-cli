@@ -261,9 +261,9 @@ async fn exec() -> anyhow::Result<()> {
         Some(cmd) => match cmd.run(&mut wallet, &settings).await? {
             RunResult::Balance(balance, spendable) => {
                 if spendable {
-                    println!("{}", balance.spendable);
+                    println!("{}", Dusk::from(balance.spendable));
                 } else {
-                    println!("{}", balance.value);
+                    println!("{}", Dusk::from(balance.value));
                 }
             }
             RunResult::Address(addr) => {
@@ -286,14 +286,15 @@ async fn exec() -> anyhow::Result<()> {
 
                 println!("{}", txh);
             }
-            RunResult::StakeInfo(si, reward) => {
+            RunResult::StakeInfo(info, reward) => {
                 if reward {
-                    println!("{}", si.reward);
+                    println!("{}", Dusk::from(info.reward));
                 } else {
-                    match si.amount {
-                        Some((value, ..)) => Dusk::from(value),
-                        None => Dusk::from(0),
+                    let staked_amount = match info.amount {
+                        Some((staked, ..)) => staked,
+                        None => 0,
                     };
+                    println!("{}", Dusk::from(staked_amount));
                 }
             }
             RunResult::ExportedKeys(pub_key, key_pair) => {
