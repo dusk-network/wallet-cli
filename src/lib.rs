@@ -35,3 +35,5 @@ pub use wallet::{Address, SecureWalletFile, Wallet, WalletPath};
 pub const MAX_CONVERTIBLE: Dusk = Dusk::MAX;
 /// The smallest amount of Dusk that is possible to convert
 pub const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
+/// The length of an epoch in blocks
+pub const EPOCH: u64 = 2160;
