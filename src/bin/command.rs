@@ -364,7 +364,7 @@ impl fmt::Display for RunResult {
                         "Current stake amount is: {} DUSK\n> Stake eligibility from block #{} (Epoch {})",
                         Dusk::from(value),
                         eligibility,
-                        (eligibility / EPOCH) + 1
+                        eligibility / EPOCH
                     ),
                     None => "No active stake found for this key".to_string(),
                 };

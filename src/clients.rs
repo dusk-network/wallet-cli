@@ -269,7 +269,7 @@ impl StateClient for State {
         println!(
             "Last block: {} (Epoch {})",
             last_height,
-            (last_height / EPOCH) + 1
+            last_height / EPOCH
         );
 
         state.cache.persist()?;
