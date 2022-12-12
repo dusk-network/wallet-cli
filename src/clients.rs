@@ -266,11 +266,7 @@ impl StateClient for State {
             state.cache.insert(psk, rsp.height, note)?;
         }
 
-        println!(
-            "Last block: {} (Epoch {})",
-            last_height,
-            last_height / EPOCH
-        );
+        println!("Last block: {}", last_height);
 
         state.cache.persist()?;
 
