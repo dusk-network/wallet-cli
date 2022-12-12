@@ -360,11 +360,11 @@ impl fmt::Display for RunResult {
             }
             StakeInfo(si, _) => {
                 let stake_str = match si.amount {
-                    Some((value, elegibility)) => format!(
+                    Some((value, eligibility)) => format!(
                         "Current stake amount is: {} DUSK\n> Stake eligibility from block #{} (Epoch {})",
                         Dusk::from(value),
-                        elegibility,
-                        (elegibility / EPOCH) + 1
+                        eligibility,
+                        (eligibility / EPOCH) + 1
                     ),
                     None => "No active stake found for this key".to_string(),
                 };
