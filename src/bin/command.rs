@@ -15,7 +15,7 @@ use crate::settings::Settings;
 use crate::{WalletFile, WalletPath};
 
 use dusk_wallet::gas::Gas;
-use dusk_wallet::{Address, Dusk, Lux, Wallet};
+use dusk_wallet::{Address, Dusk, Lux, Wallet, EPOCH};
 use dusk_wallet_core::{BalanceInfo, StakeInfo};
 
 /// The default stake gas limit
@@ -361,9 +361,10 @@ impl fmt::Display for RunResult {
             StakeInfo(si, _) => {
                 let stake_str = match si.amount {
                     Some((value, elegibility)) => format!(
-                        "Current stake amount is: {} DUSK\n> Stake eligibility from block #{}",
+                        "Current stake amount is: {} DUSK\n> Stake eligibility from block #{} (Epoch {})",
                         Dusk::from(value),
-                        elegibility
+                        elegibility,
+                        (elegibility / EPOCH) + 1
                     ),
                     None => "No active stake found for this key".to_string(),
                 };
