@@ -32,7 +32,7 @@ use super::block::Block;
 use super::cache::Cache;
 
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
-use crate::Error;
+use crate::{Error, EPOCH};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -266,7 +266,11 @@ impl StateClient for State {
             state.cache.insert(psk, rsp.height, note)?;
         }
 
-        println!("Last block: {}", last_height);
+        println!(
+            "Last block: {} (Epoch {})",
+            last_height,
+            (last_height / EPOCH) + 1
+        );
 
         state.cache.persist()?;
 
