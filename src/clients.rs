@@ -364,6 +364,10 @@ impl StateClient for State {
 
         let amount = res.amount.map(|a| (a.value, a.eligibility));
 
+        let staking_address = pk.to_bytes().to_vec();
+        let staking_address = bs58::encode(staking_address).into_string();
+        println!("Staking address: {}", staking_address);
+
         Ok(StakeInfo {
             amount,
             reward: res.reward,
