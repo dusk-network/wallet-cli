@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add stake maturity epoch [#128]
 - Add staking address display [#105]
 - Add stake eligibility info [#124]
 
@@ -321,6 +322,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#128]: https://github.com/dusk-network/wallet-cli/issues/128
 [#105]: https://github.com/dusk-network/wallet-cli/issues/105
 [#124]: https://github.com/dusk-network/wallet-cli/issues/124
 [#123]: https://github.com/dusk-network/wallet-cli/issues/123
