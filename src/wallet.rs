@@ -15,6 +15,7 @@ pub use file::{SecureWalletFile, WalletPath};
 use bip39::{Language, Mnemonic, Seed};
 use blake3::Hash;
 use dusk_bytes::{DeserializableSlice, Serializable};
+use phoenix_core::Note;
 use rusk_abi::ContractId;
 use serde::Serialize;
 use std::fmt::Debug;
@@ -24,7 +25,8 @@ use std::path::{Path, PathBuf};
 use dusk_bls12_381_sign::{PublicKey, SecretKey};
 use dusk_jubjub::BlsScalar;
 use dusk_wallet_core::{
-    BalanceInfo, StakeInfo, Store, Transaction, Wallet as WalletCore,
+    BalanceInfo, StakeInfo, StateClient, Store, Transaction,
+    Wallet as WalletCore,
 };
 use rand::prelude::StdRng;
 use rand::SeedableRng;
@@ -301,6 +303,47 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     /// Checks if the wallet has an active connection to the network
     pub fn is_online(&self) -> bool {
         self.wallet.is_some()
+    }
+
+    /// Fetches the notes from the state.
+    pub fn get_all_notes(
+        &self,
+        addr: &Address,
+    ) -> Result<Vec<DecodedNote>, Error> {
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized);
+        }
+        if let Some(wallet) = &self.wallet {
+            let ssk_index = addr.index()? as u64;
+            let ssk = self.store.retrieve_ssk(ssk_index).unwrap();
+            let vk = ssk.view_key();
+
+            let notes = wallet.state().fetch_notes(&vk).unwrap();
+
+            let nullifiers: Vec<_> =
+                notes.iter().map(|(n, _)| n.gen_nullifier(&ssk)).collect();
+            let existing_nullifiers =
+                wallet.state().fetch_existing_nullifiers(&nullifiers[..])?;
+            let history = notes
+                .into_iter()
+                .zip(nullifiers)
+                .map(|((note, block_height), nullifier)| {
+                    let nullified_by = existing_nullifiers
+                        .contains(&nullifier)
+                        .then_some(nullifier);
+                    let amount = note.value(Some(&vk)).unwrap();
+                    DecodedNote {
+                        note,
+                        amount,
+                        block_height,
+                        nullified_by,
+                    }
+                })
+                .collect();
+            Ok(history)
+        } else {
+            Err(Error::Offline)
+        }
     }
 
     /// Obtain balance information for a given address
@@ -648,6 +691,19 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             .ok_or(Error::AddressNotOwned)
     }
 }
+
+/// This structs represent a Note decoded enriched with useful chain information
+pub struct DecodedNote {
+    /// The phoenix note
+    pub note: Note,
+    /// The decoded amount
+    pub amount: u64,
+    /// The block height
+    pub block_height: u64,
+    /// Nullified by
+    pub nullified_by: Option<BlsScalar>,
+}
+
 /// Bls key pair helper structure
 #[derive(Serialize)]
 struct BlsKeyPair {
