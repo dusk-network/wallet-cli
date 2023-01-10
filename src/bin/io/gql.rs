@@ -4,6 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use dusk_wallet_core::Transaction;
 use tokio::time::{sleep, Duration};
 
 use dusk_wallet::Error;
@@ -25,10 +26,17 @@ pub struct GraphQL {
 #[derive(Deserialize)]
 struct Tx {
     pub txerror: String,
+    pub raw: Option<String>,
+    pub gasspent: Option<u64>,
 }
 #[derive(Deserialize)]
 struct Transactions {
     pub transactions: Vec<Tx>,
+}
+
+#[derive(Deserialize)]
+struct Blocks {
+    pub blocks: Vec<Transactions>,
 }
 
 /// Transaction status
@@ -127,6 +135,38 @@ impl GraphQL {
             },
         }
     }
+
+    /// Obtain transactions inside a block
+    pub async fn txs_for_block(
+        &self,
+        block_height: u64,
+    ) -> anyhow::Result<Vec<(Transaction, Option<u64>)>, GraphQLError> {
+        // graphql connection
+        let client = Client::new(&self.url);
+
+        let query =
+            "{blocks(height:####){transactions{ txerror,raw,txid,gasspent }}}"
+                .replace("####", block_height.to_string().as_str());
+
+        let response = client.query::<Blocks>(&query).await;
+        match response {
+            Ok(Some(txs)) if txs.blocks.is_empty() => Ok(vec![]),
+            Ok(Some(txs)) if txs.blocks[0].transactions.is_empty() => {
+                Ok(vec![])
+            }
+            Ok(Some(txs)) => {
+                let block = txs.blocks.first().take().unwrap();
+                let tx = block.transactions.iter().map(|t| {
+                    let raw = base64::decode(&t.raw.as_ref().unwrap()).unwrap();
+                    let tx = Transaction::from_slice(&raw).unwrap();
+                    (tx, t.gasspent)
+                });
+                Ok(tx.collect())
+            }
+            Ok(None) => Err(GraphQLError::TxStatus),
+            Err(err) => Err(GraphQLError::Generic(err)),
+        }
+    }
 }
 
 /// Errors generated from GraphQL
@@ -144,4 +184,28 @@ impl From<gql_client::GraphQLError> for GraphQLError {
     fn from(e: gql_client::GraphQLError) -> Self {
         Self::Generic(e)
     }
+}
+
+#[ignore = "Leave it here just for manual tests"]
+#[tokio::test]
+async fn test() -> Result<(), Box<dyn std::error::Error>> {
+    let gql = GraphQL {
+        status: |s| {
+            println!("{s}");
+        },
+        url: "http://nodes.dusk.network:9500/graphql".to_string(),
+    };
+    let _ = gql
+        .tx_status(
+            "dbc5a2c949516ecfb418406909d195c3cc267b46bd966a3ca9d66d2e13c47003",
+        )
+        .await?;
+    let r = gql.txs_for_block(90).await?;
+    r.iter().for_each(|(t, _)| {
+        let txh = format!("{:x}", t.hash());
+        println!("txid: {}", txh);
+        // let raw = base64::decode(&t.raw.as_ref().unwrap()).unwrap();
+        // let tx = Transaction::from_slice(&raw);
+    });
+    Ok(())
 }
