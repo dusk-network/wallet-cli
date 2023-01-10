@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `execute` to create transaction for generic contract calls [#133]
 - Add stake maturity epoch [#128]
 - Add staking address display [#105]
 - Add stake eligibility info [#124]
@@ -49,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Change program behavior to quit if wrong seed phrase is given [#49] 
+- Change program behavior to quit if wrong seed phrase is given [#49]
 - Change program behavior to have three attempts for entering a password [#46]
 - Change error handling to use the `anyhow` crate in `bin`[#87]
 - Change error handling to use the `thiserror` crate in `lib`[#87]
