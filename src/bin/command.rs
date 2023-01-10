@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+mod history;
+
 use clap::Subcommand;
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::DeserializableSlice;
@@ -17,6 +19,8 @@ use crate::{WalletFile, WalletPath};
 use dusk_wallet::gas::Gas;
 use dusk_wallet::{Address, Dusk, Lux, Wallet, EPOCH};
 use dusk_wallet_core::{BalanceInfo, StakeInfo};
+
+pub use history::TransactionHistory;
 
 /// The default stake gas limit
 pub const DEFAULT_STAKE_GAS_LIMIT: u64 = 2_900_000_000;
@@ -55,6 +59,13 @@ pub(crate) enum Command {
         /// Create new address
         #[clap(short, long, action)]
         new: bool,
+    },
+
+    /// Show address transaction history
+    History {
+        /// Address for which you want to see the history
+        #[clap(short, long)]
+        addr: Option<Address>,
     },
 
     /// Send DUSK through the network
@@ -312,6 +323,18 @@ impl Command {
                     wallet.export_keys(addr, &dir, pwd)?;
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))
             }
+            Command::History { addr } => {
+                let addr = match addr {
+                    Some(addr) => wallet.claim_as_address(addr)?,
+                    None => wallet.default_address(),
+                };
+                let notes = wallet.get_all_notes(addr)?;
+
+                let transactions =
+                    history::transaction_from_notes(settings, notes).await?;
+
+                Ok(RunResult::History(transactions))
+            }
             Command::Create { .. } => Ok(RunResult::Create()),
             Command::Restore { .. } => Ok(RunResult::Restore()),
             Command::Settings => Ok(RunResult::Settings()),
@@ -330,6 +353,7 @@ pub enum RunResult {
     Create(),
     Restore(),
     Settings(),
+    History(Vec<TransactionHistory>),
 }
 
 impl fmt::Display for RunResult {
@@ -382,6 +406,13 @@ impl fmt::Display for RunResult {
                     pk.display(),
                     kp.display()
                 )
+            }
+            History(transactions) => {
+                writeln!(f, "{}", TransactionHistory::header())?;
+                for th in transactions {
+                    writeln!(f, "{th}")?;
+                }
+                Ok(())
             }
             Create() | Restore() | Settings() => unreachable!(),
         }

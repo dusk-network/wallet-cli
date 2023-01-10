@@ -148,6 +148,7 @@ enum AddrOp {
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 enum CommandMenuItem {
+    History,
     Transfer,
     Stake,
     StakeInfo,
@@ -167,6 +168,7 @@ fn menu_op(
     use CommandMenuItem as CMI;
 
     let cmd_menu = Menu::new()
+        .add(CMI::History, "Transaction History")
         .add(CMI::Transfer, "Transfer Dusk")
         .add(CMI::Stake, "Stake Dusk")
         .add(CMI::StakeInfo, "Check existing stake")
@@ -185,6 +187,9 @@ fn menu_op(
     let cmd = cmd_menu.answer(&answer).to_owned();
 
     let res = match cmd {
+        CMI::History => {
+            AddrOp::Run(Box::new(Command::History { addr: Some(addr) }))
+        }
         CMI::Transfer => AddrOp::Run(Box::new(Command::Transfer {
             sndr: Some(addr),
             rcvr: prompt::request_rcvr_addr("recipient")?,
