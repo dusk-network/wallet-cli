@@ -1,6 +1,6 @@
 [package]
 name = "dusk-wallet"
-version = "0.13.0"
+version = "0.13.1-rc.0"
 edition = "2021"
 autobins = false
 description = "A library providing functionalities to create wallets compatible with Dusk Network"
@@ -54,15 +54,23 @@ dusk-pki = "0.10.0-rc"
 rusk-abi = "0.7"
 phoenix-core = "0.16.0-rc"
 dusk-schnorr = { version = "0.10.0-rc", default-features = false }
-dusk-poseidon = { version = "0.25.0-rc", features = [ "canon" ], default-features = false }
+dusk-poseidon = { version = "0.25.0-rc", features = [
+  "canon",
+], default-features = false }
 dusk-plonk = { version = "0.10", default-features = false }
 dusk-jubjub = { version = "0.11", default-features = false }
-dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features = [ "canon" ] }
+dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features = [
+  "canon",
+] }
 rusk-schema = "0.4.0"
 microkelvin = { version = "0.15.0-rc", features = ["persistence"] }
 
 tracing = "0.1"
-tracing-subscriber = { version = "0.3.0", features = ["fmt", "env-filter", "json"] }
+tracing-subscriber = { version = "0.3.0", features = [
+  "fmt",
+  "env-filter",
+  "json",
+] }
 
 [dev-dependencies]
 tempfile = "3.2"
