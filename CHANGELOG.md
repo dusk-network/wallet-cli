@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `execute` to create transaction for generic contract calls [#133]
+- Add transaction history [#12]
 - Add stake maturity epoch [#128]
 - Add staking address display [#105]
 - Add stake eligibility info [#124]
@@ -352,6 +353,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#26]: https://github.com/dusk-network/wallet-cli/issues/26
 [#24]: https://github.com/dusk-network/wallet-cli/issues/24
 [#18]: https://github.com/dusk-network/wallet-cli/issues/18
+[#12]: https://github.com/dusk-network/wallet-cli/issues/12
 [#6]: https://github.com/dusk-network/wallet-cli/issues/6
 [#4]: https://github.com/dusk-network/wallet-cli/issues/4
 [#680]: https://github.com/dusk-network/rusk/issues/680

@@ -21,6 +21,7 @@ use tracing::{warn, Level};
 use bip39::{Language, Mnemonic, MnemonicType};
 use blake3::Hash;
 
+use crate::command::TransactionHistory;
 use crate::settings::{LogFormat, Settings};
 
 #[cfg(not(windows))]
@@ -299,6 +300,12 @@ async fn exec() -> anyhow::Result<()> {
             }
             RunResult::ExportedKeys(pub_key, key_pair) => {
                 println!("{},{}", pub_key.display(), key_pair.display())
+            }
+            RunResult::History(transactions) => {
+                println!("{}", TransactionHistory::header());
+                for th in transactions {
+                    println!("{th}");
+                }
             }
             RunResult::Settings() => {}
             RunResult::Create() | RunResult::Restore() => {}

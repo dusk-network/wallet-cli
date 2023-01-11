@@ -38,18 +38,20 @@ OPTIONS:
 
 
 SUBCOMMANDS:
-    create        Create a new wallet
-    restore       Restore a lost wallet
-    balance       Check your current balance
-    addresses     List your existing addresses and generate new ones
-    transfer      Send DUSK through the network
-    stake         Start staking DUSK
-    stake-info    Check your stake information
-    unstake       Unstake a key's stake
-    withdraw      Withdraw accumulated reward for a stake key
-    export        Export BLS provisioner key pair
-    settings      Show current settings
-    help          Print this message or the help of the given subcommand(s)
+    create         Create a new wallet
+    restore        Restore a lost wallet
+    balance        Check your current balance
+    addresses      List your existing addresses and generate new ones
+    history        Show address transaction history
+    transfer       Send DUSK through the network
+    stake          Start staking DUSK
+    stake-info     Check your stake information
+    stake-allow    Allow a provisioner key to stake
+    unstake        Unstake a key's stake
+    withdraw       Withdraw accumulated reward for a stake key
+    export         Export BLS provisioner key pair
+    settings       Show current settings
+    help           Print this message or the help of the given subcommand(s)
 ```
 
 ## Good to know

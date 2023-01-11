@@ -45,7 +45,7 @@ bs58 = "0.4"
 rand = "0.8"
 aes = "0.7"
 
-dusk-wallet-core = "0.14.1-rc"
+dusk-wallet-core = "0.15.0-rc"
 canonical = "0.7"
 canonical_derive = "0.7"
 dusk-hamt = "0.10.0-rc"
@@ -74,3 +74,4 @@ tracing-subscriber = { version = "0.3.0", features = [
 
 [dev-dependencies]
 tempfile = "3.2"
+hex = "0.4"

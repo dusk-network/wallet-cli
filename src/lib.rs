@@ -29,7 +29,7 @@ pub use currency::{Dusk, Lux};
 pub use error::Error;
 pub use rusk::{RuskEndpoint, TransportTCP, TransportUDS};
 pub use wallet::gas;
-pub use wallet::{Address, SecureWalletFile, Wallet, WalletPath};
+pub use wallet::{Address, DecodedNote, SecureWalletFile, Wallet, WalletPath};
 
 /// The largest amount of Dusk that is possible to convert
 pub const MAX_CONVERTIBLE: Dusk = Dusk::MAX;

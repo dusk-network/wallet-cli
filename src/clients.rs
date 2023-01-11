@@ -13,8 +13,8 @@ use dusk_plonk::prelude::Proof;
 use dusk_poseidon::tree::PoseidonBranch;
 use dusk_schnorr::Signature;
 use dusk_wallet_core::{
-    ProverClient, StakeInfo, StateClient, Transaction, UnprovenTransaction,
-    POSEIDON_TREE_DEPTH,
+    EnrichedNote, ProverClient, StakeInfo, StateClient, Transaction,
+    UnprovenTransaction, POSEIDON_TREE_DEPTH,
 };
 use futures::StreamExt;
 use phoenix_core::{Crossover, Fee, Note};
@@ -232,7 +232,10 @@ impl StateClient for State {
     type Error = Error;
 
     /// Find notes for a view key, starting from the given block height.
-    fn fetch_notes(&self, vk: &ViewKey) -> Result<Vec<Note>, Self::Error> {
+    fn fetch_notes(
+        &self,
+        vk: &ViewKey,
+    ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
 
         self.status("Getting cached block height...");
@@ -274,7 +277,7 @@ impl StateClient for State {
             .cache
             .notes(psk)?
             .into_iter()
-            .map(|data| data.note)
+            .map(|data| (data.note, data.height))
             .collect())
     }
 
