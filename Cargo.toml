@@ -1,6 +1,6 @@
 [package]
 name = "dusk-wallet"
-version = "0.13.1-rc.0"
+version = "0.14.0"
 edition = "2021"
 autobins = false
 description = "A library providing functionalities to create wallets compatible with Dusk Network"
