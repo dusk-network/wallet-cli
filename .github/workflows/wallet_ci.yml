@@ -44,9 +44,7 @@ jobs:
           profile: minimal
           components: clippy
 
-      - run: rustup component add rustfmt
-
-      - run: cargo test
+      - run: cargo test --release
 
       - name: Clippy check release
         uses: actions-rs/clippy-check@v1
