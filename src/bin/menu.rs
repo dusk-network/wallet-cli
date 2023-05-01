@@ -63,6 +63,11 @@ where
         self
     }
 
+    pub fn separator_msg(mut self, msg: String) -> Self {
+        self.items.push(Separator(msg));
+        self
+    }
+
     pub fn answer(&self, answer: &Answer) -> &K {
         let index = answer.as_list_item().unwrap().index;
         let key = self.keys.get(&index);
