@@ -14,7 +14,7 @@ use std::{fmt, path::PathBuf};
 
 use crate::io::prompt;
 use crate::settings::Settings;
-use crate::{WalletFile, WalletPath};
+use crate::{WalletFile, WalletPath, MAX_ADDRESSES};
 
 use dusk_wallet::gas::Gas;
 use dusk_wallet::{Address, Dusk, Lux, Wallet, EPOCH};
@@ -204,6 +204,13 @@ impl Command {
             }
             Command::Addresses { new } => {
                 if new {
+                    if wallet.addresses().len() >= MAX_ADDRESSES {
+                        println!(
+                            "Cannot create more addresses, this wallet only supports upto 256 addresses. You have {} addresses already.", wallet.addresses().len()
+                        );
+                        std::process::exit(0);
+                    }
+
                     let addr = wallet.new_address().clone();
                     wallet.save()?;
                     Ok(RunResult::Address(Box::new(addr)))
