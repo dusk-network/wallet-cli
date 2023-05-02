@@ -16,11 +16,9 @@ use crate::prompt;
 use crate::settings::Settings;
 use crate::Menu;
 use crate::WalletFile;
-use crate::{Command, RunResult};
+use crate::{Command, RunResult, MAX_ADDRESSES};
 use dusk_wallet::Error;
 use std::path::PathBuf;
-
-const MAX_ADDRESSES: usize = 255;
 
 /// Run the interactive UX loop with a loaded wallet
 pub(crate) async fn run_loop(
@@ -34,7 +32,7 @@ pub(crate) async fn run_loop(
             AddrSelect::NewAddress => {
                 if wallet.addresses().len() >= MAX_ADDRESSES {
                     println!(
-                        "Cannot create more addresses, this wallet only supports upto 256 addresses"
+                        "Cannot create more addresses, this wallet only supports up to 256 addresses"
                     );
                     std::process::exit(0);
                 }
@@ -140,7 +138,7 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
     // show warning early on at 250 addresses
     if wallet.addresses().len() >= MAX_ADDRESSES - 5 {
         action_menu = action_menu.separator().separator_msg(format!(
-            "\x1b[93m{}\x1b[0m This wallet only supports upto 256 addresses, you have {} addresses ",
+            "\x1b[93m{}\x1b[0m This wallet only supports up to 256 addresses, you have {} addresses ",
             "Warning:",
             wallet.addresses().len()
         ));
