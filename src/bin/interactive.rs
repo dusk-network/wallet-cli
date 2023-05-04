@@ -16,7 +16,7 @@ use crate::prompt;
 use crate::settings::Settings;
 use crate::Menu;
 use crate::WalletFile;
-use crate::{Command, RunResult};
+use crate::{Command, RunResult, MAX_ADDRESSES};
 use dusk_wallet::Error;
 use std::path::PathBuf;
 
@@ -30,6 +30,13 @@ pub(crate) async fn run_loop(
         let addr = match menu_addr(wallet)? {
             AddrSelect::Address(addr) => *addr,
             AddrSelect::NewAddress => {
+                if wallet.addresses().len() >= MAX_ADDRESSES {
+                    println!(
+                        "Cannot create more addresses, this wallet only supports up to 256 addresses"
+                    );
+                    std::process::exit(0);
+                }
+
                 let addr = wallet.new_address().clone();
                 wallet.save()?;
                 addr
@@ -124,11 +131,20 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
             .add(AddrSelect::Address(Box::new(addr.clone())), preview);
     }
 
-    let action_menu = Menu::new()
+    let mut action_menu = Menu::new()
         .separator()
-        .add(AddrSelect::NewAddress, "New address")
-        .separator()
-        .add(AddrSelect::Exit, "Exit");
+        .add(AddrSelect::NewAddress, "New address");
+
+    // show warning early on at 250 addresses
+    if wallet.addresses().len() >= MAX_ADDRESSES - 5 {
+        action_menu = action_menu.separator().separator_msg(format!(
+            "\x1b[93m{}\x1b[0m This wallet only supports up to 256 addresses, you have {} addresses ",
+            "Warning:",
+            wallet.addresses().len()
+        ));
+    }
+
+    action_menu = action_menu.separator().add(AddrSelect::Exit, "Exit");
 
     let menu = address_menu.extend(action_menu);
     let questions = Question::select("theme")
