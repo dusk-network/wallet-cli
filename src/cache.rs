@@ -6,128 +6,69 @@
 
 use crate::error::Error;
 
-use canonical::{Canon, Sink, Source};
+use canonical::{Canon, EncodeToVec, Source};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use canonical_derive::Canon;
-use dusk_hamt::Map;
+
 use dusk_pki::PublicSpendKey;
-use microkelvin::{BackendCtor, DiskBackend, PersistedId, Persistence};
-use once_cell::sync::OnceCell;
+
 use phoenix_core::Note;
+use rocksdb::DB;
 
-static CACHE_DATA_PATH: OnceCell<PathBuf> = OnceCell::new();
-
-fn backend() -> BackendCtor<DiskBackend> {
-    BackendCtor::new(|| {
-        DiskBackend::new(CACHE_DATA_PATH.get().unwrap().join("cache.db"))
-    })
-}
+type NoteVec = Vec<(u64, Note)>;
 
 /// A cache of notes received from Rusk.
 ///
-/// Before instantiating an instance with [`new`], the cache data path must be
-/// set using [`set_data_path`].
-#[derive(Debug, Clone)]
+/// path is the path of the rocks db database
+#[derive(Debug)]
 pub(crate) struct Cache {
-    data: Map<PublicSpendKey, KeyData>,
+    db: DB,
 }
 
 impl Cache {
-    /// Returns a new cache instance. Before this is called the cache data path
-    /// must be set with [`set_data_path`].
-    ///
-    /// # Panics
-    /// If called before [`set_data_path`].
-    pub(crate) fn new() -> Result<Self, Error> {
-        let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
-        let id_path = data_dir.join("cache.id");
+    /// Returns a new cache instance.
+    pub(crate) fn new<T: AsRef<Path>>(path: T) -> Result<Self, Error> {
+        let db = DB::open_default(path)?;
 
-        let persisted_id = match id_path.exists() {
-            true => {
-                let bytes = fs::read(id_path)?;
-                let mut source = Source::new(&bytes);
-
-                Some(PersistedId::decode(&mut source)?)
-            }
-            false => None,
-        };
-
-        let data = persisted_id.map_or(Ok(Map::new()), |id| id.restore())?;
-        Ok(Self { data })
+        Ok(Self { db })
     }
 
-    /// Sets the cache data directory. This function can be called once and is a
-    /// requirement for being able to instantiate a cache using [`new`].
-    ///
-    /// # Panics
-    /// If called more than once or if unable to remove old cache file.
-    pub(crate) fn set_data_path(data_dir: PathBuf) -> Result<(), Error> {
-        // remove old cache if it's still there
-        let db_path = data_dir.join("cache.db");
-        if db_path.exists()
-            && !db_path.is_dir()
-            && fs::remove_file(&db_path).is_err()
-        {
-            panic!("Failed to remove old cache files. Please remove {} manually and try again.", db_path.display())
-        }
-
-        CACHE_DATA_PATH
-            .set(data_dir)
-            .expect("cache path can only be set once");
-
-        Persistence::with_backend(&backend(), |_| Ok(()))?;
-
-        Ok(())
-    }
-
-    /// Persist the cache to the internal backend.
-    pub(crate) fn persist(&self) -> Result<(), Error> {
-        let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
-        let id_path = data_dir.join("cache.id");
-
-        let persistence_id = Persistence::persist(&backend(), &self.data)?;
-
-        let mut bytes = [0u8; 36];
-        let mut sink = Sink::new(&mut bytes);
-
-        persistence_id.encode(&mut sink);
-
-        fs::write(id_path, bytes)?;
-
-        Ok(())
-    }
-
-    /// Insert a note into the cache at the given block height. If note is
-    /// `None` only the block height gets updated.
+    /// We store (key, Vec<(height, note)>).
     pub(crate) fn insert(
         &mut self,
         psk: PublicSpendKey,
         height: u64,
         note: Option<Note>,
     ) -> Result<(), Error> {
-        if self.data.get(&psk)?.is_none() {
-            self.data.insert(
-                psk,
-                KeyData {
-                    last_height: 0,
-                    notes: BTreeSet::new(),
-                },
-            )?;
+        let psk_bytes = psk.encode_to_vec();
+        let data: KeyData;
+
+        if let Some(data_bytes) = self.db.get(&psk_bytes)? {
+            let source = Source::new(&data_bytes);
+            // decode key data
+            data = KeyData::decode(&mut source)?;
+
+            if let Some(note) = note {
+                if height > data.last_height {
+                    data.last_height = height;
+                }
+                data.notes.insert(NoteData { height, note });
+            }
+        } else {
+            data = KeyData {
+                last_height: height,
+                notes: BTreeSet::new(),
+            };
+
+            if let Some(note) = note {
+                data.notes.insert(NoteData { height, note });
+            }
         }
 
-        let mut key_data = self.data.get_mut(&psk)?.expect("psk");
-
-        if height > key_data.last_height {
-            key_data.last_height = height;
-        }
-
-        if let Some(note) = note {
-            key_data.notes.insert(NoteData { height, note });
-        }
+        self.db.put(psk_bytes, data.encode_to_vec());
 
         Ok(())
     }
@@ -138,10 +79,16 @@ impl Cache {
         &self,
         psk: PublicSpendKey,
     ) -> Result<u64, Error> {
-        Ok(self
-            .data
-            .get(&psk)?
-            .map_or(0, |key_data| key_data.last_height))
+        let psk_bytes = psk.encode_to_vec();
+        if let Some(data_bytes) = self.db.get(&psk_bytes)? {
+            let source = Source::new(&data_bytes);
+            // decode key data
+            let data = KeyData::decode(&mut source)?;
+
+            Ok(data.last_height)
+        } else {
+            Ok(0)
+        }
     }
 
     /// Returns an iterator over all notes inserted for the given PSK, in order
@@ -150,10 +97,17 @@ impl Cache {
         &self,
         psk: PublicSpendKey,
     ) -> Result<BTreeSet<NoteData>, Error> {
-        Ok(self
-            .data
-            .get(&psk)?
-            .map_or(BTreeSet::new(), |key_data| key_data.notes.clone()))
+        let psk_bytes = psk.encode_to_vec();
+
+        if let Some(data_bytes) = self.db.get(&psk_bytes)? {
+            let source = Source::new(&data_bytes);
+            // decode key data
+            let data = KeyData::decode(&mut source)?;
+
+            Ok(data.notes)
+        } else {
+            Ok(BTreeSet::new())
+        }
     }
 }
 /// Data kept about each note.

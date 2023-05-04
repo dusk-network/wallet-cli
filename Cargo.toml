@@ -44,6 +44,7 @@ dirs = "4.0"
 bs58 = "0.4"
 rand = "0.8"
 aes = "0.7"
+rocksdb = "0.20.1"
 
 dusk-wallet-core = "0.15.0-rc"
 canonical = "0.7"

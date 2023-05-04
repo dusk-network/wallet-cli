@@ -133,6 +133,9 @@ pub enum Error {
     /// Transaction error
     #[error("Transaction error: {0}")]
     Transaction(String),
+    /// Rocksdb cache database error
+    #[error("Rocks cache database error: {0}")]
+    RocksDB(rocksdb::Error),
 }
 
 impl From<dusk_bytes::Error> for Error {
@@ -173,5 +176,11 @@ impl From<CoreError> for Error {
             NotStaked { .. } => Self::NotStaked,
             NoReward { .. } => Self::NoReward,
         }
+    }
+}
+
+impl From<rocksdb::Error> for Error {
+    fn from(e: rocksdb::Error) -> Self {
+        Self::RocksDB(e)
     }
 }

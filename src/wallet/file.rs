@@ -46,11 +46,6 @@ impl WalletPath {
     pub fn inner(&self) -> &PathBuf {
         &self.0
     }
-
-    /// Sets the directory for the state cache
-    pub fn set_cache_dir(path: &Path) -> Result<(), Error> {
-        State::set_cache_dir(path.to_path_buf())
-    }
 }
 
 impl FromStr for WalletPath {

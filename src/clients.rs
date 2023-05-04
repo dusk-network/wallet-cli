@@ -206,18 +206,12 @@ impl State {
     /// # Panics
     /// If called before [`set_cache_dir`].
     pub fn new(client: RuskStateClient) -> Result<Self, Error> {
-        let cache = Cache::new()?;
+        let cache = Cache::new("path")?;
         let inner = Mutex::new(InnerState { client, cache });
         Ok(State {
             inner,
             status: |_| {},
         })
-    }
-
-    /// Sets the directory where the cache be stored. Should be called before
-    /// [`new`].
-    pub fn set_cache_dir(data_dir: PathBuf) -> Result<(), Error> {
-        Cache::set_data_path(data_dir)
     }
 
     /// Sets the callback method to send status updates
