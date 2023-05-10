@@ -6,15 +6,13 @@
 
 use crate::error::Error;
 
-use canonical::{Canon, EncodeToVec, Source};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use canonical::{Canon, EncodeToVec, Source};
 use canonical_derive::Canon;
-
 use dusk_pki::PublicSpendKey;
-
 use phoenix_core::Note;
 use rocksdb::{Options, WriteBatch, DB};
 

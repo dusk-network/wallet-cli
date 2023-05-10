@@ -19,6 +19,7 @@ use dusk_wallet_core::{
 use futures::StreamExt;
 use phoenix_core::{Crossover, Fee, Note};
 
+use std::path::Path;
 use std::sync::Mutex;
 
 use rusk_schema::{
@@ -202,8 +203,11 @@ struct InnerState {
 
 impl State {
     /// Creates a new state instance. Should only be called once.
-    pub fn new(client: RuskStateClient) -> Result<Self, Error> {
-        let cache = Cache::new("path")?;
+    pub fn new(
+        client: RuskStateClient,
+        data_dir: &Path,
+    ) -> Result<Self, Error> {
+        let cache = Cache::new(data_dir)?;
         let inner = Mutex::new(InnerState { client, cache });
         Ok(State {
             inner,

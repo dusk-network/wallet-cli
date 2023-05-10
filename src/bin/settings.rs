@@ -56,7 +56,7 @@ pub(crate) struct Settings {
 
 pub(crate) struct SettingsBuilder {
     profile: PathBuf,
-    args: WalletArgs,
+    pub(crate) args: WalletArgs,
 }
 
 impl SettingsBuilder {

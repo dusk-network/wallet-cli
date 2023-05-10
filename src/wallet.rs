@@ -9,11 +9,11 @@ mod file;
 pub mod gas;
 
 pub use address::Address;
-use canonical::Canon;
 pub use file::{SecureWalletFile, WalletPath};
 
 use bip39::{Language, Mnemonic, Seed};
 use blake3::Hash;
+use canonical::Canon;
 use dusk_bytes::{DeserializableSlice, Serializable};
 use phoenix_core::Note;
 use rusk_abi::ContractId;
@@ -253,7 +253,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 content.extend_from_slice(&payload);
 
                 // write the content to file
-                fs::write(&f.path().0, content)?;
+                fs::write(&f.path().wallet, content)?;
                 Ok(())
             }
             None => Err(Error::WalletFileMissing),
@@ -287,8 +287,16 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             Prover::new(rusk.prover, rusk.state.clone(), rusk.network);
         prover.set_status_callback(status);
 
+        let cache_dir = {
+            if let Some(file) = &self.file {
+                file.path().cache_dir()
+            } else {
+                return Err(Error::WalletFileMissing);
+            }
+        };
+
         // create a state client
-        let mut state = State::new(rusk.state)?;
+        let mut state = State::new(rusk.state, &cache_dir)?;
         state.set_status_callback(status);
 
         // create wallet instance
