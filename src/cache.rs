@@ -16,24 +16,28 @@ use canonical_derive::Canon;
 use dusk_pki::PublicSpendKey;
 
 use phoenix_core::Note;
-use rocksdb::DB;
-
-type NoteVec = Vec<(u64, Note)>;
+use rocksdb::{Options, WriteBatch, DB};
 
 /// A cache of notes received from Rusk.
 ///
 /// path is the path of the rocks db database
-#[derive(Debug)]
 pub(crate) struct Cache {
     db: DB,
+    write_batch: WriteBatch,
 }
 
 impl Cache {
     /// Returns a new cache instance.
     pub(crate) fn new<T: AsRef<Path>>(path: T) -> Result<Self, Error> {
-        let db = DB::open_default(path)?;
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        // After 10 million bytes, sort the cache file and create new one
+        opts.set_write_buffer_size(10_000_000);
 
-        Ok(Self { db })
+        let db = DB::open(&opts, path)?;
+        let write_batch = WriteBatch::default();
+
+        Ok(Self { db, write_batch })
     }
 
     /// We store (key, Vec<(height, note)>).
@@ -44,10 +48,10 @@ impl Cache {
         note: Option<Note>,
     ) -> Result<(), Error> {
         let psk_bytes = psk.encode_to_vec();
-        let data: KeyData;
+        let mut data: KeyData;
 
         if let Some(data_bytes) = self.db.get(&psk_bytes)? {
-            let source = Source::new(&data_bytes);
+            let mut source = Source::new(&data_bytes);
             // decode key data
             data = KeyData::decode(&mut source)?;
 
@@ -68,7 +72,14 @@ impl Cache {
             }
         }
 
-        self.db.put(psk_bytes, data.encode_to_vec());
+        self.write_batch.put(psk_bytes, data.encode_to_vec());
+
+        Ok(())
+    }
+
+    pub(crate) fn persist(&self) -> Result<(), Error> {
+        self.db
+            .write(WriteBatch::from_data(self.write_batch.data()))?;
 
         Ok(())
     }
@@ -81,7 +92,7 @@ impl Cache {
     ) -> Result<u64, Error> {
         let psk_bytes = psk.encode_to_vec();
         if let Some(data_bytes) = self.db.get(&psk_bytes)? {
-            let source = Source::new(&data_bytes);
+            let mut source = Source::new(&data_bytes);
             // decode key data
             let data = KeyData::decode(&mut source)?;
 
@@ -100,7 +111,7 @@ impl Cache {
         let psk_bytes = psk.encode_to_vec();
 
         if let Some(data_bytes) = self.db.get(&psk_bytes)? {
-            let source = Source::new(&data_bytes);
+            let mut source = Source::new(&data_bytes);
             // decode key data
             let data = KeyData::decode(&mut source)?;
 

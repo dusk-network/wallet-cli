@@ -4,8 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::clients::State;
-use crate::Error;
 use blake3::Hash;
 use std::fmt;
 use std::path::{Path, PathBuf};
