@@ -236,6 +236,7 @@ impl StateClient for State {
         self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
         let mut last_height = state.cache.last_height(psk)?;
+        println!("LAST HEIGHT: {}", last_height);
 
         self.status("Fetching fresh notes...");
         let msg = GetNotesRequest {
