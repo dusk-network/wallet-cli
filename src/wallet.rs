@@ -326,7 +326,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             let ssk = self.store.retrieve_ssk(ssk_index).unwrap();
             let vk = ssk.view_key();
 
-            let notes = wallet.state().fetch_notes(&vk).unwrap();
+            let notes = wallet.state().fetch_notes(&ssk).unwrap();
 
             let nullifiers: Vec<_> =
                 notes.iter().map(|(n, _)| n.gen_nullifier(&ssk)).collect();

@@ -8,7 +8,7 @@ use canonical::{Canon, Source};
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::{DeserializableSlice, Serializable, Write};
 use dusk_jubjub::{BlsScalar, JubJubAffine, JubJubScalar};
-use dusk_pki::ViewKey;
+use dusk_pki::SecretSpendKey;
 use dusk_plonk::prelude::Proof;
 use dusk_poseidon::tree::PoseidonBranch;
 use dusk_schnorr::Signature;
@@ -229,8 +229,9 @@ impl StateClient for State {
     /// Find notes for a view key, starting from the given block height.
     fn fetch_notes(
         &self,
-        vk: &ViewKey,
+        sk: &SecretSpendKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
+        let vk = sk.view_key();
         let mut state = self.inner.lock().unwrap();
 
         self.status("Getting cached block height...");
@@ -257,12 +258,10 @@ impl StateClient for State {
             last_height = std::cmp::max(last_height, rsp.height);
 
             let note = Note::from_slice(&rsp.note)?;
-            let note = match vk.owns(&note) {
-                true => Some(note),
-                false => None,
-            };
 
-            state.cache.insert(psk, rsp.height, note)?;
+            if vk.owns(&note) {
+                state.cache.insert(psk, sk, rsp.height, note)?;
+            };
         }
 
         println!("Last block: {}", last_height);
