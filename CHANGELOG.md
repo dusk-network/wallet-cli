@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Cache implementation now uses rocksdb instead of microkelvin
+
+### Fixed
+
+- Throw an error there when specifying a network that does not exist
+
 ## [0.14.1] - 2023-05-17
 
 ### Fixed
