@@ -114,24 +114,27 @@ async fn exec() -> anyhow::Result<()> {
     requestty::symbols::set(requestty::symbols::ASCII);
 
     // Get the initial settings from the args
-    let settings = Settings::args(args);
+    let settings_builder = Settings::args(args);
 
     // Obtain the profile dir from the settings
-    let profile_folder = settings.profile().clone();
+    let profile_folder = settings_builder.profile().clone();
 
     fs::create_dir_all(&profile_folder)?;
 
     // prepare wallet path
-    let wallet_path = WalletPath::from(profile_folder.join("wallet.dat"));
+    let mut wallet_path = WalletPath::from(profile_folder.join("wallet.dat"));
 
     // load configuration (or use default)
     let cfg = Config::load(&profile_folder)?;
 
-    // Finally complete the settings by setting the network
-    let settings = settings.network(cfg.network);
-
     // set cache directory straight away
-    WalletPath::set_cache_dir(&profile_folder)?;
+    wallet_path.set_cache_dir(&profile_folder);
+    wallet_path.set_network_name(settings_builder.args.network.clone());
+
+    // Finally complete the settings by setting the network
+    let settings = settings_builder
+        .network(cfg.network)
+        .expect("Specified network does not exist in config.toml");
 
     // generate a subscriber with the desired log level
     //

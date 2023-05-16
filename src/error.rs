@@ -6,7 +6,6 @@
 
 use crate::store::LocalStore;
 use canonical::CanonError;
-use microkelvin::PersistError;
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::io;
@@ -56,9 +55,6 @@ pub enum Error {
     /// Canonical errors
     #[error("A serialization error occurred: {0:?}")]
     Canon(CanonError),
-    /// Persist errors
-    #[error("Cache error")]
-    Cache(PersistError),
     /// Random number generator errors
     #[error(transparent)]
     Rng(#[from] RngError),
@@ -133,6 +129,9 @@ pub enum Error {
     /// Transaction error
     #[error("Transaction error: {0}")]
     Transaction(String),
+    /// Rocksdb cache database error
+    #[error("Rocks cache database error: {0}")]
+    RocksDB(rocksdb::Error),
 }
 
 impl From<dusk_bytes::Error> for Error {
@@ -152,11 +151,6 @@ impl From<CanonError> for Error {
         Self::Canon(e)
     }
 }
-impl From<PersistError> for Error {
-    fn from(e: PersistError) -> Self {
-        Self::Cache(e)
-    }
-}
 
 impl From<CoreError> for Error {
     fn from(e: CoreError) -> Self {
@@ -173,5 +167,11 @@ impl From<CoreError> for Error {
             NotStaked { .. } => Self::NotStaked,
             NoReward { .. } => Self::NoReward,
         }
+    }
+}
+
+impl From<rocksdb::Error> for Error {
+    fn from(e: rocksdb::Error) -> Self {
+        Self::RocksDB(e)
     }
 }
