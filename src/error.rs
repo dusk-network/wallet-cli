@@ -6,7 +6,6 @@
 
 use crate::store::LocalStore;
 use canonical::CanonError;
-use microkelvin::PersistError;
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::io;
@@ -56,9 +55,6 @@ pub enum Error {
     /// Canonical errors
     #[error("A serialization error occurred: {0:?}")]
     Canon(CanonError),
-    /// Persist errors
-    #[error("Cache error")]
-    Cache(PersistError),
     /// Random number generator errors
     #[error(transparent)]
     Rng(#[from] RngError),
@@ -153,11 +149,6 @@ impl From<block_modes::InvalidKeyIvLength> for Error {
 impl From<CanonError> for Error {
     fn from(e: CanonError) -> Self {
         Self::Canon(e)
-    }
-}
-impl From<PersistError> for Error {
-    fn from(e: PersistError) -> Self {
-        Self::Cache(e)
     }
 }
 
