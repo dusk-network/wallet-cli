@@ -132,6 +132,11 @@ pub enum Error {
     /// Rocksdb cache database error
     #[error("Rocks cache database error: {0}")]
     RocksDB(rocksdb::Error),
+    /// Provided Network not found
+    #[error(
+        "Network not found, check config.toml, specify network with -n flag"
+    )]
+    NetworkNotFound,
 }
 
 impl From<dusk_bytes::Error> for Error {

@@ -119,22 +119,20 @@ async fn exec() -> anyhow::Result<()> {
     // Obtain the profile dir from the settings
     let profile_folder = settings_builder.profile().clone();
 
-    fs::create_dir_all(&profile_folder)?;
+    fs::create_dir_all(profile_folder.as_path())?;
 
     // prepare wallet path
-    let mut wallet_path = WalletPath::from(profile_folder.join("wallet.dat"));
+    let mut wallet_path = WalletPath::from(profile_folder.as_path());
 
     // load configuration (or use default)
     let cfg = Config::load(&profile_folder)?;
 
-    // set cache directory straight away
-    wallet_path.set_cache_dir(&profile_folder);
     wallet_path.set_network_name(settings_builder.args.network.clone());
 
     // Finally complete the settings by setting the network
     let settings = settings_builder
         .network(cfg.network)
-        .expect("Specified network does not exist in config.toml");
+        .map_err(|_| dusk_wallet::Error::NetworkNotFound)?;
 
     // generate a subscriber with the desired log level
     //

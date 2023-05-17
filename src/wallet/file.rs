@@ -31,7 +31,7 @@ pub struct WalletPath {
 impl WalletPath {
     /// Create a new wallet path from a directory and a name
     pub fn new(dir: &Path) -> Self {
-        let pb = PathBuf::from(dir);
+        let pb = PathBuf::from(dir).join("wallet.dat");
         // Usually wallet path is .dusk-dir/wallet/wallet.dat, by default
         // use this dir, else specify one with set_cache_dir
         let mut cache = pb.clone();
@@ -60,11 +60,6 @@ impl WalletPath {
     /// Returns a reference to the `PathBuf` holding the path
     pub fn inner(&self) -> &PathBuf {
         &self.wallet
-    }
-
-    /// Sets the directory for the state cache
-    pub fn set_cache_dir(&mut self, path: &Path) {
-        self.cache = path.to_path_buf();
     }
 
     /// Sets the network name for different cache locations.

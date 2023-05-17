@@ -76,21 +76,9 @@ impl Cache {
                 .expect("cannot create column family for db");
         }
 
-        if let Some(last_height) = self.db.get_cf(cf, last_height_key)? {
-            let last_height = u64::from_be_bytes(
-                last_height.try_into().expect("Invalid u64 in cache db"),
-            );
-
-            if height > last_height {
-                self.write_batch.put_cf(
-                    cf,
-                    last_height_key,
-                    height.to_be_bytes(),
-                );
-            }
-        } else {
+        if height > self.last_height(psk)? {
             self.write_batch
-                .put_cf(cf, last_height_key, height.to_be_bytes())
+                .put_cf(cf, last_height_key, height.to_be_bytes());
         }
 
         if let (Some(note), Some(nullifier)) = note_data {

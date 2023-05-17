@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Cache implementation now uses rocksdb instead of microkelvin
+- Cache implementation now uses rocksdb instead of microkelvin [#56]
 
 ### Fixed
 
-- Throw an error there when specifying a network that does not exist
+- Throw an error there when specifying a network that does not exist [#143]
 
 ## [0.14.1] - 2023-05-17
 
@@ -373,6 +373,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#18]: https://github.com/dusk-network/wallet-cli/issues/18
 [#12]: https://github.com/dusk-network/wallet-cli/issues/12
 [#6]: https://github.com/dusk-network/wallet-cli/issues/6
+[#56]: https://github.com/dusk-network/wallet-cli/issues/56
+[#143]: https://github.com/dusk-network/wallet-cli/issues/143
 [#4]: https://github.com/dusk-network/wallet-cli/issues/4
 [#680]: https://github.com/dusk-network/rusk/issues/680
 [#672]: https://github.com/dusk-network/rusk/issues/672
