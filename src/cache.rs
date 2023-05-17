@@ -4,20 +4,19 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::error::Error;
-use canonical::EncodeToVec;
-
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-
 use std::path::Path;
 
-use canonical::{Canon, Source};
+use canonical::{Canon, EncodeToVec, Source};
 use canonical_derive::Canon;
 use dusk_bytes::Serializable;
+use dusk_jubjub::BlsScalar;
 use dusk_pki::PublicSpendKey;
 use phoenix_core::Note;
 use rocksdb::{ColumnFamily, Options, WriteBatch, DB};
+
+use crate::error::Error;
 
 /// A cache of notes received from Rusk.
 ///
@@ -59,10 +58,11 @@ impl Cache {
         &mut self,
         psk: PublicSpendKey,
         height: u64,
-        note: Option<Note>,
+        note_data: (Option<Note>, Option<BlsScalar>),
     ) -> Result<(), Error> {
         let cf: &ColumnFamily;
         let cf_name = format!("{:?}", psk);
+        let last_height_key = b"last_height";
 
         if let Some(column_family) = self.db.cf_handle(&cf_name) {
             cf = column_family;
@@ -76,7 +76,7 @@ impl Cache {
                 .expect("cannot create column family for db");
         }
 
-        if let Some(last_height) = self.db.get_cf(cf, b"last_height")? {
+        if let Some(last_height) = self.db.get_cf(cf, last_height_key)? {
             let last_height = u64::from_be_bytes(
                 last_height.try_into().expect("Invalid u64 in cache db"),
             );
@@ -84,20 +84,20 @@ impl Cache {
             if height > last_height {
                 self.write_batch.put_cf(
                     cf,
-                    b"last_height",
+                    last_height_key,
                     height.to_be_bytes(),
                 );
             }
+        } else {
+            self.write_batch
+                .put_cf(cf, last_height_key, height.to_be_bytes())
         }
 
-        if let Some(note) = note {
-            let key = note.hash().to_bytes();
+        if let (Some(note), Some(nullifier)) = note_data {
+            let data = NoteData { height, note };
+            let key = nullifier.to_bytes();
 
-            let note_data = NoteData { height, note };
-
-            if self.db.get_cf(cf, &key)?.is_none() {
-                self.write_batch.put_cf(cf, key, note_data.encode_to_vec());
-            }
+            self.write_batch.put_cf(cf, key, data.encode_to_vec());
         }
 
         Ok(())
@@ -146,7 +146,14 @@ impl Cache {
                 self.db.iterator_cf(cf, rocksdb::IteratorMode::Start);
 
             for i in iterator {
-                let (_, note_data) = i?;
+                let (key, note_data) = i?;
+
+                // skip the last_height entry or NoteData::decode will
+                // panic
+                if *key == *"last_height".as_bytes() {
+                    continue;
+                }
+
                 let mut source = Source::new(&note_data);
                 let note = NoteData::decode(&mut source)?;
 
