@@ -46,7 +46,7 @@ rand = "0.8"
 aes = "0.7"
 rocksdb = "0.20.1"
 
-dusk-wallet-core = { version = "0.15.0-rc.1", git = "https://github.com/dusk-network/wallet-core", branch = "fetch_notes_cache_fix" }
+dusk-wallet-core = "0.15.0-rc"
 canonical = "0.7"
 canonical_derive = "0.7"
 dusk-hamt = "0.10.0-rc"

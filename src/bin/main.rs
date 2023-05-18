@@ -122,7 +122,8 @@ async fn exec() -> anyhow::Result<()> {
     fs::create_dir_all(profile_folder.as_path())?;
 
     // prepare wallet path
-    let mut wallet_path = WalletPath::from(profile_folder.as_path());
+    let mut wallet_path =
+        WalletPath::from(profile_folder.as_path().join("wallet.dat"));
 
     // load configuration (or use default)
     let cfg = Config::load(&profile_folder)?;

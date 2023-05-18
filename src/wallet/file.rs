@@ -22,25 +22,26 @@ pub trait SecureWalletFile {
 pub struct WalletPath {
     /// Path of the wallet file
     pub wallet: PathBuf,
-    /// Directory of the cache
-    pub cache: PathBuf,
+    /// Directory of the profile
+    pub profile_dir: PathBuf,
     /// Name of the network
     pub network: Option<String>,
 }
 
 impl WalletPath {
-    /// Create a new wallet path from a directory and a name
-    pub fn new(dir: &Path) -> Self {
-        let pb = PathBuf::from(dir).join("wallet.dat");
-        // Usually wallet path is .dusk-dir/wallet/wallet.dat, by default
-        // use this dir, else specify one with set_cache_dir
-        let mut cache = pb.clone();
+    /// Create wallet path from the path of "wallet.dat" file. The wallet.dat
+    /// file should be located in the profile folder, this function also
+    /// generates the profile folder from the passed argument
+    pub fn new(wallet: &Path) -> Self {
+        let wallet = wallet.to_path_buf();
+        // The wallet should be in the profile folder
+        let mut profile_dir = wallet.clone();
 
-        cache.pop();
+        profile_dir.pop();
 
         Self {
-            wallet: pb,
-            cache,
+            wallet,
+            profile_dir,
             network: None,
         }
     }
@@ -70,7 +71,7 @@ impl WalletPath {
 
     /// Generates dir for cache based on network specified
     pub fn cache_dir(&self) -> PathBuf {
-        let mut cache = self.cache.clone();
+        let mut cache = self.profile_dir.clone();
 
         if let Some(network) = &self.network {
             cache.push(network);
@@ -108,9 +109,9 @@ impl fmt::Display for WalletPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "wallet path: {}\n\rcache path: {}\n\rnetwork: {}",
+            "wallet path: {}\n\rprofile dir: {}\n\rnetwork: {}",
             self.wallet.display(),
-            self.cache.display(),
+            self.profile_dir.display(),
             self.network.as_ref().unwrap_or(&"default".to_string())
         )
     }
