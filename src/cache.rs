@@ -4,130 +4,98 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::error::Error;
-
-use canonical::{Canon, Sink, Source};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
+use canonical::{Canon, EncodeToVec, Source};
 use canonical_derive::Canon;
-use dusk_hamt::Map;
+use dusk_bytes::Serializable;
+use dusk_jubjub::BlsScalar;
 use dusk_pki::PublicSpendKey;
-use microkelvin::{BackendCtor, DiskBackend, PersistedId, Persistence};
-use once_cell::sync::OnceCell;
 use phoenix_core::Note;
+use rocksdb::{ColumnFamily, Options, WriteBatch, DB};
 
-static CACHE_DATA_PATH: OnceCell<PathBuf> = OnceCell::new();
-
-fn backend() -> BackendCtor<DiskBackend> {
-    BackendCtor::new(|| {
-        DiskBackend::new(CACHE_DATA_PATH.get().unwrap().join("cache.db"))
-    })
-}
+use crate::error::Error;
 
 /// A cache of notes received from Rusk.
 ///
-/// Before instantiating an instance with [`new`], the cache data path must be
-/// set using [`set_data_path`].
-#[derive(Debug, Clone)]
+/// path is the path of the rocks db database
 pub(crate) struct Cache {
-    data: Map<PublicSpendKey, KeyData>,
+    db: DB,
+    // Persist writes atomically
+    write_batch: WriteBatch,
 }
 
 impl Cache {
-    /// Returns a new cache instance. Before this is called the cache data path
-    /// must be set with [`set_data_path`].
-    ///
-    /// # Panics
-    /// If called before [`set_data_path`].
-    pub(crate) fn new() -> Result<Self, Error> {
-        let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
-        let id_path = data_dir.join("cache.id");
+    /// Returns a new cache instance.
+    pub(crate) fn new<T: AsRef<Path>>(path: T) -> Result<Self, Error> {
+        let db: DB;
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+        // After 10 million bytes, sort the cache file and create new one
+        opts.set_write_buffer_size(10_000_000);
 
-        let persisted_id = match id_path.exists() {
-            true => {
-                let bytes = fs::read(id_path)?;
-                let mut source = Source::new(&bytes);
+        let list = DB::list_cf(&Options::default(), &path);
 
-                Some(PersistedId::decode(&mut source)?)
-            }
-            false => None,
-        };
-
-        let data = persisted_id.map_or(Ok(Map::new()), |id| id.restore())?;
-        Ok(Self { data })
-    }
-
-    /// Sets the cache data directory. This function can be called once and is a
-    /// requirement for being able to instantiate a cache using [`new`].
-    ///
-    /// # Panics
-    /// If called more than once or if unable to remove old cache file.
-    pub(crate) fn set_data_path(data_dir: PathBuf) -> Result<(), Error> {
-        // remove old cache if it's still there
-        let db_path = data_dir.join("cache.db");
-        if db_path.exists()
-            && !db_path.is_dir()
-            && fs::remove_file(&db_path).is_err()
-        {
-            panic!("Failed to remove old cache files. Please remove {} manually and try again.", db_path.display())
+        if list.is_err() {
+            db = DB::open(&opts, path)?;
+        } else {
+            db = DB::open_cf(&opts, path, list?)?;
         }
 
-        CACHE_DATA_PATH
-            .set(data_dir)
-            .expect("cache path can only be set once");
+        let write_batch = WriteBatch::default();
 
-        Persistence::with_backend(&backend(), |_| Ok(()))?;
-
-        Ok(())
+        Ok(Self { db, write_batch })
     }
 
-    /// Persist the cache to the internal backend.
-    pub(crate) fn persist(&self) -> Result<(), Error> {
-        let data_dir = CACHE_DATA_PATH.get().expect("cache path must be set");
-        let id_path = data_dir.join("cache.id");
-
-        let persistence_id = Persistence::persist(&backend(), &self.data)?;
-
-        let mut bytes = [0u8; 36];
-        let mut sink = Sink::new(&mut bytes);
-
-        persistence_id.encode(&mut sink);
-
-        fs::write(id_path, bytes)?;
-
-        Ok(())
-    }
-
-    /// Insert a note into the cache at the given block height. If note is
-    /// `None` only the block height gets updated.
+    // We store a column family named by hex representation of the psk.
+    // We store key as (psk, note) and value as (KeyData)
+    // The Canon of the tuple, we use it so we can have unique keys per psk and
+    // note
     pub(crate) fn insert(
         &mut self,
         psk: PublicSpendKey,
         height: u64,
-        note: Option<Note>,
+        note_data: (Option<Note>, Option<BlsScalar>),
     ) -> Result<(), Error> {
-        if self.data.get(&psk)?.is_none() {
-            self.data.insert(
-                psk,
-                KeyData {
-                    last_height: 0,
-                    notes: BTreeSet::new(),
-                },
-            )?;
+        let cf: &ColumnFamily;
+        let cf_name = format!("{:?}", psk);
+        let last_height_key = b"last_height";
+
+        if let Some(column_family) = self.db.cf_handle(&cf_name) {
+            cf = column_family;
+        } else {
+            // immediately create a cf by the hex of the psk_bytes
+            self.db.create_cf(&cf_name, &Options::default())?;
+
+            cf = self
+                .db
+                .cf_handle(&cf_name)
+                .expect("cannot create column family for db");
         }
 
-        let mut key_data = self.data.get_mut(&psk)?.expect("psk");
-
-        if height > key_data.last_height {
-            key_data.last_height = height;
+        if height > self.last_height(psk)? {
+            self.write_batch
+                .put_cf(cf, last_height_key, height.to_be_bytes());
         }
 
-        if let Some(note) = note {
-            key_data.notes.insert(NoteData { height, note });
+        if let (Some(note), Some(hash)) = note_data {
+            let data = NoteData { height, note };
+            let key = hash.to_bytes();
+
+            self.write_batch.put_cf(cf, key, data.encode_to_vec());
         }
+
+        Ok(())
+    }
+
+    pub(crate) fn persist(&mut self) -> Result<(), Error> {
+        self.db
+            .write(WriteBatch::from_data(self.write_batch.data()))?;
+
+        self.write_batch.clear();
 
         Ok(())
     }
@@ -138,10 +106,18 @@ impl Cache {
         &self,
         psk: PublicSpendKey,
     ) -> Result<u64, Error> {
-        Ok(self
-            .data
-            .get(&psk)?
-            .map_or(0, |key_data| key_data.last_height))
+        let cf_name = format!("{:?}", psk);
+
+        if let Some(cf) = self.db.cf_handle(&cf_name) {
+            if let Some(x) = self.db.get_cf(cf, b"last_height")? {
+                let buff: [u8; 8] =
+                    x.try_into().expect("Invalid u64 in cache db");
+
+                return Ok(u64::from_be_bytes(buff));
+            }
+        };
+
+        Ok(0)
     }
 
     /// Returns an iterator over all notes inserted for the given PSK, in order
@@ -150,12 +126,33 @@ impl Cache {
         &self,
         psk: PublicSpendKey,
     ) -> Result<BTreeSet<NoteData>, Error> {
-        Ok(self
-            .data
-            .get(&psk)?
-            .map_or(BTreeSet::new(), |key_data| key_data.notes.clone()))
+        let cf_name = format!("{:?}", psk);
+        let mut notes = BTreeSet::<NoteData>::new();
+
+        if let Some(cf) = self.db.cf_handle(&cf_name) {
+            let iterator =
+                self.db.iterator_cf(cf, rocksdb::IteratorMode::Start);
+
+            for i in iterator {
+                let (key, note_data) = i?;
+
+                // skip the last_height entry or NoteData::decode will
+                // panic
+                if *key == *"last_height".as_bytes() {
+                    continue;
+                }
+
+                let mut source = Source::new(&note_data);
+                let note = NoteData::decode(&mut source)?;
+
+                notes.insert(note);
+            }
+        };
+
+        Ok(notes)
     }
 }
+
 /// Data kept about each note.
 #[derive(Debug, Clone, PartialEq, Eq, Canon)]
 pub(crate) struct NoteData {
@@ -173,10 +170,4 @@ impl Ord for NoteData {
     fn cmp(&self, other: &Self) -> Ordering {
         self.note.pos().cmp(other.note.pos())
     }
-}
-
-#[derive(Debug, Clone, Canon)]
-struct KeyData {
-    last_height: u64,
-    notes: BTreeSet<NoteData>,
 }

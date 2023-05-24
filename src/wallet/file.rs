@@ -4,8 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::clients::State;
-use crate::Error;
 use blake3::Hash;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -21,35 +19,67 @@ pub trait SecureWalletFile {
 
 /// Wrapper around `PathBuf` for wallet paths
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
-pub struct WalletPath(pub(crate) PathBuf);
+pub struct WalletPath {
+    /// Path of the wallet file
+    pub wallet: PathBuf,
+    /// Directory of the profile
+    pub profile_dir: PathBuf,
+    /// Name of the network
+    pub network: Option<String>,
+}
 
 impl WalletPath {
-    /// Create a new wallet path from a directory and a name
-    pub fn new(dir: &Path) -> Self {
-        let pb = PathBuf::from(dir);
-        Self(pb)
+    /// Create wallet path from the path of "wallet.dat" file. The wallet.dat
+    /// file should be located in the profile folder, this function also
+    /// generates the profile folder from the passed argument
+    pub fn new(wallet: &Path) -> Self {
+        let wallet = wallet.to_path_buf();
+        // The wallet should be in the profile folder
+        let mut profile_dir = wallet.clone();
+
+        profile_dir.pop();
+
+        Self {
+            wallet,
+            profile_dir,
+            network: None,
+        }
     }
 
     /// Returns the filename of this path
     pub fn name(&self) -> Option<String> {
         // extract the name
-        let name = self.0.file_stem()?.to_str()?;
+        let name = self.wallet.file_stem()?.to_str()?;
         Some(String::from(name))
     }
 
     /// Returns current directory for this path
     pub fn dir(&self) -> Option<PathBuf> {
-        self.0.parent().map(PathBuf::from)
+        self.wallet.parent().map(PathBuf::from)
     }
 
     /// Returns a reference to the `PathBuf` holding the path
     pub fn inner(&self) -> &PathBuf {
-        &self.0
+        &self.wallet
     }
 
-    /// Sets the directory for the state cache
-    pub fn set_cache_dir(path: &Path) -> Result<(), Error> {
-        State::set_cache_dir(path.to_path_buf())
+    /// Sets the network name for different cache locations.
+    /// e.g, devnet, testnet, etc.
+    pub fn set_network_name(&mut self, network: Option<String>) {
+        self.network = network;
+    }
+
+    /// Generates dir for cache based on network specified
+    pub fn cache_dir(&self) -> PathBuf {
+        let mut cache = self.profile_dir.clone();
+
+        if let Some(network) = &self.network {
+            cache.push(network);
+        } else {
+            cache.push("cache");
+        }
+
+        cache
     }
 }
 
@@ -58,24 +88,31 @@ impl FromStr for WalletPath {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let p = Path::new(s);
-        Ok(Self(p.to_owned()))
+
+        Ok(Self::new(p))
     }
 }
 
 impl From<PathBuf> for WalletPath {
     fn from(p: PathBuf) -> Self {
-        Self(p)
+        Self::new(&p)
     }
 }
 
 impl From<&Path> for WalletPath {
     fn from(p: &Path) -> Self {
-        Self(p.to_owned())
+        Self::new(p)
     }
 }
 
 impl fmt::Display for WalletPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.display())
+        write!(
+            f,
+            "wallet path: {}\n\rprofile dir: {}\n\rnetwork: {}",
+            self.wallet.display(),
+            self.profile_dir.display(),
+            self.network.as_ref().unwrap_or(&"default".to_string())
+        )
     }
 }

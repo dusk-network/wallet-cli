@@ -7,6 +7,7 @@
 use crate::config::{Network, Transport};
 use crate::io::WalletArgs;
 
+use dusk_wallet::Error;
 use std::fmt;
 use std::path::PathBuf;
 use tracing::Level;
@@ -56,7 +57,7 @@ pub(crate) struct Settings {
 
 pub(crate) struct SettingsBuilder {
     profile: PathBuf,
-    args: WalletArgs,
+    pub(crate) args: WalletArgs,
 }
 
 impl SettingsBuilder {
@@ -64,11 +65,23 @@ impl SettingsBuilder {
         &self.profile
     }
 
-    pub fn network(self, network: Network) -> Settings {
+    pub fn network(self, network: Network) -> Result<Settings, Error> {
         let args = self.args;
 
         let network = match (args.network, network.clone().network) {
-            (Some(label), Some(mut networks)) => networks.remove(&label),
+            (Some(label), Some(mut networks)) => {
+                let r = networks.remove(&label);
+                // err if specified network is not in the list
+                if r.is_none() {
+                    return Err(Error::BadAddress);
+                }
+
+                r
+            }
+            // err if no networks are specified but argument is
+            (Some(_), None) => {
+                return Err(Error::BadAddress);
+            }
             (_, _) => None,
         }
         .unwrap_or(network);
@@ -111,7 +124,7 @@ impl SettingsBuilder {
             format: args.log_type,
         };
 
-        Settings {
+        Ok(Settings {
             state,
             prover,
             explorer,
@@ -119,7 +132,7 @@ impl SettingsBuilder {
             logging,
             profile,
             password,
-        }
+        })
     }
 }
 

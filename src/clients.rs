@@ -18,7 +18,8 @@ use dusk_wallet_core::{
 };
 use futures::StreamExt;
 use phoenix_core::{Crossover, Fee, Note};
-use std::path::PathBuf;
+
+use std::path::Path;
 use std::sync::Mutex;
 
 use rusk_schema::{
@@ -202,22 +203,17 @@ struct InnerState {
 
 impl State {
     /// Creates a new state instance. Should only be called once.
-    ///
-    /// # Panics
-    /// If called before [`set_cache_dir`].
-    pub fn new(client: RuskStateClient) -> Result<Self, Error> {
-        let cache = Cache::new()?;
+    pub fn new(
+        client: RuskStateClient,
+        data_dir: &Path,
+    ) -> Result<Self, Error> {
+        let cache = Cache::new(data_dir)?;
         let inner = Mutex::new(InnerState { client, cache });
+
         Ok(State {
             inner,
             status: |_| {},
         })
-    }
-
-    /// Sets the directory where the cache be stored. Should be called before
-    /// [`new`].
-    pub fn set_cache_dir(data_dir: PathBuf) -> Result<(), Error> {
-        Cache::set_data_path(data_dir)
     }
 
     /// Sets the callback method to send status updates
@@ -261,12 +257,11 @@ impl StateClient for State {
             last_height = std::cmp::max(last_height, rsp.height);
 
             let note = Note::from_slice(&rsp.note)?;
-            let note = match vk.owns(&note) {
-                true => Some(note),
-                false => None,
-            };
+            let ownership = vk.owns(&note);
+            let hash = ownership.then(|| note.hash());
+            let note = ownership.then_some(note);
 
-            state.cache.insert(psk, rsp.height, note)?;
+            state.cache.insert(psk, rsp.height, (note, hash))?;
         }
 
         println!("Last block: {}", last_height);
