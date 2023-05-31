@@ -27,13 +27,13 @@ use crate::settings::{LogFormat, Settings};
 #[cfg(not(windows))]
 use dusk_wallet::TransportUDS;
 
-use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
+use dusk_wallet::{
+    Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath, MAX_ADDRESSES,
+};
 
 use config::{Config, TransportMethod};
 use io::{prompt, status};
 use io::{GraphQL, WalletArgs};
-
-const MAX_ADDRESSES: usize = 255;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WalletFile {

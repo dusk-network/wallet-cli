@@ -62,7 +62,6 @@ impl Cache {
     ) -> Result<(), Error> {
         let cf: &ColumnFamily;
         let cf_name = format!("{:?}", psk);
-        let last_height_key = b"last_height";
 
         if let Some(column_family) = self.db.cf_handle(&cf_name) {
             cf = column_family;
@@ -76,14 +75,9 @@ impl Cache {
                 .expect("cannot create column family for db");
         }
 
-        if height > self.last_height(psk)? {
-            self.write_batch
-                .put_cf(cf, last_height_key, height.to_be_bytes());
-        }
-
-        if let (Some(note), Some(hash)) = note_data {
+        if let (Some(note), Some(nullifier)) = note_data {
             let data = NoteData { height, note };
-            let key = hash.to_bytes();
+            let key = nullifier.to_bytes();
 
             self.write_batch.put_cf(cf, key, data.encode_to_vec());
         }
@@ -91,7 +85,10 @@ impl Cache {
         Ok(())
     }
 
-    pub(crate) fn persist(&mut self) -> Result<(), Error> {
+    pub(crate) fn persist(&mut self, last_height: u64) -> Result<(), Error> {
+        // push in global last height
+        self.db.put(b"last_height", last_height.to_be_bytes())?;
+
         self.db
             .write(WriteBatch::from_data(self.write_batch.data()))?;
 
@@ -102,20 +99,12 @@ impl Cache {
 
     /// Returns the block height of the highest ever note inserted for the given
     /// PSK. If no note has ever been inserted it returns 0.
-    pub(crate) fn last_height(
-        &self,
-        psk: PublicSpendKey,
-    ) -> Result<u64, Error> {
-        let cf_name = format!("{:?}", psk);
+    pub(crate) fn last_height(&self) -> Result<u64, Error> {
+        if let Some(x) = self.db.get(b"last_height")? {
+            let buff: [u8; 8] = x.try_into().expect("Invalid u64 in cache db");
 
-        if let Some(cf) = self.db.cf_handle(&cf_name) {
-            if let Some(x) = self.db.get_cf(cf, b"last_height")? {
-                let buff: [u8; 8] =
-                    x.try_into().expect("Invalid u64 in cache db");
-
-                return Ok(u64::from_be_bytes(buff));
-            }
-        };
+            return Ok(u64::from_be_bytes(buff));
+        }
 
         Ok(0)
     }
@@ -134,13 +123,7 @@ impl Cache {
                 self.db.iterator_cf(cf, rocksdb::IteratorMode::Start);
 
             for i in iterator {
-                let (key, note_data) = i?;
-
-                // skip the last_height entry or NoteData::decode will
-                // panic
-                if *key == *"last_height".as_bytes() {
-                    continue;
-                }
+                let (_, note_data) = i?;
 
                 let mut source = Source::new(&note_data);
                 let note = NoteData::decode(&mut source)?;

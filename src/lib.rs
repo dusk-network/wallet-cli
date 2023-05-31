@@ -37,3 +37,5 @@ pub const MAX_CONVERTIBLE: Dusk = Dusk::MAX;
 pub const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
 /// The length of an epoch in blocks
 pub const EPOCH: u64 = 2160;
+/// The max number of addresses the wallet can have per wallet instance.
+pub const MAX_ADDRESSES: usize = 255;

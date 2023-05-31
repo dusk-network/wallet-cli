@@ -29,9 +29,9 @@ impl Serializable<64> for Seed {
 }
 
 /// Provides a valid wallet seed to dusk_wallet_core
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct LocalStore {
-    seed: Seed,
+    pub seed: Seed,
 }
 
 impl Store for LocalStore {
