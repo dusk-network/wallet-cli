@@ -31,7 +31,7 @@ use dusk_wallet_core::{
 use rand::prelude::StdRng;
 use rand::SeedableRng;
 
-use crate::clients::{Prover, State};
+use crate::clients::{Prover, StateStore};
 use crate::crypto::{decrypt, encrypt};
 use crate::currency::Dusk;
 use crate::rusk::{RuskClient, RuskEndpoint};
@@ -60,7 +60,7 @@ const VERSION: &[u8] = &[2, 0];
 /// able to perform common operations such as checking balance, transfernig
 /// funds, or staking Dusk.
 pub struct Wallet<F: SecureWalletFile + Debug> {
-    wallet: Option<WalletCore<LocalStore, State, Prover>>,
+    wallet: Option<WalletCore<StateStore, StateStore, Prover>>,
     addresses: Vec<Address>,
     store: LocalStore,
     file: Option<F>,
@@ -296,11 +296,14 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         };
 
         // create a state client
-        let mut state = State::new(rusk.state, &cache_dir)?;
+        let mut state =
+            StateStore::state(rusk.state, &cache_dir, self.store.clone())?;
         state.set_status_callback(status);
 
+        let store = StateStore::store(self.store.clone());
+
         // create wallet instance
-        self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));
+        self.wallet = Some(WalletCore::new(store, state, prover));
 
         // set our own status callback
         self.status = status;

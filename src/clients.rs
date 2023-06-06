@@ -13,7 +13,7 @@ use dusk_plonk::prelude::Proof;
 use dusk_poseidon::tree::PoseidonBranch;
 use dusk_schnorr::Signature;
 use dusk_wallet_core::{
-    EnrichedNote, ProverClient, StakeInfo, StateClient, Transaction,
+    EnrichedNote, ProverClient, StakeInfo, StateClient, Store, Transaction,
     UnprovenTransaction, POSEIDON_TREE_DEPTH,
 };
 use futures::StreamExt;
@@ -33,7 +33,8 @@ use super::block::Block;
 use super::cache::Cache;
 
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
-use crate::Error;
+use crate::store::LocalStore;
+use crate::{Error, MAX_ADDRESSES};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -191,9 +192,12 @@ impl Prover {
 }
 
 /// Implementation of the StateClient trait from wallet-core
-pub struct State {
-    inner: Mutex<InnerState>,
+/// inner is an option because we don't want to open the db twice and lock it
+/// We construct StateStore twice
+pub struct StateStore {
+    inner: Option<Mutex<InnerState>>,
     status: fn(&str),
+    pub(crate) store: LocalStore,
 }
 
 struct InnerState {
@@ -201,19 +205,29 @@ struct InnerState {
     cache: Cache,
 }
 
-impl State {
+impl StateStore {
     /// Creates a new state instance. Should only be called once.
-    pub fn new(
+    pub(crate) fn state(
         client: RuskStateClient,
         data_dir: &Path,
+        store: LocalStore,
     ) -> Result<Self, Error> {
         let cache = Cache::new(data_dir)?;
-        let inner = Mutex::new(InnerState { client, cache });
+        let inner = Some(Mutex::new(InnerState { client, cache }));
 
-        Ok(State {
+        Ok(Self {
             inner,
             status: |_| {},
+            store,
         })
+    }
+
+    pub(crate) fn store(store: LocalStore) -> Self {
+        Self {
+            inner: None,
+            status: |_| {},
+            store,
+        }
     }
 
     /// Sets the callback method to send status updates
@@ -223,7 +237,7 @@ impl State {
 }
 
 /// Types that are clients of the state API.
-impl StateClient for State {
+impl StateClient for StateStore {
     /// Error returned by the node client.
     type Error = Error;
 
@@ -232,11 +246,22 @@ impl StateClient for State {
         &self,
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let state = self.inner.as_ref().unwrap();
+        let mut state = state.lock().unwrap();
+
+        let mut addresses = [None; MAX_ADDRESSES];
+
+        for (i, ssk) in addresses.iter_mut().enumerate() {
+            if let Ok(i) = i.try_into() {
+                if let Ok(retrieved_ssk) = self.store.retrieve_ssk(i) {
+                    *ssk = Some(retrieved_ssk);
+                }
+            }
+        }
 
         self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
-        let mut last_height = state.cache.last_height(psk)?;
+        let mut last_height = state.cache.last_height()?;
 
         self.status("Fetching fresh notes...");
         let msg = GetNotesRequest {
@@ -257,16 +282,25 @@ impl StateClient for State {
             last_height = std::cmp::max(last_height, rsp.height);
 
             let note = Note::from_slice(&rsp.note)?;
-            let ownership = vk.owns(&note);
-            let hash = ownership.then(|| note.hash());
-            let note = ownership.then_some(note);
 
-            state.cache.insert(psk, rsp.height, (note, hash))?;
+            for ssk in addresses.iter().flatten() {
+                let vk = ssk.view_key();
+                let psk = vk.public_spend_key();
+                let ownership = vk.owns(&note);
+                let nullifier = ownership.then(|| note.gen_nullifier(ssk));
+                let note = ownership.then_some(note);
+
+                state.cache.insert(psk, rsp.height, (note, nullifier))?;
+
+                if ownership {
+                    break;
+                }
+            }
         }
 
         println!("Last block: {}", last_height);
 
-        state.cache.persist()?;
+        state.cache.persist(last_height)?;
 
         Ok(state
             .cache
@@ -278,7 +312,8 @@ impl StateClient for State {
 
     /// Fetch the current anchor of the state.
     fn fetch_anchor(&self) -> Result<BlsScalar, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let state = self.inner.as_ref().unwrap();
+        let mut state = state.lock().unwrap();
 
         let msg = GetAnchorRequest {};
         let req = tonic::Request::new(msg);
@@ -299,7 +334,8 @@ impl StateClient for State {
         &self,
         nullifiers: &[BlsScalar],
     ) -> Result<Vec<BlsScalar>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let state = self.inner.as_ref().unwrap();
+        let mut state = state.lock().unwrap();
 
         let null_bytes: Vec<_> =
             nullifiers.iter().map(|s| s.to_bytes().to_vec()).collect();
@@ -331,7 +367,8 @@ impl StateClient for State {
         &self,
         note: &Note,
     ) -> Result<PoseidonBranch<POSEIDON_TREE_DEPTH>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let state = self.inner.as_ref().unwrap();
+        let mut state = state.lock().unwrap();
 
         let msg = GetOpeningRequest {
             note: note.to_bytes().to_vec(),
@@ -349,7 +386,8 @@ impl StateClient for State {
 
     /// Queries the node for the amount staked by a key.
     fn fetch_stake(&self, pk: &PublicKey) -> Result<StakeInfo, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let state = self.inner.as_ref().unwrap();
+        let mut state = state.lock().unwrap();
 
         let msg = GetStakeRequest {
             pk: pk.to_bytes().to_vec(),
@@ -374,7 +412,7 @@ impl StateClient for State {
     }
 }
 
-impl State {
+impl StateStore {
     fn status(&self, text: &str) {
         (self.status)(text)
     }

@@ -4,7 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::store::LocalStore;
+use crate::clients::StateStore;
+
 use canonical::CanonError;
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
@@ -14,7 +15,7 @@ use tonic::codegen::http;
 use super::clients;
 /// Wallet core error
 pub(crate) type CoreError =
-    dusk_wallet_core::Error<LocalStore, clients::State, clients::Prover>;
+    dusk_wallet_core::Error<StateStore, StateStore, clients::Prover>;
 
 /// Errors returned by this library
 #[derive(Debug, thiserror::Error)]
@@ -137,6 +138,10 @@ pub enum Error {
         "Network not found, check config.toml, specify network with -n flag"
     )]
     NetworkNotFound,
+    /// Trying to access Store which is None. Arises from `StateStore` struct
+    /// in clients.rs
+    #[error("Store not initialized but accessed")]
+    StoreNotInitialized,
 }
 
 impl From<dusk_bytes::Error> for Error {

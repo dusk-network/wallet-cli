@@ -33,8 +33,6 @@ use config::{Config, TransportMethod};
 use io::{prompt, status};
 use io::{GraphQL, WalletArgs};
 
-const MAX_ADDRESSES: usize = 255;
-
 #[derive(Debug, Clone)]
 pub(crate) struct WalletFile {
     path: WalletPath,

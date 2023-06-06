@@ -16,8 +16,8 @@ use crate::prompt;
 use crate::settings::Settings;
 use crate::Menu;
 use crate::WalletFile;
-use crate::{Command, RunResult, MAX_ADDRESSES};
-use dusk_wallet::Error;
+use crate::{Command, RunResult};
+use dusk_wallet::{Error, MAX_ADDRESSES};
 use std::path::PathBuf;
 
 /// Run the interactive UX loop with a loaded wallet

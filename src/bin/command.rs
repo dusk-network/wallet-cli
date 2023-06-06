@@ -14,10 +14,10 @@ use std::{fmt, path::PathBuf};
 
 use crate::io::prompt;
 use crate::settings::Settings;
-use crate::{WalletFile, WalletPath, MAX_ADDRESSES};
+use crate::{WalletFile, WalletPath};
 
 use dusk_wallet::gas::Gas;
-use dusk_wallet::{Address, Dusk, Lux, Wallet, EPOCH};
+use dusk_wallet::{Address, Dusk, Lux, Wallet, EPOCH, MAX_ADDRESSES};
 use dusk_wallet_core::{BalanceInfo, StakeInfo};
 
 pub use history::TransactionHistory;
