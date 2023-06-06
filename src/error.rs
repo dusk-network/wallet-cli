@@ -4,7 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use crate::clients::StateStore;
 use crate::store::LocalStore;
+
 use canonical::CanonError;
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
@@ -14,7 +16,7 @@ use tonic::codegen::http;
 use super::clients;
 /// Wallet core error
 pub(crate) type CoreError =
-    dusk_wallet_core::Error<LocalStore, clients::State, clients::Prover>;
+    dusk_wallet_core::Error<LocalStore, StateStore, clients::Prover>;
 
 /// Errors returned by this library
 #[derive(Debug, thiserror::Error)]
