@@ -195,7 +195,7 @@ impl Prover {
 /// inner is an option because we don't want to open the db twice and lock it
 /// We construct StateStore twice
 pub struct StateStore {
-    inner: Option<Mutex<InnerState>>,
+    inner: Mutex<InnerState>,
     status: fn(&str),
     pub(crate) store: LocalStore,
 }
@@ -207,27 +207,19 @@ struct InnerState {
 
 impl StateStore {
     /// Creates a new state instance. Should only be called once.
-    pub(crate) fn state(
+    pub(crate) fn new(
         client: RuskStateClient,
         data_dir: &Path,
         store: LocalStore,
     ) -> Result<Self, Error> {
         let cache = Cache::new(data_dir)?;
-        let inner = Some(Mutex::new(InnerState { client, cache }));
+        let inner = Mutex::new(InnerState { client, cache });
 
         Ok(Self {
             inner,
             status: |_| {},
             store,
         })
-    }
-
-    pub(crate) fn store(store: LocalStore) -> Self {
-        Self {
-            inner: None,
-            status: |_| {},
-            store,
-        }
     }
 
     /// Sets the callback method to send status updates
@@ -246,8 +238,7 @@ impl StateClient for StateStore {
         &self,
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
-        let state = self.inner.as_ref().unwrap();
-        let mut state = state.lock().unwrap();
+        let mut state = self.inner.lock().unwrap();
 
         let mut addresses = [None; MAX_ADDRESSES];
 
@@ -312,8 +303,7 @@ impl StateClient for StateStore {
 
     /// Fetch the current anchor of the state.
     fn fetch_anchor(&self) -> Result<BlsScalar, Self::Error> {
-        let state = self.inner.as_ref().unwrap();
-        let mut state = state.lock().unwrap();
+        let mut state = self.inner.lock().unwrap();
 
         let msg = GetAnchorRequest {};
         let req = tonic::Request::new(msg);
@@ -334,8 +324,7 @@ impl StateClient for StateStore {
         &self,
         nullifiers: &[BlsScalar],
     ) -> Result<Vec<BlsScalar>, Self::Error> {
-        let state = self.inner.as_ref().unwrap();
-        let mut state = state.lock().unwrap();
+        let mut state = self.inner.lock().unwrap();
 
         let null_bytes: Vec<_> =
             nullifiers.iter().map(|s| s.to_bytes().to_vec()).collect();
@@ -367,8 +356,7 @@ impl StateClient for StateStore {
         &self,
         note: &Note,
     ) -> Result<PoseidonBranch<POSEIDON_TREE_DEPTH>, Self::Error> {
-        let state = self.inner.as_ref().unwrap();
-        let mut state = state.lock().unwrap();
+        let mut state = self.inner.lock().unwrap();
 
         let msg = GetOpeningRequest {
             note: note.to_bytes().to_vec(),
@@ -386,8 +374,7 @@ impl StateClient for StateStore {
 
     /// Queries the node for the amount staked by a key.
     fn fetch_stake(&self, pk: &PublicKey) -> Result<StakeInfo, Self::Error> {
-        let state = self.inner.as_ref().unwrap();
-        let mut state = state.lock().unwrap();
+        let mut state = self.inner.lock().unwrap();
 
         let msg = GetStakeRequest {
             pk: pk.to_bytes().to_vec(),
