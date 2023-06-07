@@ -14,14 +14,14 @@ use tracing::Level;
 use url::Url;
 
 #[derive(clap::ValueEnum, Debug, Clone)]
-pub(crate) enum LogFormat {
+pub enum LogFormat {
     Json,
     Plain,
     Coloured,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone)]
-pub(crate) enum LogLevel {
+pub enum LogLevel {
     /// Designates very low priority, often extremely verbose, information.
     Trace,
     /// Designates lower priority information.
@@ -43,7 +43,7 @@ pub(crate) struct Logging {
 }
 #[allow(dead_code)]
 #[derive(Debug)]
-pub(crate) struct Settings {
+pub struct Settings {
     pub(crate) state: Transport,
     pub(crate) prover: Transport,
     pub(crate) explorer: Option<Url>,
@@ -55,7 +55,7 @@ pub(crate) struct Settings {
     pub(crate) password: Option<String>,
 }
 
-pub(crate) struct SettingsBuilder {
+pub struct SettingsBuilder {
     profile: PathBuf,
     pub(crate) args: WalletArgs,
 }

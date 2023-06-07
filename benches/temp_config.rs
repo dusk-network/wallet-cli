@@ -109,13 +109,13 @@ impl Config {
 
         let mut global_config = dirs::home_dir().expect("OS not supported");
         global_config.push(".config");
-        global_config.push(env!("CARGO_BIN_NAME"));
+        global_config.push("rusk-wallet");
         global_config.push("config.toml");
 
         let contents = read_to_string(&profile)?
             .or(read_to_string(&global_config)?)
             .unwrap_or_else(|| {
-                include_str!("../../default.config.toml").to_string()
+                include_str!("../default.config.toml").to_string()
             });
 
         let network: Network = toml::from_str(&contents)?;

@@ -28,7 +28,7 @@ pub const DEFAULT_STAKE_GAS_LIMIT: u64 = 2_900_000_000;
 /// Commands that can be run against the Dusk wallet
 #[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Hash, Clone, Subcommand, Debug)]
-pub(crate) enum Command {
+pub enum Command {
     /// Create a new wallet
     Create {
         /// Skip wallet recovery phrase (useful for headless wallet creation)

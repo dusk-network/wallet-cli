@@ -75,6 +75,12 @@ tracing-subscriber = { version = "0.3.0", features = [
 [dev-dependencies]
 tempfile = "3.2"
 hex = "0.4"
+criterion = { version = "0.4", features = ["async_tokio", "html_reports"] }
 
 [profile.release]
 overflow-checks = true
+debug = true
+
+[[bench]]
+name = "fetch_notes"
+harness = false

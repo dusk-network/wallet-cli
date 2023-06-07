@@ -15,7 +15,7 @@ use std::path::PathBuf;
 #[clap(author = "Dusk Network B.V.")]
 #[clap(about = "A user-friendly, reliable command line interface to the Dusk wallet!", long_about = None)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
-pub(crate) struct WalletArgs {
+pub struct WalletArgs {
     /// Directory to store user data [default: `$HOME/.dusk/rusk-wallet`]
     #[clap(short, long)]
     pub profile: Option<PathBuf>,

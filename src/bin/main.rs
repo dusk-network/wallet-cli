@@ -7,7 +7,7 @@
 mod command;
 mod config;
 mod interactive;
-mod io;
+pub mod io;
 mod menu;
 mod settings;
 
@@ -34,7 +34,7 @@ use io::{prompt, status};
 use io::{GraphQL, WalletArgs};
 
 #[derive(Debug, Clone)]
-pub(crate) struct WalletFile {
+pub struct WalletFile {
     path: WalletPath,
     pwd: Hash,
 }
