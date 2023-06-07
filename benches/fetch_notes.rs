@@ -3,7 +3,7 @@ use dusk_wallet::TransportTCP;
 use tokio::runtime::Handle;
 
 use blake3::Hash;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::*;
 use dusk_wallet::{SecureWalletFile, Wallet, WalletPath};
 use dusk_wallet_core::{StateClient, Store};
 use phoenix_core::Note;
@@ -73,7 +73,12 @@ fn fetch_notes(wallet: &Wallet<WalletFile>) -> Vec<(Note, u64)> {
 async fn criterion_benchmark(c: &mut Criterion) {
     let wallet = setup_wallet().await;
 
-    c.bench_function("fetch notes 255", |b| b.iter(|| fetch_notes(&wallet)));
+    let mut group = c.benchmark_group("sample-size-example");
+    group.significance_level(0.01).sample_size(10);
+
+    group.bench_function("fetch notes 1", |b| b.iter(|| fetch_notes(&wallet)));
+
+    group.finish();
 }
 
 criterion_group!(benches, criterion_benchmark);
