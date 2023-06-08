@@ -21,6 +21,7 @@ use phoenix_core::{Crossover, Fee, Note};
 
 use std::path::Path;
 use std::sync::Mutex;
+use std::time::Instant;
 
 use rusk_schema::{
     ExecuteProverRequest, FindExistingNullifiersRequest, GetAnchorRequest,
@@ -274,19 +275,27 @@ impl StateClient for StateStore {
 
             let note = Note::from_slice(&rsp.note)?;
 
+            let insto = Instant::now();
             for ssk in addresses.iter().flatten() {
+                let inst_all = Instant::now();
                 let vk = ssk.view_key();
                 let psk = vk.public_spend_key();
+                let inst = Instant::now();
                 let ownership = vk.owns(&note);
+                let delayed = Instant::now() - inst;
+                println!("Ownership for address - Elapsed {delayed:?}");
                 let nullifier = ownership.then(|| note.gen_nullifier(ssk));
                 let note = ownership.then_some(note);
 
-                state.cache.insert(psk, rsp.height, (note, nullifier))?;
-
+                let delayed = Instant::now() - inst_all;
+                println!("Check for address - Elapsed {delayed:?}");
                 if ownership {
+                    state.cache.insert(psk, rsp.height, (note, nullifier))?;
                     break;
                 }
             }
+            let delayed = Instant::now() - insto;
+            println!("Check all addresses in {delayed:?}");
         }
 
         println!("Last block: {}", last_height);
