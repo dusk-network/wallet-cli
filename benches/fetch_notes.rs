@@ -76,7 +76,8 @@ async fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("sample-size-example");
     group.significance_level(0.01).sample_size(10);
 
-    group.bench_function("fetch notes 1", |b| b.iter(|| fetch_notes(&wallet)));
+    group
+        .bench_function("fetch notes 255", |b| b.iter(|| fetch_notes(&wallet)));
 
     group.finish();
 }

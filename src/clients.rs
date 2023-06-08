@@ -290,7 +290,7 @@ impl StateClient for StateStore {
 
         println!("Last block: {}", last_height);
 
-        state.cache.persist(last_height)?;
+        // state.cache.persist(last_height)?;
 
         Ok(state
             .cache

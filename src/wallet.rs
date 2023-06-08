@@ -60,7 +60,8 @@ const VERSION: &[u8] = &[2, 0];
 /// able to perform common operations such as checking balance, transfernig
 /// funds, or staking Dusk.
 pub struct Wallet<F: SecureWalletFile + Debug> {
-    wallet: Option<WalletCore<LocalStore, StateStore, Prover>>,
+    /// comment
+    pub wallet: Option<WalletCore<LocalStore, StateStore, Prover>>,
     addresses: Vec<Address>,
     store: LocalStore,
     file: Option<F>,
