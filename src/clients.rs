@@ -240,16 +240,16 @@ impl StateClient for StateStore {
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
-
-        let mut addresses = [None; MAX_ADDRESSES];
-
-        for (i, ssk) in addresses.iter_mut().enumerate() {
-            if let Ok(i) = i.try_into() {
-                if let Ok(retrieved_ssk) = self.store.retrieve_ssk(i) {
-                    *ssk = Some(retrieved_ssk);
-                }
-            }
-        }
+        let addresses: Vec<_> = (0..MAX_ADDRESSES)
+            .into_iter()
+            .map(|i| self.store.retrieve_ssk(i as u64))
+            .flatten()
+            .map(|ssk| {
+                let vk = ssk.view_key();
+                let psk = vk.public_spend_key();
+                (ssk, vk, psk)
+            })
+            .collect();
 
         self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
@@ -276,11 +276,10 @@ impl StateClient for StateStore {
             let note = Note::from_slice(&rsp.note)?;
 
             let insto = Instant::now();
-            for ssk in addresses.iter().flatten() {
+            for (ssk, vk, psk) in addresses.iter() {
                 let inst_all = Instant::now();
-                let vk = ssk.view_key();
-                let psk = vk.public_spend_key();
                 let inst = Instant::now();
+
                 let ownership = vk.owns(&note);
                 let delayed = Instant::now() - inst;
                 println!("Ownership for address - Elapsed {delayed:?}");

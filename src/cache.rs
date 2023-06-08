@@ -56,7 +56,7 @@ impl Cache {
     // note
     pub(crate) fn insert(
         &mut self,
-        psk: PublicSpendKey,
+        psk: &PublicSpendKey,
         height: u64,
         note_data: (Option<Note>, Option<BlsScalar>),
     ) -> Result<(), Error> {
