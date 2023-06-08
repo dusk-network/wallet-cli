@@ -240,15 +240,15 @@ impl StateClient for StateStore {
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
 
-        let mut addresses = [None; MAX_ADDRESSES];
-
-        for (i, ssk) in addresses.iter_mut().enumerate() {
-            if let Ok(i) = i.try_into() {
-                if let Ok(retrieved_ssk) = self.store.retrieve_ssk(i) {
-                    *ssk = Some(retrieved_ssk);
-                }
-            }
-        }
+        let addresses: Vec<_> = (0..MAX_ADDRESSES)
+            .into_iter()
+            .flat_map(|i| self.store.retrieve_ssk(i as u64))
+            .map(|ssk| {
+                let vk = ssk.view_key();
+                let psk = vk.public_spend_key();
+                (ssk, vk, psk)
+            })
+            .collect();
 
         self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
@@ -274,16 +274,15 @@ impl StateClient for StateStore {
 
             let note = Note::from_slice(&rsp.note)?;
 
-            for ssk in addresses.iter().flatten() {
-                let vk = ssk.view_key();
-                let psk = vk.public_spend_key();
-                let ownership = vk.owns(&note);
-                let nullifier = ownership.then(|| note.gen_nullifier(ssk));
-                let note = ownership.then_some(note);
-
-                state.cache.insert(psk, rsp.height, (note, nullifier))?;
-
-                if ownership {
+            for (ssk, vk, psk) in addresses.iter() {
+                if let Some(insert) = vk.owns(&note).then(|| {
+                    state.cache.insert(
+                        psk,
+                        rsp.height,
+                        (note, note.gen_nullifier(ssk)),
+                    )
+                }) {
+                    insert?;
                     break;
                 }
             }
@@ -295,7 +294,7 @@ impl StateClient for StateStore {
 
         Ok(state
             .cache
-            .notes(psk)?
+            .notes(&psk)?
             .into_iter()
             .map(|data| (data.note, data.height))
             .collect())

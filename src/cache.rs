@@ -56,9 +56,9 @@ impl Cache {
     // note
     pub(crate) fn insert(
         &mut self,
-        psk: PublicSpendKey,
+        psk: &PublicSpendKey,
         height: u64,
-        note_data: (Option<Note>, Option<BlsScalar>),
+        note_data: (Note, BlsScalar),
     ) -> Result<(), Error> {
         let cf: &ColumnFamily;
         let cf_name = format!("{:?}", psk);
@@ -75,12 +75,12 @@ impl Cache {
                 .expect("cannot create column family for db");
         }
 
-        if let (Some(note), Some(nullifier)) = note_data {
-            let data = NoteData { height, note };
-            let key = nullifier.to_bytes();
+        let (note, nullifier) = note_data;
 
-            self.write_batch.put_cf(cf, key, data.encode_to_vec());
-        }
+        let data = NoteData { height, note };
+        let key = nullifier.to_bytes();
+
+        self.write_batch.put_cf(cf, key, data.encode_to_vec());
 
         Ok(())
     }
@@ -112,7 +112,7 @@ impl Cache {
     /// of block height.
     pub(crate) fn notes(
         &self,
-        psk: PublicSpendKey,
+        psk: &PublicSpendKey,
     ) -> Result<BTreeSet<NoteData>, Error> {
         let cf_name = format!("{:?}", psk);
         let mut notes = BTreeSet::<NoteData>::new();
