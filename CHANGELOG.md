@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Change cached Note's key to be the nullifier instead of hash [#144]
+- Update cache for all the possible addresses at the same time [#144]
+
 ## [0.15.0] - 2023-06-07
 
 ### Changed
@@ -342,6 +347,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#144]: https://github.com/dusk-network/wallet-cli/issues/144
 [#133]: https://github.com/dusk-network/wallet-cli/issues/133
 [#132]: https://github.com/dusk-network/wallet-cli/issues/132
 [#128]: https://github.com/dusk-network/wallet-cli/issues/128
