@@ -13,7 +13,7 @@ use dusk_plonk::prelude::Proof;
 use dusk_poseidon::tree::PoseidonBranch;
 use dusk_schnorr::Signature;
 use dusk_wallet_core::{
-    EnrichedNote, ProverClient, StakeInfo, StateClient, Transaction,
+    EnrichedNote, ProverClient, StakeInfo, StateClient, Store, Transaction,
     UnprovenTransaction, POSEIDON_TREE_DEPTH,
 };
 use futures::StreamExt;
@@ -33,7 +33,8 @@ use super::block::Block;
 use super::cache::Cache;
 
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
-use crate::Error;
+use crate::store::LocalStore;
+use crate::{Error, MAX_ADDRESSES};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -191,9 +192,12 @@ impl Prover {
 }
 
 /// Implementation of the StateClient trait from wallet-core
-pub struct State {
+/// inner is an option because we don't want to open the db twice and lock it
+/// We construct StateStore twice
+pub struct StateStore {
     inner: Mutex<InnerState>,
     status: fn(&str),
+    pub(crate) store: LocalStore,
 }
 
 struct InnerState {
@@ -201,18 +205,20 @@ struct InnerState {
     cache: Cache,
 }
 
-impl State {
+impl StateStore {
     /// Creates a new state instance. Should only be called once.
-    pub fn new(
+    pub(crate) fn new(
         client: RuskStateClient,
         data_dir: &Path,
+        store: LocalStore,
     ) -> Result<Self, Error> {
         let cache = Cache::new(data_dir)?;
         let inner = Mutex::new(InnerState { client, cache });
 
-        Ok(State {
+        Ok(Self {
             inner,
             status: |_| {},
+            store,
         })
     }
 
@@ -223,7 +229,7 @@ impl State {
 }
 
 /// Types that are clients of the state API.
-impl StateClient for State {
+impl StateClient for StateStore {
     /// Error returned by the node client.
     type Error = Error;
 
@@ -234,9 +240,19 @@ impl StateClient for State {
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
 
+        let addresses: Vec<_> = (0..MAX_ADDRESSES)
+            .into_iter()
+            .flat_map(|i| self.store.retrieve_ssk(i as u64))
+            .map(|ssk| {
+                let vk = ssk.view_key();
+                let psk = vk.public_spend_key();
+                (ssk, vk, psk)
+            })
+            .collect();
+
         self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
-        let mut last_height = state.cache.last_height(psk)?;
+        let mut last_height = state.cache.last_height()?;
 
         self.status("Fetching fresh notes...");
         let msg = GetNotesRequest {
@@ -257,20 +273,27 @@ impl StateClient for State {
             last_height = std::cmp::max(last_height, rsp.height);
 
             let note = Note::from_slice(&rsp.note)?;
-            let ownership = vk.owns(&note);
-            let hash = ownership.then(|| note.hash());
-            let note = ownership.then_some(note);
 
-            state.cache.insert(psk, rsp.height, (note, hash))?;
+            for (ssk, vk, psk) in addresses.iter() {
+                if vk.owns(&note) {
+                    state.cache.insert(
+                        psk,
+                        rsp.height,
+                        (note, note.gen_nullifier(ssk)),
+                    )?;
+
+                    break;
+                }
+            }
         }
 
         println!("Last block: {}", last_height);
 
-        state.cache.persist()?;
+        state.cache.persist(last_height)?;
 
         Ok(state
             .cache
-            .notes(psk)?
+            .notes(&psk)?
             .into_iter()
             .map(|data| (data.note, data.height))
             .collect())
@@ -374,7 +397,7 @@ impl StateClient for State {
     }
 }
 
-impl State {
+impl StateStore {
     fn status(&self, text: &str) {
         (self.status)(text)
     }
