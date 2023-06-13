@@ -13,6 +13,7 @@ use canonical_derive::Canon;
 use dusk_bytes::Serializable;
 use dusk_jubjub::BlsScalar;
 use dusk_pki::PublicSpendKey;
+
 use phoenix_core::Note;
 use rocksdb::{ColumnFamily, Options, WriteBatch, DB};
 
@@ -37,13 +38,7 @@ impl Cache {
         // After 10 million bytes, sort the cache file and create new one
         opts.set_write_buffer_size(10_000_000);
 
-        let list = DB::list_cf(&Options::default(), &path);
-
-        if list.is_err() {
-            db = DB::open(&opts, path)?;
-        } else {
-            db = DB::open_cf(&opts, path, list?)?;
-        }
+        db = DB::open(&opts, path)?;
 
         let write_batch = WriteBatch::default();
 
@@ -65,22 +60,14 @@ impl Cache {
 
         if let Some(column_family) = self.db.cf_handle(&cf_name) {
             cf = column_family;
-        } else {
-            // immediately create a cf by the hex of the psk_bytes
-            self.db.create_cf(&cf_name, &Options::default())?;
 
-            cf = self
-                .db
-                .cf_handle(&cf_name)
-                .expect("cannot create column family for db");
+            let (note, nullifier) = note_data;
+
+            let data = NoteData { height, note };
+            let key = nullifier.to_bytes();
+
+            self.write_batch.put_cf(cf, key, data.encode_to_vec());
         }
-
-        let (note, nullifier) = note_data;
-
-        let data = NoteData { height, note };
-        let key = nullifier.to_bytes();
-
-        self.write_batch.put_cf(cf, key, data.encode_to_vec());
 
         Ok(())
     }
@@ -132,6 +119,18 @@ impl Cache {
         };
 
         Ok(notes)
+    }
+
+    pub(crate) fn add_cf(&mut self, cf_name: String) -> Result<(), Error> {
+        let list = DB::list_cf(&Options::default(), self.db.path())?;
+
+        if list.contains(&cf_name) {
+            return Ok(());
+        }
+
+        self.db.create_cf(cf_name, &Options::default())?;
+
+        Ok(())
     }
 }
 

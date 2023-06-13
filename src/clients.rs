@@ -8,7 +8,7 @@ use canonical::{Canon, Source};
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::{DeserializableSlice, Serializable, Write};
 use dusk_jubjub::{BlsScalar, JubJubAffine, JubJubScalar};
-use dusk_pki::ViewKey;
+use dusk_pki::{PublicSpendKey, SecretSpendKey, ViewKey};
 use dusk_plonk::prelude::Proof;
 use dusk_poseidon::tree::PoseidonBranch;
 use dusk_schnorr::Signature;
@@ -34,7 +34,7 @@ use super::cache::Cache;
 
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::store::LocalStore;
-use crate::{Error, MAX_ADDRESSES};
+use crate::Error;
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -197,6 +197,7 @@ impl Prover {
 pub struct StateStore {
     inner: Mutex<InnerState>,
     status: fn(&str),
+    addresses: Vec<(SecretSpendKey, ViewKey, PublicSpendKey)>,
     pub(crate) store: LocalStore,
 }
 
@@ -211,14 +212,31 @@ impl StateStore {
         client: RuskStateClient,
         data_dir: &Path,
         store: LocalStore,
+        addresses_len: usize,
     ) -> Result<Self, Error> {
-        let cache = Cache::new(data_dir)?;
+        let mut cache = Cache::new(data_dir)?;
+
+        let addresses: Vec<_> = (0..addresses_len)
+            .into_iter()
+            .flat_map(|i| store.retrieve_ssk(i as u64))
+            .map(|ssk| {
+                let vk = ssk.view_key();
+                let psk = vk.public_spend_key();
+
+                // create cfs
+                cache.add_cf(format!("{:?}", psk))?;
+
+                Ok((ssk, vk, psk))
+            })
+            .collect::<Result<_, Error>>()?;
+
         let inner = Mutex::new(InnerState { client, cache });
 
         Ok(Self {
             inner,
             status: |_| {},
             store,
+            addresses,
         })
     }
 
@@ -239,16 +257,6 @@ impl StateClient for StateStore {
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
-
-        let addresses: Vec<_> = (0..MAX_ADDRESSES)
-            .into_iter()
-            .flat_map(|i| self.store.retrieve_ssk(i as u64))
-            .map(|ssk| {
-                let vk = ssk.view_key();
-                let psk = vk.public_spend_key();
-                (ssk, vk, psk)
-            })
-            .collect();
 
         self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
@@ -274,7 +282,7 @@ impl StateClient for StateStore {
 
             let note = Note::from_slice(&rsp.note)?;
 
-            for (ssk, vk, psk) in addresses.iter() {
+            for (ssk, vk, psk) in self.addresses.iter() {
                 if vk.owns(&note) {
                     state.cache.insert(
                         psk,

@@ -296,8 +296,12 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         };
 
         // create a state client
-        let mut state =
-            StateStore::new(rusk.state, &cache_dir, self.store.clone())?;
+        let mut state = StateStore::new(
+            rusk.state,
+            &cache_dir,
+            self.store.clone(),
+            self.addresses.len(),
+        )?;
 
         state.set_status_callback(status);
 
