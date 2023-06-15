@@ -37,7 +37,7 @@ pub(crate) async fn run_loop(
                     std::process::exit(0);
                 }
 
-                let addr = wallet.new_address().clone();
+                let addr = wallet.new_address()?.clone();
                 wallet.save()?;
                 addr
             }

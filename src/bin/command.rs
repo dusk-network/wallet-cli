@@ -211,7 +211,7 @@ impl Command {
                         std::process::exit(0);
                     }
 
-                    let addr = wallet.new_address().clone();
+                    let addr = wallet.new_address()?.clone();
                     wallet.save()?;
                     Ok(RunResult::Address(Box::new(addr)))
                 } else {

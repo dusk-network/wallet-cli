@@ -38,7 +38,11 @@ impl Cache {
         // After 10 million bytes, sort the cache file and create new one
         opts.set_write_buffer_size(10_000_000);
 
-        db = DB::open(&opts, path)?;
+        if let Ok(cfs) = DB::list_cf(&Options::default(), &path) {
+            db = DB::open_cf(&opts, path, cfs)?;
+        } else {
+            db = DB::open(&opts, path)?;
+        }
 
         let write_batch = WriteBatch::default();
 

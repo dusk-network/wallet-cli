@@ -18,6 +18,7 @@ use dusk_wallet_core::{
 };
 use futures::StreamExt;
 use phoenix_core::{Crossover, Fee, Note};
+use std::cell::RefCell;
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -35,6 +36,8 @@ use super::cache::Cache;
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::store::LocalStore;
 use crate::Error;
+
+pub type WalletKeys = (SecretSpendKey, ViewKey, PublicSpendKey);
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -197,7 +200,7 @@ impl Prover {
 pub struct StateStore {
     inner: Mutex<InnerState>,
     status: fn(&str),
-    addresses: Vec<(SecretSpendKey, ViewKey, PublicSpendKey)>,
+    addresses: RefCell<Vec<WalletKeys>>,
     pub(crate) store: LocalStore,
 }
 
@@ -232,12 +235,37 @@ impl StateStore {
 
         let inner = Mutex::new(InnerState { client, cache });
 
+        let addresses = RefCell::new(addresses);
+
         Ok(Self {
             inner,
             status: |_| {},
             store,
             addresses,
         })
+    }
+
+    pub fn new_address(&self) -> Result<(), Error> {
+        let index = self.addresses.borrow().len();
+
+        if let Ok(index) = index.try_into() {
+            let ssk = self.store.retrieve_ssk(index)?;
+            let vk = ssk.view_key();
+            let psk = vk.public_spend_key();
+
+            // add the new cf in the cache when creating now address
+            self.inner
+                .lock()
+                .unwrap()
+                .cache
+                .add_cf(format!("{:?}", psk))?;
+
+            // push in already existing list of all the keys to be used in
+            // fetch_notes
+            self.addresses.borrow_mut().push((ssk, vk, psk))
+        }
+
+        Ok(())
     }
 
     /// Sets the callback method to send status updates
@@ -282,7 +310,7 @@ impl StateClient for StateStore {
 
             let note = Note::from_slice(&rsp.note)?;
 
-            for (ssk, vk, psk) in self.addresses.iter() {
+            for (ssk, vk, psk) in self.addresses.borrow().iter() {
                 if vk.owns(&note) {
                     state.cache.insert(
                         psk,

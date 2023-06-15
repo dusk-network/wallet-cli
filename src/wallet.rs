@@ -381,16 +381,20 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
     /// Creates a new public address.
     /// The addresses generated are deterministic across sessions.
-    pub fn new_address(&mut self) -> &Address {
+    pub fn new_address(&mut self) -> Result<&Address, Error> {
         let len = self.addresses.len();
-        let ssk = self
-            .store
-            .retrieve_ssk(len as u64)
-            .expect("wallet seed should be available");
+        let ssk = self.store.retrieve_ssk(len as u64)?;
         let addr = Address::new(len as u8, ssk.public_spend_key());
 
+        if let Some(wallet) = &self.wallet {
+            // add new address as column family in the cache
+            // also in the temp vec stored in state
+            wallet.state().new_address()?;
+        }
+
         self.addresses.push(addr);
-        self.addresses.last().unwrap()
+
+        self.addresses.last().ok_or(Error::BadAddress)
     }
 
     /// Default public address for this wallet
