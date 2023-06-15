@@ -8,7 +8,7 @@ use canonical::{Canon, Source};
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::{DeserializableSlice, Serializable, Write};
 use dusk_jubjub::{BlsScalar, JubJubAffine, JubJubScalar};
-use dusk_pki::{PublicSpendKey, SecretSpendKey, ViewKey};
+use dusk_pki::{PublicSpendKey, ViewKey};
 use dusk_plonk::prelude::Proof;
 use dusk_poseidon::tree::PoseidonBranch;
 use dusk_schnorr::Signature;
@@ -37,7 +37,7 @@ use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::store::LocalStore;
 use crate::Error;
 
-pub type WalletKeys = (SecretSpendKey, ViewKey, PublicSpendKey);
+pub type WalletKeys = (ViewKey, PublicSpendKey);
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -229,7 +229,7 @@ impl StateStore {
                 // create cfs
                 cache.add_cf(format!("{:?}", psk))?;
 
-                Ok((ssk, vk, psk))
+                Ok((vk, psk))
             })
             .collect::<Result<_, Error>>()?;
 
@@ -263,7 +263,7 @@ impl StateStore {
 
         // push in already existing list of all the keys to be used in
         // fetch_notes
-        self.addresses.borrow_mut().push((ssk, vk, psk));
+        self.addresses.borrow_mut().push((vk, psk));
 
         Ok(())
     }
@@ -310,12 +310,16 @@ impl StateClient for StateStore {
 
             let note = Note::from_slice(&rsp.note)?;
 
-            for (ssk, vk, psk) in self.addresses.borrow().iter() {
+            for (index, (vk, psk)) in self.addresses.borrow().iter().enumerate()
+            {
                 if vk.owns(&note) {
+                    let index = index as u64;
+                    let ssk = self.store.retrieve_ssk(index)?;
+
                     state.cache.insert(
                         psk,
                         rsp.height,
-                        (note, note.gen_nullifier(ssk)),
+                        (note, note.gen_nullifier(&ssk)),
                     )?;
 
                     break;

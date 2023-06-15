@@ -4,6 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use base64::DecodeError;
 use dusk_wallet_core::Transaction;
 use tokio::time::{sleep, Duration};
 
@@ -140,7 +141,7 @@ impl GraphQL {
     pub async fn txs_for_block(
         &self,
         block_height: u64,
-    ) -> anyhow::Result<Vec<(Transaction, Option<u64>)>, GraphQLError> {
+    ) -> anyhow::Result<Vec<(Transaction, Option<u64>)>> {
         // graphql connection
         let client = Client::new(&self.url);
 
@@ -155,16 +156,40 @@ impl GraphQL {
                 Ok(vec![])
             }
             Ok(Some(txs)) => {
-                let block = txs.blocks.first().take().unwrap();
-                let tx = block.transactions.iter().map(|t| {
-                    let raw = base64::decode(&t.raw.as_ref().unwrap()).unwrap();
-                    let tx = Transaction::from_slice(&raw).unwrap();
-                    (tx, t.gasspent)
-                });
-                Ok(tx.collect())
+                if let Some(block) = txs.blocks.first().take() {
+                    let tx: Option<
+                        Result<Result<_, dusk_bytes::Error>, DecodeError>,
+                    > = block
+                        .transactions
+                        .iter()
+                        .map(|t| {
+                            t.raw.as_ref().map(|raw| {
+                                base64::decode(raw).map(|decoded| {
+                                    Transaction::from_slice(&decoded)
+                                        .map(|tx| (tx, t.gasspent))
+                                })
+                            })
+                        })
+                        .collect();
+
+                    let tx = tx
+                        .ok_or_else(|| {
+                            Error::Transaction(
+                                "No transactions found in block".to_string(),
+                            )
+                        })??
+                        .map_err(Error::Bytes)?;
+
+                    Ok(tx)
+                } else {
+                    Err(Error::Transaction(
+                        "Cannot retreve first block".to_string(),
+                    )
+                    .into())
+                }
             }
-            Ok(None) => Err(GraphQLError::TxStatus),
-            Err(err) => Err(GraphQLError::Generic(err)),
+            Ok(None) => Err(GraphQLError::TxStatus.into()),
+            Err(err) => Err(GraphQLError::Generic(err).into()),
         }
     }
 }
