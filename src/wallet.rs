@@ -771,7 +771,7 @@ mod tests {
 
         // check address generation
         let default_addr = wallet.default_address().clone();
-        let other_addr = wallet.new_address();
+        let other_addr = wallet.new_address()?;
 
         assert!(format!("{}", default_addr).eq(TEST_ADDR));
         assert_ne!(&default_addr, other_addr);
