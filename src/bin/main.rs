@@ -94,10 +94,11 @@ where
     };
 
     // check for connection errors
-    println!("{:?}", con.as_ref().err());
-
-    if con.is_err() {
-        warn!("Connection to Rusk Failed, some operations won't be available.");
+    if let Err(err) = con {
+        warn!(
+            "Connection to Rusk Failed, some operations won't be available. Error: {}",
+            err
+        );
     }
 
     wallet
