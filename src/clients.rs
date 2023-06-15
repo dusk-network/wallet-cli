@@ -248,22 +248,22 @@ impl StateStore {
     pub fn new_address(&self) -> Result<(), Error> {
         let index = self.addresses.borrow().len();
 
-        if let Ok(index) = index.try_into() {
-            let ssk = self.store.retrieve_ssk(index)?;
-            let vk = ssk.view_key();
-            let psk = vk.public_spend_key();
+        let index = index as u64;
 
-            // add the new cf in the cache when creating now address
-            self.inner
-                .lock()
-                .unwrap()
-                .cache
-                .add_cf(format!("{:?}", psk))?;
+        let ssk = self.store.retrieve_ssk(index)?;
+        let vk = ssk.view_key();
+        let psk = vk.public_spend_key();
 
-            // push in already existing list of all the keys to be used in
-            // fetch_notes
-            self.addresses.borrow_mut().push((ssk, vk, psk))
-        }
+        // add the new cf in the cache when creating now address
+        self.inner
+            .lock()
+            .unwrap()
+            .cache
+            .add_cf(format!("{:?}", psk))?;
+
+        // push in already existing list of all the keys to be used in
+        // fetch_notes
+        self.addresses.borrow_mut().push((ssk, vk, psk));
 
         Ok(())
     }
