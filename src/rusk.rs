@@ -153,6 +153,7 @@ impl RuskEndpoint for TransportUDS {
     #[cfg(not(windows))]
     async fn state(&self) -> Result<Channel, Error> {
         let addr = self.addr.clone();
+        // PANIC: We input a valid address so this expect is safe
         Ok(Endpoint::try_from("http://[::]:50051")
             .expect("parse address")
             .connect_with_connector(service_fn(move |_: Uri| {

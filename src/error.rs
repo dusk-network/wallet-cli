@@ -11,6 +11,7 @@ use canonical::CanonError;
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::io;
+use std::sync::PoisonError;
 use tonic::codegen::http;
 
 use super::clients;
@@ -139,6 +140,9 @@ pub enum Error {
         "Network not found, check config.toml, specify network with -n flag"
     )]
     NetworkNotFound,
+    /// Trying to perform an operation on a poisioned mutex
+    #[error("A Mutex was poisioned. Please wait a little to perform the next operation")]
+    PoisonError,
 }
 
 impl From<dusk_bytes::Error> for Error {
@@ -180,5 +184,11 @@ impl From<CoreError> for Error {
 impl From<rocksdb::Error> for Error {
     fn from(e: rocksdb::Error) -> Self {
         Self::RocksDB(e)
+    }
+}
+
+impl<T> From<PoisonError<T>> for Error {
+    fn from(_: PoisonError<T>) -> Self {
+        Self::PoisonError
     }
 }

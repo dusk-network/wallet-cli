@@ -27,7 +27,10 @@ use crate::settings::{LogFormat, Settings};
 #[cfg(not(windows))]
 use dusk_wallet::TransportUDS;
 
-use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
+use dusk_wallet::{
+    Dusk, SecureWalletFile, Status as ClientStatus, TransportTCP, Wallet,
+    WalletPath,
+};
 
 use config::{Config, TransportMethod};
 use io::{prompt, status};
@@ -69,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
 async fn connect<F>(
     mut wallet: Wallet<F>,
     settings: &Settings,
-    status: fn(&str),
+    status: ClientStatus,
 ) -> Wallet<F>
 where
     F: SecureWalletFile + std::fmt::Debug,
@@ -284,7 +287,7 @@ async fn exec() -> anyhow::Result<()> {
                 let gql = GraphQL::new(
                     &settings.graphql.to_string(),
                     status::headless,
-                );
+                )?;
                 gql.wait_for(&txh).await?;
 
                 println!("{}", txh);

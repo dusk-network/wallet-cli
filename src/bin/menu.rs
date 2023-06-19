@@ -69,9 +69,11 @@ where
     }
 
     pub fn answer(&self, answer: &Answer) -> &K {
-        let index = answer.as_list_item().unwrap().index;
+        // PANIC: Okay to panic here since its called by interactive
+        let index = answer.as_list_item().expect("Expected list item").index;
         let key = self.keys.get(&index);
-        key.unwrap()
+
+        key.expect("key at specified index doesn't exist")
     }
 
     pub fn extend(mut self, other: Self) -> Self {

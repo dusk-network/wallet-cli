@@ -36,6 +36,9 @@ use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::store::LocalStore;
 use crate::{Error, MAX_ADDRESSES};
 
+/// Type of the status callback
+pub type Status = fn(&str) -> Result<(), Error>;
+
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
     + u64::SIZE
@@ -51,7 +54,7 @@ pub struct Prover {
     client: Mutex<RuskProverClient>,
     state: Mutex<RuskStateClient>,
     network: Mutex<RuskNetworkClient>,
-    status: fn(status: &str),
+    status: Status,
 }
 
 impl Prover {
@@ -64,12 +67,12 @@ impl Prover {
             client: Mutex::new(client),
             state: Mutex::new(state),
             network: Mutex::new(network),
-            status: |_| {},
+            status: |_| Ok(()),
         }
     }
 
     /// Sets the callback method to send status updates
-    pub fn set_status_callback(&mut self, status: fn(&str)) {
+    pub fn set_status_callback(&mut self, status: Status) {
         self.status = status;
     }
 }
@@ -87,12 +90,12 @@ impl ProverClient for Prover {
         let msg = ExecuteProverRequest { utx: utx_bytes };
         let req = tonic::Request::new(msg);
 
-        self.status("Proving tx, please wait...");
-        let mut prover = self.client.lock().unwrap();
+        self.status("Proving tx, please wait...")?;
+        let mut prover = self.client.lock()?;
         let proof_bytes = prover.prove_execute(req).wait()?.into_inner().proof;
-        self.status("Proof success!");
+        self.status("Proof success!")?;
 
-        self.status("Attempt to preverify tx...");
+        self.status("Attempt to preverify tx...")?;
         let proof = Proof::from_slice(&proof_bytes).map_err(Error::Bytes)?;
         let tx = utx.clone().prove(proof);
         let tx_bytes = tx.to_var_bytes();
@@ -103,17 +106,17 @@ impl ProverClient for Prover {
         };
         let msg = PreverifyRequest { tx: Some(tx_proto) };
         let req = tonic::Request::new(msg);
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock()?;
         state.preverify(req).wait()?;
-        self.status("Preverify success!");
+        self.status("Preverify success!")?;
 
-        self.status("Propagating tx...");
+        self.status("Propagating tx...")?;
         let msg = PropagateMessage { message: tx_bytes };
         let req = tonic::Request::new(msg);
 
-        let mut net = self.network.lock().unwrap();
+        let mut net = self.network.lock()?;
         net.propagate(req).wait()?;
-        self.status("Transaction propagated!");
+        self.status("Transaction propagated!")?;
 
         Ok(tx)
     }
@@ -142,10 +145,10 @@ impl ProverClient for Prover {
         };
         let req = tonic::Request::new(msg);
 
-        self.status("Requesting stct proof...");
-        let mut prover = self.client.lock().unwrap();
+        self.status("Requesting stct proof...")?;
+        let mut prover = self.client.lock()?;
         let res = prover.prove_stct(req).wait()?.into_inner().proof;
-        self.status("Stct proof success!");
+        self.status("Stct proof success!")?;
 
         let mut proof_bytes = [0u8; Proof::SIZE];
         proof_bytes.copy_from_slice(&res);
@@ -172,10 +175,10 @@ impl ProverClient for Prover {
         };
         let req = tonic::Request::new(msg);
 
-        self.status("Requesting wfct proof...");
-        let mut prover = self.client.lock().unwrap();
+        self.status("Requesting wfct proof...")?;
+        let mut prover = self.client.lock()?;
         let res = prover.prove_wfct(req).wait()?.into_inner().proof;
-        self.status("Wfct proof success!");
+        self.status("Wfct proof success!")?;
 
         let mut proof_bytes = [0u8; Proof::SIZE];
         proof_bytes.copy_from_slice(&res);
@@ -186,7 +189,7 @@ impl ProverClient for Prover {
 }
 
 impl Prover {
-    fn status(&self, text: &str) {
+    fn status(&self, text: &str) -> Result<(), Error> {
         (self.status)(text)
     }
 }
@@ -196,7 +199,7 @@ impl Prover {
 /// We construct StateStore twice
 pub struct StateStore {
     inner: Mutex<InnerState>,
-    status: fn(&str),
+    status: Status,
     pub(crate) store: LocalStore,
 }
 
@@ -217,13 +220,13 @@ impl StateStore {
 
         Ok(Self {
             inner,
-            status: |_| {},
+            status: |_| Ok(()),
             store,
         })
     }
 
     /// Sets the callback method to send status updates
-    pub fn set_status_callback(&mut self, status: fn(&str)) {
+    pub fn set_status_callback(&mut self, status: Status) {
         self.status = status;
     }
 }
@@ -238,7 +241,7 @@ impl StateClient for StateStore {
         &self,
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let mut state = self.inner.lock()?;
 
         let addresses: Vec<_> = (0..MAX_ADDRESSES)
             .into_iter()
@@ -250,22 +253,22 @@ impl StateClient for StateStore {
             })
             .collect();
 
-        self.status("Getting cached block height...");
+        self.status("Getting cached block height...")?;
         let psk = vk.public_spend_key();
         let mut last_height = state.cache.last_height()?;
 
-        self.status("Fetching fresh notes...");
+        self.status("Fetching fresh notes...")?;
         let msg = GetNotesRequest {
             height: last_height,
             vk: vec![], // empty vector means *all* notes will be streamed
         };
         let req = tonic::Request::new(msg);
         let mut stream = state.client.get_notes(req).wait()?.into_inner();
-        self.status("Connection established...");
+        self.status("Connection established...")?;
 
-        self.status("Streaming notes...");
+        self.status("Streaming notes...")?;
 
-        self.status(format!("From block: {}", last_height).as_str());
+        self.status(format!("From block: {}", last_height).as_str())?;
 
         while let Some(item) = stream.next().wait() {
             let rsp = item?;
@@ -301,14 +304,14 @@ impl StateClient for StateStore {
 
     /// Fetch the current anchor of the state.
     fn fetch_anchor(&self) -> Result<BlsScalar, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let mut state = self.inner.lock()?;
 
         let msg = GetAnchorRequest {};
         let req = tonic::Request::new(msg);
 
-        self.status("Fetching anchor...");
+        self.status("Fetching anchor...")?;
         let res = state.client.get_anchor(req).wait()?.into_inner().anchor;
-        self.status("Anchor received!");
+        self.status("Anchor received!")?;
 
         let mut bytes = [0u8; BlsScalar::SIZE];
         bytes.copy_from_slice(&res);
@@ -322,7 +325,7 @@ impl StateClient for StateStore {
         &self,
         nullifiers: &[BlsScalar],
     ) -> Result<Vec<BlsScalar>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let mut state = self.inner.lock()?;
 
         let null_bytes: Vec<_> =
             nullifiers.iter().map(|s| s.to_bytes().to_vec()).collect();
@@ -332,14 +335,14 @@ impl StateClient for StateStore {
         };
         let req = tonic::Request::new(msg);
 
-        self.status("Fetching nullifiers...");
+        self.status("Fetching nullifiers...")?;
         let res = state
             .client
             .find_existing_nullifiers(req)
             .wait()?
             .into_inner()
             .nullifiers;
-        self.status("Nullifiers received!");
+        self.status("Nullifiers received!")?;
 
         let nullifiers = res
             .iter()
@@ -354,16 +357,16 @@ impl StateClient for StateStore {
         &self,
         note: &Note,
     ) -> Result<PoseidonBranch<POSEIDON_TREE_DEPTH>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let mut state = self.inner.lock()?;
 
         let msg = GetOpeningRequest {
             note: note.to_bytes().to_vec(),
         };
         let req = tonic::Request::new(msg);
 
-        self.status("Fetching opening notes...");
+        self.status("Fetching opening notes...")?;
         let res = state.client.get_opening(req).wait()?.into_inner().branch;
-        self.status("Opening notes received!");
+        self.status("Opening notes received!")?;
 
         let mut src = Source::new(&res);
         let branch = Canon::decode(&mut src)?;
@@ -372,16 +375,16 @@ impl StateClient for StateStore {
 
     /// Queries the node for the amount staked by a key.
     fn fetch_stake(&self, pk: &PublicKey) -> Result<StakeInfo, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
+        let mut state = self.inner.lock()?;
 
         let msg = GetStakeRequest {
             pk: pk.to_bytes().to_vec(),
         };
         let req = tonic::Request::new(msg);
 
-        self.status("Fetching stake...");
+        self.status("Fetching stake...")?;
         let res = state.client.get_stake(req).wait()?.into_inner();
-        self.status("Stake received!");
+        self.status("Stake received!")?;
 
         let amount = res.amount.map(|a| (a.value, a.eligibility));
 
@@ -398,7 +401,7 @@ impl StateClient for StateStore {
 }
 
 impl StateStore {
-    fn status(&self, text: &str) {
+    fn status(&self, text: &str) -> Result<(), Error> {
         (self.status)(text)
     }
 }
