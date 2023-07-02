@@ -139,6 +139,9 @@ pub enum Error {
         "Network not found, check config.toml, specify network with -n flag"
     )]
     NetworkNotFound,
+    /// The cache database couldn't find column family required
+    #[error("Cache database corrupted")]
+    CacheDatabaseCorrupted,
 }
 
 impl From<dusk_bytes::Error> for Error {
