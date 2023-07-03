@@ -18,7 +18,6 @@ use crate::Menu;
 use crate::WalletFile;
 use crate::{Command, RunResult};
 use dusk_wallet::{Error, MAX_ADDRESSES};
-use std::path::PathBuf;
 
 /// Run the interactive UX loop with a loaded wallet
 pub(crate) async fn run_loop(
@@ -286,10 +285,8 @@ pub(crate) fn load_wallet(
     wallet_path: &WalletPath,
     settings: &Settings,
 ) -> anyhow::Result<Wallet<WalletFile>> {
-    let wallet_found = wallet_path
-        .inner()
-        .exists()
-        .then(|| wallet_path.inner().clone());
+    let wallet_found =
+        wallet_path.inner().exists().then(|| wallet_path.clone());
 
     let password = &settings.password;
 
@@ -358,17 +355,14 @@ enum MainMenu {
 
 /// Allows the user to load an existing wallet, recover a lost one
 /// or create a new one.
-fn menu_wallet(wallet_found: Option<PathBuf>) -> anyhow::Result<MainMenu> {
+fn menu_wallet(wallet_found: Option<WalletPath>) -> anyhow::Result<MainMenu> {
     // create the wallet menu
     let mut menu = Menu::new();
 
     if let Some(wallet_path) = wallet_found {
         menu = menu
             .separator()
-            .add(
-                MainMenu::Load(WalletPath::from(wallet_path)),
-                "Access your wallet",
-            )
+            .add(MainMenu::Load(wallet_path), "Access your wallet")
             .separator()
             .add(MainMenu::Create, "Replace your wallet with a new one")
             .add(

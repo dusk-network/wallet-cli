@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change `Error::Canon` variant to `Error::Rkyv` [#151]
 - Populate cache database with psk(s) on state init [#158]
 
+### Fixed
+- Fix cache resolution for alternative networks [#151]
+
 ### Removed
 
 - Remove `canonical` dependency [#151]

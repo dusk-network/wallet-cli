@@ -74,7 +74,7 @@ impl WalletPath {
         let mut cache = self.profile_dir.clone();
 
         if let Some(network) = &self.network {
-            cache.push(network);
+            cache.push(format!("cache_{network}"));
         } else {
             cache.push("cache");
         }
