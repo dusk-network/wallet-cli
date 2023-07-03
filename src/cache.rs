@@ -8,11 +8,9 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use canonical::{Canon, EncodeToVec, Source};
-use canonical_derive::Canon;
-use dusk_bytes::Serializable;
-use dusk_jubjub::BlsScalar;
+use dusk_bytes::{DeserializableSlice, Serializable};
 use dusk_pki::PublicSpendKey;
+use dusk_plonk::prelude::BlsScalar;
 use phoenix_core::Note;
 use rocksdb::{ColumnFamily, Options, WriteBatch, DB};
 
@@ -51,9 +49,8 @@ impl Cache {
     }
 
     // We store a column family named by hex representation of the psk.
-    // We store key as (psk, note) and value as (KeyData)
-    // The Canon of the tuple, we use it so we can have unique keys per psk and
-    // note
+    // We store the nullifier of the note as key and the value is the bytes
+    // representation of the tuple (NoteHeight, Note)
     pub(crate) fn insert(
         &mut self,
         psk: &PublicSpendKey,
@@ -80,7 +77,7 @@ impl Cache {
         let data = NoteData { height, note };
         let key = nullifier.to_bytes();
 
-        self.write_batch.put_cf(cf, key, data.encode_to_vec());
+        self.write_batch.put_cf(cf, key, data.to_bytes());
 
         Ok(())
     }
@@ -124,8 +121,7 @@ impl Cache {
             for i in iterator {
                 let (_, note_data) = i?;
 
-                let mut source = Source::new(&note_data);
-                let note = NoteData::decode(&mut source)?;
+                let note = NoteData::from_slice(&note_data)?;
 
                 notes.insert(note);
             }
@@ -136,7 +132,7 @@ impl Cache {
 }
 
 /// Data kept about each note.
-#[derive(Debug, Clone, PartialEq, Eq, Canon)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NoteData {
     pub height: u64,
     pub note: Note,
@@ -151,5 +147,31 @@ impl PartialOrd for NoteData {
 impl Ord for NoteData {
     fn cmp(&self, other: &Self) -> Ordering {
         self.note.pos().cmp(other.note.pos())
+    }
+}
+
+impl Serializable<{ u64::SIZE + Note::SIZE }> for NoteData {
+    type Error = dusk_bytes::Error;
+    /// Converts a Note into a byte representation
+
+    fn to_bytes(&self) -> [u8; Self::SIZE] {
+        let mut buf = [0u8; Self::SIZE];
+
+        buf[0..8].copy_from_slice(&self.height.to_bytes());
+
+        buf[8..].copy_from_slice(&self.note.to_bytes());
+
+        buf
+    }
+
+    /// Attempts to convert a byte representation of a note into a `Note`,
+    /// failing if the input is invalid
+    fn from_bytes(bytes: &[u8; Self::SIZE]) -> Result<Self, Self::Error> {
+        let mut one_u64 = [0u8; 8];
+        one_u64.copy_from_slice(&bytes[0..8]);
+        let height = u64::from_bytes(&one_u64)?;
+
+        let note = Note::from_slice(&bytes[8..])?;
+        Ok(Self { height, note })
     }
 }

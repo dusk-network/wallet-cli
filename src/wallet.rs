@@ -9,24 +9,24 @@ mod file;
 pub mod gas;
 
 pub use address::Address;
+use dusk_plonk::prelude::BlsScalar;
 pub use file::{SecureWalletFile, WalletPath};
 
 use bip39::{Language, Mnemonic, Seed};
 use blake3::Hash;
-use canonical::Canon;
 use dusk_bytes::{DeserializableSlice, Serializable};
+use phoenix_core::transaction::ModuleId;
 use phoenix_core::Note;
-use rusk_abi::ContractId;
+use rkyv::ser::serializers::AllocSerializer;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use dusk_bls12_381_sign::{PublicKey, SecretKey};
-use dusk_jubjub::BlsScalar;
 use dusk_wallet_core::{
     BalanceInfo, StakeInfo, StateClient, Store, Transaction,
-    Wallet as WalletCore,
+    Wallet as WalletCore, MAX_CALL_SIZE,
 };
 use rand::prelude::StdRng;
 use rand::SeedableRng;
@@ -403,12 +403,13 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     pub async fn execute<C>(
         &self,
         sender: &Address,
-        contract_id: ContractId,
+        contract_id: ModuleId,
+        call_name: String,
         call_data: C,
         gas: Gas,
     ) -> Result<Transaction, Error>
     where
-        C: Canon,
+        C: rkyv::Serialize<AllocSerializer<MAX_CALL_SIZE>>,
     {
         if let Some(wallet) = &self.wallet {
             // make sure we own the sender address
@@ -428,7 +429,8 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             // transfer
             let tx = wallet.execute(
                 &mut rng,
-                contract_id,
+                contract_id.into(),
+                call_name,
                 call_data,
                 sender_index as u64,
                 sender.psk(),
@@ -674,7 +676,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
         // export public key to disk
         let bytes = keys.0.to_bytes();
-        fs::write(&path.with_extension("cpk"), bytes)?;
+        fs::write(path.with_extension("cpk"), bytes)?;
 
         // create node-compatible json structure
         let bls = BlsKeyPair {
@@ -688,7 +690,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         bytes = crate::crypto::encrypt(&bytes, pwd)?;
 
         // export key pair to disk
-        fs::write(&path.with_extension("keys"), bytes)?;
+        fs::write(path.with_extension("keys"), bytes)?;
 
         Ok((path.with_extension("keys"), path.with_extension("cpk")))
     }

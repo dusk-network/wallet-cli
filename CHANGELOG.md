@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add `rkyv` dependency [#151]
+- Add `dusk-merkle` dependency [#151]
+- Add `Error::Utf8` variant [#151]
+
+### Changed
+
+- Change `rust-toolchain` to `nightly-2023-05-22` [#151]
+- Change `REQUIRED_RUSK_VERSION` to `0.6.0` [#151]
+- Change `Error::Canon` variant to `Error::Rkyv` [#151]
+
+### Removed
+
+- Remove `canonical` dependency [#151]
+
 ## [0.16.0] - 2023-06-28
 
 ### Changed
@@ -349,6 +364,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#151]: https://github.com/dusk-network/wallet-cli/issues/151
 [#144]: https://github.com/dusk-network/wallet-cli/issues/144
 [#133]: https://github.com/dusk-network/wallet-cli/issues/133
 [#132]: https://github.com/dusk-network/wallet-cli/issues/132

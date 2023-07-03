@@ -28,7 +28,7 @@ use crate::error::Error;
 use anyhow::Result;
 
 /// Supported Rusk version
-const REQUIRED_RUSK_VERSION: &str = "0.5.0-rc.0";
+const REQUIRED_RUSK_VERSION: &str = "0.6.0";
 
 /// Rusk service clients all include versioning middleware
 pub(crate) type RuskNetworkClient =
