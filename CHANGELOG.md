@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `rkyv` dependency [#151]
 - Add `dusk-merkle` dependency [#151]
 - Add `Error::Utf8` variant [#151]
+- Add `devnet` network to default config [#151]
 
 ### Changed
 
