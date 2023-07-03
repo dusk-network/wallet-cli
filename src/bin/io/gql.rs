@@ -157,7 +157,7 @@ impl GraphQL {
             Ok(Some(txs)) => {
                 let block = txs.blocks.first().take().unwrap();
                 let tx = block.transactions.iter().map(|t| {
-                    let raw = base64::decode(&t.raw.as_ref().unwrap()).unwrap();
+                    let raw = base64::decode(t.raw.as_ref().unwrap()).unwrap();
                     let tx = Transaction::from_slice(&raw).unwrap();
                     (tx, t.gasspent)
                 });
@@ -202,7 +202,7 @@ async fn test() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     let r = gql.txs_for_block(90).await?;
     r.iter().for_each(|(t, _)| {
-        let txh = format!("{:x}", t.hash());
+        let txh = format!("{:x}", rusk_abi::hash(t.to_hash_input_bytes()));
         println!("txid: {}", txh);
         // let raw = base64::decode(&t.raw.as_ref().unwrap()).unwrap();
         // let tx = Transaction::from_slice(&raw);

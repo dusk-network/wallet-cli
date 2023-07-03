@@ -46,24 +46,18 @@ rand = "0.8"
 aes = "0.7"
 rocksdb = "0.20.1"
 
-dusk-wallet-core = "0.15.0-rc"
-canonical = "0.7"
-canonical_derive = "0.7"
+dusk-wallet-core = "0.17.1-piecrust.0.5"
 dusk-hamt = "0.10.0-rc"
 dusk-bytes = "0.1"
-dusk-pki = "0.10.0-rc"
-rusk-abi = "0.7"
-phoenix-core = "0.16.0-rc"
-dusk-schnorr = { version = "0.10.0-rc", default-features = false }
-dusk-poseidon = { version = "0.25.0-rc", features = [
-  "canon",
-], default-features = false }
-dusk-plonk = { version = "0.10", default-features = false }
-dusk-jubjub = { version = "0.11", default-features = false }
-dusk-bls12_381-sign = { version = "0.3.0-rc", default-features = false, features = [
-  "canon",
-] }
+dusk-pki = "0.11"
+rusk-abi = "0.8.0-alpha"
+phoenix-core = { version = "0.18", features = ["alloc"] }
+dusk-schnorr = { version = "0.12", default-features = false }
+dusk-poseidon = "0.29.1-rc.0"
+dusk-plonk = { version = "0.13" }
+dusk-bls12_381-sign = { version = "0.4", default-features = false }
 rusk-schema = "0.4.0"
+dusk-merkle = "0.4.1-rc"
 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.0", features = [
@@ -71,6 +65,8 @@ tracing-subscriber = { version = "0.3.0", features = [
   "env-filter",
   "json",
 ] }
+
+rkyv = { version = "=0.7.39", default-features = false }
 
 [dev-dependencies]
 tempfile = "3.2"
