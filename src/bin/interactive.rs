@@ -90,7 +90,7 @@ pub(crate) async fn run_loop(
                                     let gql = GraphQL::new(
                                         &settings.graphql.to_string(),
                                         io::status::interactive,
-                                    );
+                                    )?;
                                     gql.wait_for(&txh).await?;
 
                                     if let Some(explorer) = &settings.explorer {
@@ -405,6 +405,8 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_limit,
             gas_price,
         } => {
+            // PANIC: Okay to panic here and other places in this file since its
+            // the interactive interface
             let sndr = sndr.as_ref().expect("sender to be a valid address");
             let gas_limit = gas_limit.expect("gas limit to be set");
             let gas_price = gas_price.expect("gas price to be set");

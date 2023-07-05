@@ -77,7 +77,7 @@ pub(crate) async fn transaction_from_notes(
 ) -> anyhow::Result<Vec<TransactionHistory>> {
     let mut ret: Vec<TransactionHistory> = vec![];
     let gql =
-        GraphQL::new(&settings.graphql.to_string(), io::status::interactive);
+        GraphQL::new(&settings.graphql.to_string(), io::status::interactive)?;
 
     let nullifiers = notes
         .iter()

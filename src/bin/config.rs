@@ -107,7 +107,10 @@ impl Config {
     pub fn load(profile: &Path) -> anyhow::Result<Config> {
         let profile = profile.join("config.toml");
 
-        let mut global_config = dirs::home_dir().expect("OS not supported");
+        // PANIC: It's okay to stop execution here because we don't wanna
+        // assume the config folder of the user
+        let mut global_config = dirs::home_dir().expect("Cannot get home dir");
+
         global_config.push(".config");
         global_config.push(env!("CARGO_BIN_NAME"));
         global_config.push("config.toml");

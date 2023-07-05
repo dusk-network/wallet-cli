@@ -31,7 +31,7 @@ use dusk_wallet_core::{
 use rand::prelude::StdRng;
 use rand::SeedableRng;
 
-use crate::clients::{Prover, StateStore};
+use crate::clients::{Prover, StateStore, Status as ClientStatus};
 use crate::crypto::{decrypt, encrypt};
 use crate::currency::Dusk;
 use crate::rusk::{RuskClient, RuskEndpoint};
@@ -64,7 +64,7 @@ pub struct Wallet<F: SecureWalletFile + Debug> {
     addresses: Vec<Address>,
     store: LocalStore,
     file: Option<F>,
-    status: fn(status: &str),
+    status: ClientStatus,
 }
 
 impl<F: SecureWalletFile + Debug> Wallet<F> {
@@ -109,7 +109,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 addresses: vec![address],
                 store,
                 file: None,
-                status: |_| {},
+                status: |_| Ok(()),
             })
         } else {
             Err(Error::InvalidMnemonicPhrase)
@@ -190,7 +190,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             addresses,
             store,
             file: Some(file),
-            status: |_| {},
+            status: |_| Ok(()),
         })
     }
 
@@ -226,7 +226,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             addresses: vec![address],
             store,
             file: Some(file),
-            status: |_| {},
+            status: |_| Ok(()),
         })
     }
 
@@ -274,7 +274,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     pub async fn connect_with_status<R>(
         &mut self,
         endpoint: R,
-        status: fn(&str),
+        status: ClientStatus,
     ) -> Result<(), Error>
     where
         R: RuskEndpoint,
