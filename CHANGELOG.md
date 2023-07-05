@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Change cached Note's key to be the nullifier instead of hash [#144]
 - Update cache for all the possible addresses at the same time [#144]
+- Remove all potential panics from the codebase and add `// PANIC: ` comments
+where needed [#155]
 
 ## [0.15.0] - 2023-06-07
 
@@ -383,6 +385,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#6]: https://github.com/dusk-network/wallet-cli/issues/6
 [#56]: https://github.com/dusk-network/wallet-cli/issues/56
 [#143]: https://github.com/dusk-network/wallet-cli/issues/143
+[#155]: https://github.com/dusk-network/wallet-cli/pull/155
 [#4]: https://github.com/dusk-network/wallet-cli/issues/4
 [#680]: https://github.com/dusk-network/rusk/issues/680
 [#672]: https://github.com/dusk-network/rusk/issues/672
