@@ -160,7 +160,7 @@ impl From<CoreError> for Error {
         use dusk_wallet_core::Error::*;
         match e {
             Store(err) | State(err) | Prover(err) => err,
-            Rkyv(_) => Self::Rkyv,
+            Rkyv => Self::Rkyv,
             Rng(err) => Self::Rng(err),
             Bytes(err) => Self::Bytes(err),
             Phoenix(err) => Self::Phoenix(err),
