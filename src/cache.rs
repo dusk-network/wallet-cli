@@ -13,10 +13,11 @@ use canonical_derive::Canon;
 use dusk_bytes::Serializable;
 use dusk_jubjub::BlsScalar;
 use dusk_pki::PublicSpendKey;
+use dusk_wallet_core::Store;
 use phoenix_core::Note;
-use rocksdb::{ColumnFamily, Options, WriteBatch, DB};
+use rocksdb::{Options, WriteBatch, DB};
 
-use crate::error::Error;
+use crate::{error::Error, store::LocalStore, MAX_ADDRESSES};
 
 /// A cache of notes received from Rusk.
 ///
@@ -29,8 +30,11 @@ pub(crate) struct Cache {
 
 impl Cache {
     /// Returns a new cache instance.
-    pub(crate) fn new<T: AsRef<Path>>(path: T) -> Result<Self, Error> {
-        let db: DB;
+    pub(crate) fn new<T: AsRef<Path>>(
+        path: T,
+        store: &LocalStore,
+    ) -> Result<Self, Error> {
+        let mut db: DB;
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
@@ -39,12 +43,19 @@ impl Cache {
 
         let list = DB::list_cf(&Options::default(), &path);
 
-        if list.is_err() {
-            db = DB::open(&opts, path)?;
+        if let Ok(list) = list {
+            db = DB::open_cf(&opts, path, list)?;
         } else {
-            db = DB::open_cf(&opts, path, list?)?;
-        }
+            db = DB::open(&opts, path)?;
 
+            // create all CF(s) on startup if we don't have them
+            for i in 0..MAX_ADDRESSES {
+                let ssk = store.retrieve_ssk(i as u64)?;
+                let psk = ssk.view_key().public_spend_key();
+
+                db.create_cf(&format!("{:?}", psk), &Options::default())?;
+            }
+        }
         let write_batch = WriteBatch::default();
 
         Ok(Self { db, write_batch })
@@ -60,20 +71,12 @@ impl Cache {
         height: u64,
         note_data: (Note, BlsScalar),
     ) -> Result<(), Error> {
-        let cf: &ColumnFamily;
         let cf_name = format!("{:?}", psk);
 
-        if let Some(column_family) = self.db.cf_handle(&cf_name) {
-            cf = column_family;
-        } else {
-            // immediately create a cf by the hex of the psk_bytes
-            self.db.create_cf(&cf_name, &Options::default())?;
-
-            cf = self
-                .db
-                .cf_handle(&cf_name)
-                .expect("cannot create column family for db");
-        }
+        let cf = self
+            .db
+            .cf_handle(&cf_name)
+            .ok_or(Error::CacheDatabaseCorrupted)?;
 
         let (note, nullifier) = note_data;
 

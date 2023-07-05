@@ -215,7 +215,7 @@ impl StateStore {
         data_dir: &Path,
         store: LocalStore,
     ) -> Result<Self, Error> {
-        let cache = Cache::new(data_dir)?;
+        let cache = Cache::new(data_dir, &store)?;
         let inner = Mutex::new(InnerState { client, cache });
 
         Ok(Self {

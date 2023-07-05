@@ -143,6 +143,9 @@ pub enum Error {
     /// Trying to perform an operation on a poisioned mutex
     #[error("A Mutex was poisioned. Please wait a little to perform the next operation")]
     PoisonError,
+    /// The cache database couldn't find column family required
+    #[error("Cache database corrupted")]
+    CacheDatabaseCorrupted,
 }
 
 impl From<dusk_bytes::Error> for Error {
