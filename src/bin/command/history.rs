@@ -9,6 +9,7 @@ use std::fmt::{self, Display};
 use dusk_wallet::DecodedNote;
 use dusk_wallet_core::Transaction;
 use rusk_abi::dusk;
+use rusk_abi::hash::Hasher;
 
 use crate::io::{self, GraphQL};
 use crate::settings::Settings;
@@ -51,7 +52,7 @@ impl Display for TransactionHistory {
             f,
             "{: >9} | {:x} | {: ^8} | {: >+17.9} | {}",
             self.height,
-            rusk_abi::hash(self.tx.to_hash_input_bytes()),
+            Hasher::digest(self.tx.to_hash_input_bytes()),
             contract,
             dusk,
             fee
@@ -103,9 +104,9 @@ pub(crate) async fn transaction_from_notes(
                 true => TransactionDirection::Out,
                 false => TransactionDirection::In,
             };
-            let hash_to_find = rusk_abi::hash(t.to_hash_input_bytes());
+            let hash_to_find = Hasher::digest(t.to_hash_input_bytes());
             match ret.iter_mut().find(|th| {
-                rusk_abi::hash(th.tx.to_hash_input_bytes()) == hash_to_find
+                Hasher::digest(th.tx.to_hash_input_bytes()) == hash_to_find
             }) {
                 Some(tx) => tx.amount += note_amount,
                 None => ret.push(TransactionHistory {
