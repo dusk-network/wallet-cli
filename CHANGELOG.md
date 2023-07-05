@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Populate cache database with psk(s) on state init [#158]
+
 ## [0.16.0] - 2023-06-28
 
 ### Changed
@@ -422,6 +426,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#492]: https://github.com/dusk-network/rusk/issues/492
 [#482]: https://github.com/dusk-network/rusk/issues/482
 [#479]: https://github.com/dusk-network/rusk/issues/479
+[#158]: https://github.com/dusk-network/wallet-cli/pull/158
 
 <!-- Releases -->
 
