@@ -4,13 +4,11 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use canonical::{Canon, Source};
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::{DeserializableSlice, Serializable, Write};
-use dusk_jubjub::{BlsScalar, JubJubAffine, JubJubScalar};
+use dusk_merkle::poseidon::Opening;
 use dusk_pki::ViewKey;
-use dusk_plonk::prelude::Proof;
-use dusk_poseidon::tree::PoseidonBranch;
+use dusk_plonk::prelude::*;
 use dusk_schnorr::Signature;
 use dusk_wallet_core::{
     EnrichedNote, ProverClient, StakeInfo, StateClient, Store, Transaction,
@@ -241,7 +239,6 @@ impl StateClient for StateStore {
         let mut state = self.inner.lock().unwrap();
 
         let addresses: Vec<_> = (0..MAX_ADDRESSES)
-            .into_iter()
             .flat_map(|i| self.store.retrieve_ssk(i as u64))
             .map(|ssk| {
                 let vk = ssk.view_key();
@@ -353,7 +350,7 @@ impl StateClient for StateStore {
     fn fetch_opening(
         &self,
         note: &Note,
-    ) -> Result<PoseidonBranch<POSEIDON_TREE_DEPTH>, Self::Error> {
+    ) -> Result<Opening<(), POSEIDON_TREE_DEPTH, 4>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
 
         let msg = GetOpeningRequest {
@@ -365,8 +362,7 @@ impl StateClient for StateStore {
         let res = state.client.get_opening(req).wait()?.into_inner().branch;
         self.status("Opening notes received!");
 
-        let mut src = Source::new(&res);
-        let branch = Canon::decode(&mut src)?;
+        let branch = rkyv::from_bytes(&res).map_err(|_| Error::Rkyv)?;
         Ok(branch)
     }
 

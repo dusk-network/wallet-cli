@@ -2,3 +2,9 @@ state = { url = "https://nodes.dusk.network:8585" }
 prover = { url = "https://provers.dusk.network:8686" }
 explorer = "https://explorer.dusk.network/transactions/transaction/?id="
 graphql = "http://nodes.dusk.network:9500/graphql"
+
+[network.devnet]
+state = { url = "https://devnet.nodes.dusk.network:8585" }
+prover = { url = "https://devnet.provers.dusk.network:8686" }
+explorer = "https://explorer.dusk.network/transactions/transaction/?id="
+graphql = "http://devnet.nodes.dusk.network:9500/graphql"

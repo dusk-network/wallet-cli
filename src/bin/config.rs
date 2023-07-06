@@ -112,7 +112,7 @@ impl Config {
         global_config.push(env!("CARGO_BIN_NAME"));
         global_config.push("config.toml");
 
-        let contents = read_to_string(&profile)?
+        let contents = read_to_string(profile)?
             .or(read_to_string(&global_config)?)
             .unwrap_or_else(|| {
                 include_str!("../../default.config.toml").to_string()

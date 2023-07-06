@@ -6,11 +6,10 @@
 
 use crate::clients::StateStore;
 use crate::store::LocalStore;
-
-use canonical::CanonError;
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::io;
+use std::str::Utf8Error;
 use tonic::codegen::http;
 
 use super::clients;
@@ -54,9 +53,12 @@ pub enum Error {
     /// Base58 errors
     #[error(transparent)]
     Base58(#[from] bs58::decode::Error),
-    /// Canonical errors
-    #[error("A serialization error occurred: {0:?}")]
-    Canon(CanonError),
+    /// Rkyv errors
+    #[error("A serialization error occurred.")]
+    Rkyv,
+    /// Utf8 errors
+    #[error("Utf8 error: {0:?}")]
+    Utf8(Utf8Error),
     /// Random number generator errors
     #[error(transparent)]
     Rng(#[from] RngError),
@@ -156,18 +158,12 @@ impl From<block_modes::InvalidKeyIvLength> for Error {
     }
 }
 
-impl From<CanonError> for Error {
-    fn from(e: CanonError) -> Self {
-        Self::Canon(e)
-    }
-}
-
 impl From<CoreError> for Error {
     fn from(e: CoreError) -> Self {
         use dusk_wallet_core::Error::*;
         match e {
             Store(err) | State(err) | Prover(err) => err,
-            Canon(err) => Self::Canon(err),
+            Rkyv => Self::Rkyv,
             Rng(err) => Self::Rng(err),
             Bytes(err) => Self::Bytes(err),
             Phoenix(err) => Self::Phoenix(err),
@@ -176,6 +172,7 @@ impl From<CoreError> for Error {
             AlreadyStaked { .. } => Self::AlreadyStaked,
             NotStaked { .. } => Self::NotStaked,
             NoReward { .. } => Self::NoReward,
+            Utf8(err) => Self::Utf8(err.utf8_error()),
         }
     }
 }

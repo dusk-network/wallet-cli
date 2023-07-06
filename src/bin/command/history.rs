@@ -9,6 +9,7 @@ use std::fmt::{self, Display};
 use dusk_wallet::DecodedNote;
 use dusk_wallet_core::Transaction;
 use rusk_abi::dusk;
+use rusk_abi::hash::Hasher;
 
 use crate::io::{self, GraphQL};
 use crate::settings::Settings;
@@ -35,19 +36,7 @@ impl Display for TransactionHistory {
         let dusk = self.amount / dusk::dusk(1.0) as f64;
         let contract = match self.tx.call() {
             None => "transfer",
-            Some((contract, data)) => {
-                if contract == &rusk_abi::stake_contract() {
-                    match data.first() {
-                        Some(0) => "stake",
-                        Some(1) => "unstake",
-                        Some(2) => "withdraw",
-                        Some(3) => "allow",
-                        _ => "?",
-                    }
-                } else {
-                    "???"
-                }
-            }
+            Some((_, method, _)) => method,
         };
 
         let fee = match self.direction {
@@ -63,7 +52,7 @@ impl Display for TransactionHistory {
             f,
             "{: >9} | {:x} | {: ^8} | {: >+17.9} | {}",
             self.height,
-            self.tx.hash(),
+            Hasher::digest(self.tx.to_hash_input_bytes()),
             contract,
             dusk,
             fee
@@ -104,7 +93,7 @@ pub(crate) async fn transaction_from_notes(
 
         if let Some((t, gas_spent)) = note_creator {
             let inputs_amount: f64 = t
-                .inputs()
+                .nullifiers()
                 .iter()
                 .filter_map(|input| {
                     nullifiers.iter().find_map(|n| n.0.eq(input).then_some(n.1))
@@ -115,8 +104,10 @@ pub(crate) async fn transaction_from_notes(
                 true => TransactionDirection::Out,
                 false => TransactionDirection::In,
             };
-
-            match ret.iter_mut().find(|th| th.tx.hash() == t.hash()) {
+            let hash_to_find = Hasher::digest(t.to_hash_input_bytes());
+            match ret.iter_mut().find(|th| {
+                Hasher::digest(th.tx.to_hash_input_bytes()) == hash_to_find
+            }) {
                 Some(tx) => tx.amount += note_amount,
                 None => ret.push(TransactionHistory {
                     direction,

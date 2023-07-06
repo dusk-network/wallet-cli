@@ -9,7 +9,8 @@ mod history;
 use clap::Subcommand;
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::DeserializableSlice;
-use dusk_jubjub::BlsScalar;
+use dusk_plonk::prelude::BlsScalar;
+use rusk_abi::hash::Hasher;
 use std::{fmt, path::PathBuf};
 
 use crate::io::prompt;
@@ -234,7 +235,7 @@ impl Command {
                 gas.set_limit(gas_limit);
 
                 let tx = wallet.transfer(sender, &rcvr, amt, gas).await?;
-                Ok(RunResult::Tx(tx.hash()))
+                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::Stake {
                 addr,
@@ -251,7 +252,7 @@ impl Command {
                 gas.set_limit(gas_limit);
 
                 let tx = wallet.stake(addr, amt, gas).await?;
-                Ok(RunResult::Tx(tx.hash()))
+                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::StakeAllow {
                 addr,
@@ -273,7 +274,7 @@ impl Command {
                     .map_err(dusk_wallet::Error::from)?;
 
                 let tx = wallet.stake_allow(addr, &key, gas).await?;
-                Ok(RunResult::Tx(tx.hash()))
+                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::StakeInfo { addr, reward } => {
                 let addr = match addr {
@@ -298,7 +299,7 @@ impl Command {
                 gas.set_limit(gas_limit);
 
                 let tx = wallet.unstake(addr, gas).await?;
-                Ok(RunResult::Tx(tx.hash()))
+                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::Withdraw {
                 addr,
@@ -315,7 +316,7 @@ impl Command {
                 gas.set_limit(gas_limit);
 
                 let tx = wallet.withdraw_reward(addr, gas).await?;
-                Ok(RunResult::Tx(tx.hash()))
+                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::Export { addr, dir } => {
                 let addr = match addr {
