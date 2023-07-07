@@ -12,7 +12,6 @@ pub use address::Address;
 pub use file::{SecureWalletFile, WalletPath};
 
 use bip39::{Language, Mnemonic, Seed};
-use blake3::Hash;
 use canonical::Canon;
 use dusk_bytes::{DeserializableSlice, Serializable};
 use phoenix_core::Note;
@@ -658,7 +657,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         &self,
         addr: &Address,
         dir: &Path,
-        pwd: Hash,
+        pwd: &[u8],
     ) -> Result<(PathBuf, PathBuf), Error> {
         // we're expecting a directory here
         if !dir.is_dir() {
@@ -736,6 +735,9 @@ mod base64 {
 mod tests {
 
     use super::*;
+
+    use crate::crypto::password_hash;
+
     use tempfile::tempdir;
 
     const TEST_ADDR: &str = "2w7fRQW23Jn9Bgm1GQW9eC2bD9U883dAwqP7HAr2F8g1syzPQaPYrxSyyVZ81yDS5C1rv9L8KjdPBsvYawSx3QCW";
@@ -743,7 +745,7 @@ mod tests {
     #[derive(Debug, Clone)]
     struct WalletFile {
         path: WalletPath,
-        pwd: Hash,
+        pwd: Vec<u8>,
     }
 
     impl SecureWalletFile for WalletFile {
@@ -751,8 +753,8 @@ mod tests {
             &self.path
         }
 
-        fn pwd(&self) -> Hash {
-            self.pwd
+        fn pwd(&self) -> &[u8] {
+            &self.pwd
         }
     }
 
@@ -792,7 +794,7 @@ mod tests {
         let path = WalletPath::from(path);
 
         // we'll need a password too
-        let pwd = blake3::hash("mypassword".as_bytes());
+        let pwd = password_hash(b"mypassword").to_vec();
 
         // create and save
         let mut wallet: Wallet<WalletFile> = Wallet::new("uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;

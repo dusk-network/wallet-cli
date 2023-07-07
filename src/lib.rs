@@ -14,10 +14,12 @@
 
 #![deny(missing_docs)]
 
+/// Contains crypto primitives for the wallet
+pub mod crypto;
+
 mod block;
 mod cache;
 mod clients;
-mod crypto;
 
 mod currency;
 mod error;

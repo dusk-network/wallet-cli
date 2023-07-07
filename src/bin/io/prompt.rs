@@ -15,12 +15,12 @@ use crossterm::{
 
 use anyhow::Result;
 use bip39::{ErrorKind, Language, Mnemonic};
-use blake3::Hash;
 use dusk_wallet::Error;
 use requestty::Question;
 
 use dusk_wallet::{Address, Dusk, Lux};
 
+use dusk_wallet::crypto::password_hash;
 use dusk_wallet::gas;
 use dusk_wallet::{MAX_CONVERTIBLE, MIN_CONVERTIBLE};
 
@@ -28,7 +28,7 @@ use dusk_wallet::{MAX_CONVERTIBLE, MIN_CONVERTIBLE};
 pub(crate) fn request_auth(
     msg: &str,
     password: &Option<String>,
-) -> anyhow::Result<Hash> {
+) -> anyhow::Result<Vec<u8>> {
     let pwd = match password.as_ref() {
         Some(p) => p.to_string(),
 
@@ -43,13 +43,15 @@ pub(crate) fn request_auth(
         }
     };
 
-    Ok(blake3::hash(pwd.as_bytes()))
+    let hash = password_hash(pwd.as_bytes());
+
+    Ok(hash)
 }
 
 /// Request the user to create a wallet password
 pub(crate) fn create_password(
     password: &Option<String>,
-) -> anyhow::Result<Hash> {
+) -> anyhow::Result<Vec<u8>> {
     let pwd = match password.as_ref() {
         Some(p) => p.to_string(),
         None => {
@@ -85,8 +87,9 @@ pub(crate) fn create_password(
         }
     };
 
-    let pwd = blake3::hash(pwd.as_bytes());
-    Ok(pwd)
+    let hash = password_hash(pwd.as_bytes());
+
+    Ok(hash)
 }
 
 /// Display the recovery phrase to the user and ask for confirmation

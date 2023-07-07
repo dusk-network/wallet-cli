@@ -327,7 +327,7 @@ impl Command {
                     &settings.password,
                 )?;
                 let (pub_key, key_pair) =
-                    wallet.export_keys(addr, &dir, pwd)?;
+                    wallet.export_keys(addr, &dir, &pwd)?;
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))
             }
             Command::History { addr } => {

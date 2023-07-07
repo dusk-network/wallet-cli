@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Populate cache database with psk(s) on state init [#158]
+- Replace blake3 with sha256 with the sha2 crate
 
 ## [0.16.0] - 2023-06-28
 

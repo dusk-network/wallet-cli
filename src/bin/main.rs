@@ -19,7 +19,6 @@ use std::fs;
 use tracing::{warn, Level};
 
 use bip39::{Language, Mnemonic, MnemonicType};
-use blake3::Hash;
 
 use crate::command::TransactionHistory;
 use crate::settings::{LogFormat, Settings};
@@ -36,7 +35,7 @@ use io::{GraphQL, WalletArgs};
 #[derive(Debug, Clone)]
 pub(crate) struct WalletFile {
     path: WalletPath,
-    pwd: Hash,
+    pwd: Vec<u8>,
 }
 
 impl SecureWalletFile for WalletFile {
@@ -44,8 +43,8 @@ impl SecureWalletFile for WalletFile {
         &self.path
     }
 
-    fn pwd(&self) -> Hash {
-        self.pwd
+    fn pwd(&self) -> &[u8] {
+        &self.pwd
     }
 }
 
@@ -210,8 +209,9 @@ async fn exec() -> anyhow::Result<()> {
 
                         let w = Wallet::from_file(WalletFile {
                             path: file.clone(),
-                            pwd,
+                            pwd: pwd.clone(),
                         })?;
+
                         (w, pwd)
                     }
                     None => {
