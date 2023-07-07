@@ -282,7 +282,7 @@ async fn exec() -> anyhow::Result<()> {
 
                 // Wait for transaction confirmation from network
                 let gql = GraphQL::new(
-                    &settings.graphql.to_string(),
+                    settings.graphql.to_string(),
                     status::headless,
                 );
                 gql.wait_for(&txh).await?;

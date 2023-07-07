@@ -18,7 +18,7 @@ type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 /// Encrypts data using a password.
 pub(crate) fn encrypt(plaintext: &[u8], pwd: &[u8]) -> Result<Vec<u8>, Error> {
     let mut iv = vec![0; 16];
-    let mut rng = OsRng::default();
+    let mut rng = OsRng;
     rng.fill_bytes(&mut iv);
 
     let cipher = Aes256Cbc::new_from_slices(pwd, &iv)?;
