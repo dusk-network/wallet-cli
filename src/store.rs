@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::clients::StateStore;
+use crate::state::StateStore;
 use crate::Error;
 
 use dusk_bytes::{Error as BytesError, Serializable};

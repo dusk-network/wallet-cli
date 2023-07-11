@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::settings::{LogFormat, LogLevel};
+use crate::settings::{LogFormat, LogLevel, SyncMode};
 use crate::Command;
 use clap::{AppSettings, Parser};
 use std::path::PathBuf;
@@ -47,4 +47,8 @@ pub(crate) struct WalletArgs {
     /// Command
     #[clap(subcommand)]
     pub command: Option<Command>,
+
+    /// Period of the sync
+    #[clap(long, value_enum, default_value_t = SyncMode::OnRequest)]
+    pub sync_mode: SyncMode,
 }

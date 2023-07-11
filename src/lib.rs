@@ -16,13 +16,15 @@
 
 mod block;
 mod cache;
-mod clients;
 mod crypto;
+mod prover;
 
 mod currency;
 mod error;
 mod rusk;
+mod state;
 mod store;
+mod sync;
 mod wallet;
 
 pub use currency::{Dusk, Lux};

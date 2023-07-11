@@ -34,6 +34,14 @@ pub(crate) enum LogLevel {
     Error,
 }
 
+#[derive(clap::ValueEnum, Debug, Clone)]
+pub(crate) enum SyncMode {
+    /// Sync periodically in the background
+    Periodic,
+    /// Sync on every request, by default this is true
+    OnRequest,
+}
+
 #[derive(Debug)]
 pub(crate) struct Logging {
     /// Max log level

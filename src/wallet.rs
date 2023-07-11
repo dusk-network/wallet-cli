@@ -31,10 +31,11 @@ use dusk_wallet_core::{
 use rand::prelude::StdRng;
 use rand::SeedableRng;
 
-use crate::clients::{Prover, StateStore};
 use crate::crypto::{decrypt, encrypt};
 use crate::currency::Dusk;
+use crate::prover::Prover;
 use crate::rusk::{RuskClient, RuskEndpoint};
+use crate::state::StateStore;
 use crate::store::LocalStore;
 use crate::Error;
 use gas::Gas;
