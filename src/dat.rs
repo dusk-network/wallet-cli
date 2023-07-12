@@ -9,7 +9,6 @@ use dusk_bytes::DeserializableSlice;
 
 use crate::crypto::decrypt;
 use crate::store;
-use crate::store::LocalStore;
 use crate::Error;
 
 /// Binary prefix for old Dusk wallet files
