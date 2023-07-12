@@ -15,8 +15,6 @@ use crate::Error;
 pub const OLD_MAGIC: u32 = 0x1d0c15;
 /// Binary prefix for new binary file format
 pub const MAGIC: u32 = 0x72736b;
-/// Specifies the encoding used to save files
-pub const VERSION: &[u8] = &[2, 0];
 
 /// (Major, Minor, Patch, Pre, Pre-Higher)
 type Version = (u8, u8, u8, u8, bool);
