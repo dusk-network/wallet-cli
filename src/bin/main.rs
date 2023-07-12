@@ -27,6 +27,7 @@ use crate::settings::{LogFormat, Settings};
 #[cfg(not(windows))]
 use dusk_wallet::TransportUDS;
 
+use dusk_wallet::Error;
 use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
 
 use config::{Config, TransportMethod};
@@ -94,8 +95,10 @@ where
     };
 
     // check for connection errors
-    if con.is_err() {
-        warn!("Connection to Rusk Failed, some operations won't be available.");
+    match con {
+        Err(Error::RocksDB(e)) => panic!{"Invalid cache {e}"},
+        Err(e) => warn!("Connection to Rusk Failed, some operations won't be available: {e:?}"),
+        _ => {}
     }
 
     wallet
