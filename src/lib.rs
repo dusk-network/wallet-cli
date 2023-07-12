@@ -20,6 +20,7 @@ mod clients;
 mod crypto;
 
 mod currency;
+mod dat;
 mod error;
 mod rusk;
 mod store;

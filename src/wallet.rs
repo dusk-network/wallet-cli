@@ -34,17 +34,13 @@ use rand::SeedableRng;
 use crate::clients::{Prover, StateStore};
 use crate::crypto::{decrypt, encrypt};
 use crate::currency::Dusk;
+use crate::dat::{self, DatFileVersion, MAGIC, VERSION};
 use crate::rusk::RuskClient;
 use crate::store::LocalStore;
 use crate::Error;
 use gas::Gas;
 
 use crate::store;
-
-/// Binary prefix for Dusk wallet files
-const MAGIC: u32 = 0x1d0c15;
-/// Specifies the encoding used to save files
-const VERSION: &[u8] = &[2, 0];
 
 /// The interface to the Dusk Network
 ///
@@ -128,51 +124,32 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         }
 
         // attempt to load and decode wallet
-        let mut bytes = fs::read(&pb)?;
+        let bytes = fs::read(&pb)?;
 
-        // check for magic number
-        let magic =
-            u32::from_le_bytes(bytes[0..4].try_into().unwrap()) & 0x00ffffff;
+        let file_version = dat::check_version(bytes.get(0..12))?;
 
-        if magic != MAGIC {
-            return Self::from_legacy_file(file);
-        }
-
-        bytes.drain(..3);
-
-        // check for version information
-        let [major, minor] = [bytes[0], bytes[1]];
-        bytes.drain(..2);
-
-        // decrypt and interpret file contents
-        let result: Result<(store::Seed, u8), Error> = match (major, minor) {
-            (1, 0) => {
-                bytes = decrypt(&bytes, pwd)?;
-
-                let seed = store::Seed::from_reader(&mut &bytes[..])
-                    .map_err(|_| Error::WalletFileCorrupted)?;
-
-                Ok((seed, 1))
-            }
-            (2, 0) => {
-                let content = decrypt(&bytes, pwd)?;
-                let mut buff = &content[..];
-
-                // extract seed
-                let seed = store::Seed::from_reader(&mut buff)
-                    .map_err(|_| Error::WalletFileCorrupted)?;
-
-                // extract addresses count
-                Ok((seed, buff[0]))
-            }
-            _ => {
-                return Err(Error::UnknownFileVersion(major, minor));
-            }
-        };
-
-        let (seed, address_count) = result?;
+        let (seed, address_count) =
+            dat::get_seed_and_address(file_version, bytes, pwd)?;
 
         let store = LocalStore::new(seed);
+
+        // return early if its legacy
+        if let DatFileVersion::Legacy = file_version {
+            let ssk = store
+                .retrieve_ssk(0)
+                .expect("wallet seed should be available");
+
+            let address = Address::new(0, ssk.public_spend_key());
+
+            // return the store
+            return Ok(Self {
+                wallet: None,
+                addresses: vec![address],
+                store,
+                file: Some(file),
+                status: |_| {},
+            });
+        }
 
         let addresses: Vec<_> = (0..address_count)
             .map(|i| {
@@ -188,42 +165,6 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         Ok(Self {
             wallet: None,
             addresses,
-            store,
-            file: Some(file),
-            status: |_| {},
-        })
-    }
-
-    /// Attempts to load a legacy wallet file (no version number)
-    fn from_legacy_file(file: F) -> Result<Self, Error> {
-        let path = file.path();
-        let pwd = file.pwd();
-
-        // attempt to load and decode wallet
-        let mut bytes = fs::read(path.inner())?;
-
-        // check for old version information and strip it if present
-        if bytes[1] == 0 && bytes[2] == 0 {
-            bytes.drain(..3);
-        }
-
-        bytes = decrypt(&bytes, pwd)?;
-
-        // get our seed
-        let seed = store::Seed::from_reader(&mut &bytes[..])
-            .map_err(|_| Error::WalletFileCorrupted)?;
-
-        let store = LocalStore::new(seed);
-        let ssk = store
-            .retrieve_ssk(0)
-            .expect("wallet seed should be available");
-
-        let address = Address::new(0, ssk.public_spend_key());
-
-        // return the store
-        Ok(Self {
-            wallet: None,
-            addresses: vec![address],
             store,
             file: Some(file),
             status: |_| {},
