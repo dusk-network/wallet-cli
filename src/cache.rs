@@ -32,28 +32,24 @@ impl Cache {
         path: T,
         store: &LocalStore,
     ) -> Result<Self, Error> {
-        let mut db: DB;
+        let cfs: Vec<_> = (0..MAX_ADDRESSES)
+            .map(|i| {
+                let ssk =
+                    store.retrieve_ssk(i as u64).expect("ssk to be available");
+                let psk = ssk.public_spend_key();
+                format!("{:?}", psk)
+            })
+            .collect();
+
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
         // After 10 million bytes, sort the cache file and create new one
         opts.set_write_buffer_size(10_000_000);
 
-        let list = DB::list_cf(&Options::default(), &path);
+        // create all CF(s) on startup if we don't have them
+        let db = DB::open_cf(&opts, path, cfs)?;
 
-        if let Ok(list) = list {
-            db = DB::open_cf(&opts, path, list)?;
-        } else {
-            db = DB::open(&opts, path)?;
-
-            // create all CF(s) on startup if we don't have them
-            for i in 0..MAX_ADDRESSES {
-                let ssk = store.retrieve_ssk(i as u64)?;
-                let psk = ssk.view_key().public_spend_key();
-
-                db.create_cf(&format!("{:?}", psk), &Options::default())?;
-            }
-        }
         let write_batch = WriteBatch::default();
 
         Ok(Self { db, write_batch })
