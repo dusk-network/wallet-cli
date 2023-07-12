@@ -34,7 +34,7 @@ use rand::SeedableRng;
 use crate::clients::{Prover, StateStore};
 use crate::crypto::encrypt;
 use crate::currency::Dusk;
-use crate::dat::{self, DatFileVersion, OLD_MAGIC, VERSION};
+use crate::dat::{self, DatFileVersion, MAGIC};
 use crate::rusk::RuskClient;
 use crate::store::LocalStore;
 use crate::Error;
@@ -175,13 +175,19 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     pub fn save(&mut self) -> Result<(), Error> {
         match &self.file {
             Some(f) => {
-                let mut header = Vec::with_capacity(5);
-                header.extend_from_slice(&OLD_MAGIC.to_le_bytes()[..3]);
-                header.extend_from_slice(VERSION);
+                let mut header = Vec::with_capacity(12);
+                header.extend_from_slice(&MAGIC.to_be_bytes());
+                // File type = Rusk Wallet (0x02)
+                header.extend_from_slice(&0x200_u16.to_be_bytes());
+                // Reserved (0x0)
+                header.extend_from_slice(&0x0000_u16.to_be_bytes());
+                // Version
+                header.extend_from_slice(&0x00000100_u32.to_be_bytes());
 
                 // create file payload
                 let seed = self.store.get_seed()?;
                 let mut payload = seed.to_vec();
+
                 payload.push(self.addresses.len() as u8);
 
                 // encrypt the payload
