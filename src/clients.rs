@@ -32,7 +32,7 @@ use super::cache::Cache;
 
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::store::LocalStore;
-use crate::{Error, MAX_ADDRESSES};
+use crate::Error;
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -238,7 +238,7 @@ impl StateClient for StateStore {
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
 
-        let addresses: Vec<_> = (0..MAX_ADDRESSES)
+        let addresses: Vec<_> = (0..self.store.addresses().len())
             .flat_map(|i| self.store.retrieve_ssk(i as u64))
             .map(|ssk| {
                 let vk = ssk.view_key();

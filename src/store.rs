@@ -5,7 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use crate::clients::StateStore;
-use crate::Error;
+use crate::{Address, Error};
 
 use dusk_bytes::{Error as BytesError, Serializable};
 use dusk_wallet_core::Store;
@@ -34,6 +34,7 @@ impl Serializable<64> for Seed {
 #[derive(Clone)]
 pub(crate) struct LocalStore {
     seed: Seed,
+    addresses: Vec<Address>,
 }
 
 impl Store for LocalStore {
@@ -56,7 +57,31 @@ impl Store for StateStore {
 
 impl LocalStore {
     /// Creates a new store from a known seed
-    pub(crate) fn new(seed: Seed) -> Self {
-        LocalStore { seed }
+    pub(crate) fn new(seed: Seed, address_count: u8) -> Self {
+        let mut store = LocalStore {
+            seed,
+            addresses: vec![],
+        };
+        (0..address_count).for_each(|_| {
+            store.new_address();
+        });
+        store
+    }
+
+    pub(crate) fn addresses(&self) -> &Vec<Address> {
+        &self.addresses
+    }
+
+    /// Creates a new public address.
+    /// The addresses generated are deterministic across sessions.
+    pub fn new_address(&mut self) -> &Address {
+        let len = self.addresses.len();
+        let ssk = self
+            .retrieve_ssk(len as u64)
+            .expect("wallet seed should be available");
+        let addr = Address::new(len as u8, ssk.public_spend_key());
+
+        self.addresses.push(addr);
+        self.addresses.last().unwrap()
     }
 }
