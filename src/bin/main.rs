@@ -233,6 +233,10 @@ async fn exec() -> anyhow::Result<()> {
                     path: wallet_path,
                     pwd,
                 })?;
+
+                // TODO: Scan the network to check existing addresses
+                // https://github.com/dusk-network/wallet-cli/issues/80
+
                 w
             }
 
