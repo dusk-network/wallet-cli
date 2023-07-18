@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change `REQUIRED_RUSK_VERSION` to `0.6.0` [#151]
 - Change `Error::Canon` variant to `Error::Rkyv` [#151]
 - Populate cache database with psk(s) on state init [#158]
+- Save the wallet.dat file with the new Rusk Binary Format [#165]
 
 ### Fixed
 - Fix cache resolution for alternative networks [#151]
@@ -380,6 +381,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#123]: https://github.com/dusk-network/wallet-cli/issues/123
 [#116]: https://github.com/dusk-network/wallet-cli/issues/116
 [#114]: https://github.com/dusk-network/wallet-cli/issues/114
+[#165]: https://github.com/dusk-network/wallet-cli/issues/165
 [#49]: https://github.com/dusk-network/wallet-cli/issues/49
 [#46]: https://github.com/dusk-network/wallet-cli/issues/46
 [#87]: https://github.com/dusk-network/wallet-cli/issues/87
