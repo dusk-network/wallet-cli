@@ -129,7 +129,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         let file_version = dat::check_version(bytes.get(0..12))?;
 
         let (seed, address_count) =
-            dat::get_seed_and_address(file_version, bytes, pwd)?;
+            dat::get_seed_and_address(file_version, bytes, pwd.as_bytes())?;
 
         let store = LocalStore::new(seed);
 

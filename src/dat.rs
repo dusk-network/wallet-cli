@@ -4,7 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use blake3::Hash;
 use dusk_bytes::DeserializableSlice;
 
 use crate::crypto::decrypt;
@@ -34,7 +33,7 @@ pub(crate) enum DatFileVersion {
 pub(crate) fn get_seed_and_address(
     file: DatFileVersion,
     mut bytes: Vec<u8>,
-    pwd: Hash,
+    pwd: &[u8],
 ) -> Result<(store::Seed, u8), Error> {
     match file {
         DatFileVersion::Legacy => {
