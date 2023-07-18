@@ -6,9 +6,9 @@
 
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::{DeserializableSlice, Serializable, Write};
-use dusk_merkle::poseidon::Opening;
 use dusk_pki::ViewKey;
 use dusk_plonk::prelude::*;
+use dusk_plonk::proof_system::Proof;
 use dusk_schnorr::Signature;
 use dusk_wallet_core::{
     EnrichedNote, ProverClient, StakeInfo, StateClient, Store, Transaction,
@@ -16,6 +16,7 @@ use dusk_wallet_core::{
 };
 use futures::StreamExt;
 use phoenix_core::{Crossover, Fee, Note};
+use poseidon_merkle::Opening as PoseidonOpening;
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -350,7 +351,7 @@ impl StateClient for StateStore {
     fn fetch_opening(
         &self,
         note: &Note,
-    ) -> Result<Opening<(), POSEIDON_TREE_DEPTH, 4>, Self::Error> {
+    ) -> Result<PoseidonOpening<(), POSEIDON_TREE_DEPTH, 4>, Self::Error> {
         let mut state = self.inner.lock().unwrap();
 
         let msg = GetOpeningRequest {
