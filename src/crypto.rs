@@ -29,11 +29,11 @@ pub(crate) fn encrypt(plaintext: &[u8], pwd: Hash) -> Result<Vec<u8>, Error> {
 }
 
 /// Decrypts data encrypted with `encrypt`.
-pub(crate) fn decrypt(ciphertext: &[u8], pwd: Hash) -> Result<Vec<u8>, Error> {
+pub(crate) fn decrypt(ciphertext: &[u8], pwd: &[u8]) -> Result<Vec<u8>, Error> {
     let iv = &ciphertext[..16];
     let enc = &ciphertext[16..];
 
-    let cipher = Aes256Cbc::new_from_slices(pwd.as_bytes(), iv)?;
+    let cipher = Aes256Cbc::new_from_slices(pwd, iv)?;
     let plaintext = cipher.decrypt_vec(enc)?;
 
     Ok(plaintext)
@@ -55,7 +55,8 @@ mod tests {
         // check that random IV is correctly applied
         assert_ne!(enc_seed, enc_seed_t);
 
-        let dec_seed = decrypt(&enc_seed, pwd).expect("seed to decrypt ok");
+        let dec_seed =
+            decrypt(&enc_seed, pwd.as_bytes()).expect("seed to decrypt ok");
 
         // check that decryption matches original seed
         assert_eq!(dec_seed, seed);
