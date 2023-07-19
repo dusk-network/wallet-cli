@@ -12,6 +12,7 @@ mod menu;
 mod settings;
 
 pub(crate) use command::{Command, RunResult};
+use dusk_wallet::dat::LATEST_VERSION;
 pub(crate) use menu::Menu;
 
 use clap::Parser;
@@ -19,7 +20,6 @@ use std::fs;
 use tracing::{warn, Level};
 
 use bip39::{Language, Mnemonic, MnemonicType};
-use blake3::Hash;
 
 use crate::command::TransactionHistory;
 use crate::settings::{LogFormat, Settings};
@@ -27,7 +27,7 @@ use crate::settings::{LogFormat, Settings};
 #[cfg(not(windows))]
 use dusk_wallet::TransportUDS;
 
-use dusk_wallet::Error;
+use dusk_wallet::{dat, Error};
 use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
 
 use config::{Config, TransportMethod};
@@ -37,7 +37,7 @@ use io::{GraphQL, WalletArgs};
 #[derive(Debug, Clone)]
 pub(crate) struct WalletFile {
     path: WalletPath,
-    pwd: Hash,
+    pwd: Vec<u8>,
 }
 
 impl SecureWalletFile for WalletFile {
@@ -45,8 +45,8 @@ impl SecureWalletFile for WalletFile {
         &self.path
     }
 
-    fn pwd(&self) -> Hash {
-        self.pwd
+    fn pwd(&self) -> &[u8] {
+        &self.pwd
     }
 }
 
@@ -181,6 +181,8 @@ async fn exec() -> anyhow::Result<()> {
         _ => {}
     };
 
+    let file_version = dat::read_file_version(&wallet_path);
+
     // get our wallet ready
     let mut wallet: Wallet<WalletFile> = match cmd {
         Some(ref cmd) => match cmd {
@@ -189,7 +191,11 @@ async fn exec() -> anyhow::Result<()> {
                 let mnemonic =
                     Mnemonic::new(MnemonicType::Words12, Language::English);
                 // ask user for a password to secure the wallet
-                let pwd = prompt::create_password(password)?;
+                // latest version is used for dat file
+                let pwd = prompt::create_password(
+                    password,
+                    dat::DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
+                )?;
                 // skip phrase confirmation if explicitly
                 if !skip_recovery {
                     prompt::confirm_recovery_phrase(&mnemonic)?;
@@ -197,31 +203,47 @@ async fn exec() -> anyhow::Result<()> {
 
                 // create wallet
                 let mut w = Wallet::new(mnemonic)?;
+
                 w.save_to(WalletFile {
                     path: wallet_path,
                     pwd,
                 })?;
+
                 w
             }
             Command::Restore { file } => {
                 let (mut w, pwd) = match file {
                     Some(file) => {
+                        // if we restore and old version file make sure we
+                        // know the corrrect version before asking for the
+                        // password
+                        let file_version = dat::read_file_version(file)?;
+
                         let pwd = prompt::request_auth(
                             "Please enter wallet password",
                             password,
+                            file_version,
                         )?;
 
                         let w = Wallet::from_file(WalletFile {
                             path: file.clone(),
-                            pwd,
+                            pwd: pwd.clone(),
                         })?;
+
                         (w, pwd)
                     }
+                    // Use the latest dat file version when there's no dat file
+                    // provided when restoring the wallet
                     None => {
                         // ask user for 12-word recovery phrase
                         let phrase = prompt::request_recovery_phrase()?;
                         // ask user for a password to secure the wallet
-                        let pwd = prompt::create_password(password)?;
+                        let pwd = prompt::create_password(
+                            password,
+                            dat::DatFileVersion::RuskBinaryFileFormat(
+                                LATEST_VERSION,
+                            ),
+                        )?;
                         // create wallet
                         let w = Wallet::new(phrase)?;
 
@@ -233,15 +255,20 @@ async fn exec() -> anyhow::Result<()> {
                     path: wallet_path,
                     pwd,
                 })?;
+
                 w
             }
 
             _ => {
+                // Grab the file version for a random command
+                let file_version = file_version?;
                 // load wallet from file
                 let pwd = prompt::request_auth(
                     "Please enter wallet password",
                     password,
+                    file_version,
                 )?;
+
                 Wallet::from_file(WalletFile {
                     path: wallet_path,
                     pwd,
@@ -250,7 +277,7 @@ async fn exec() -> anyhow::Result<()> {
         },
         None => {
             // load a wallet in interactive mode
-            interactive::load_wallet(&wallet_path, &settings)?
+            interactive::load_wallet(&wallet_path, &settings, file_version?)?
         }
     };
 
