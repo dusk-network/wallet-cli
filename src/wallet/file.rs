@@ -4,7 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use blake3::Hash;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -14,7 +13,7 @@ pub trait SecureWalletFile {
     /// Returns the path
     fn path(&self) -> &WalletPath;
     /// Returns the hashed password
-    fn pwd(&self) -> Hash;
+    fn pwd(&self) -> &[u8];
 }
 
 /// Wrapper around `PathBuf` for wallet paths

@@ -20,11 +20,13 @@ mod clients;
 mod crypto;
 
 mod currency;
-mod dat;
 mod error;
 mod rusk;
 mod store;
 mod wallet;
+
+/// Methods for parsing/checking the DAT wallet file
+pub mod dat;
 
 pub use rusk::{RuskHttpClient, RuskRequest};
 

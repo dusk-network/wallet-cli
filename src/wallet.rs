@@ -13,7 +13,6 @@ use dusk_plonk::prelude::BlsScalar;
 pub use file::{SecureWalletFile, WalletPath};
 
 use bip39::{Language, Mnemonic, Seed};
-use blake3::Hash;
 use dusk_bytes::{DeserializableSlice, Serializable};
 use phoenix_core::transaction::ModuleId;
 use phoenix_core::Note;
@@ -60,6 +59,7 @@ pub struct Wallet<F: SecureWalletFile + Debug> {
     addresses: Vec<Address>,
     store: LocalStore,
     file: Option<F>,
+    file_version: Option<DatFileVersion>,
     status: fn(status: &str),
 }
 
@@ -105,6 +105,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 addresses: vec![address],
                 store,
                 file: None,
+                file_version: None,
                 status: |_| {},
             })
         } else {
@@ -129,7 +130,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         let file_version = dat::check_version(bytes.get(0..12))?;
 
         let (seed, address_count) =
-            dat::get_seed_and_address(file_version, bytes, pwd.as_bytes())?;
+            dat::get_seed_and_address(file_version, bytes, pwd)?;
 
         let store = LocalStore::new(seed);
 
@@ -147,6 +148,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 addresses: vec![address],
                 store,
                 file: Some(file),
+                file_version: Some(DatFileVersion::Legacy),
                 status: |_| {},
             });
         }
@@ -167,6 +169,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             addresses,
             store,
             file: Some(file),
+            file_version: Some(file_version),
             status: |_| {},
         })
     }
@@ -608,7 +611,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         &self,
         addr: &Address,
         dir: &Path,
-        pwd: Hash,
+        pwd: &[u8],
     ) -> Result<(PathBuf, PathBuf), Error> {
         // we're expecting a directory here
         if !dir.is_dir() {
@@ -649,6 +652,18 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             .iter()
             .find(|a| a.psk == addr.psk)
             .ok_or(Error::AddressNotOwned)
+    }
+
+    /// Return the dat file version from memory or by reading the file
+    /// In order to not read the file version more than once per execution
+    pub fn get_file_version(&self) -> Result<DatFileVersion, Error> {
+        if let Some(file_version) = self.file_version {
+            Ok(file_version)
+        } else if let Some(file) = &self.file {
+            Ok(dat::read_file_version(file.path())?)
+        } else {
+            Err(Error::WalletFileNotExists)
+        }
     }
 }
 
@@ -693,7 +708,7 @@ mod tests {
     #[derive(Debug, Clone)]
     struct WalletFile {
         path: WalletPath,
-        pwd: Hash,
+        pwd: Vec<u8>,
     }
 
     impl SecureWalletFile for WalletFile {
@@ -701,8 +716,8 @@ mod tests {
             &self.path
         }
 
-        fn pwd(&self) -> Hash {
-            self.pwd
+        fn pwd(&self) -> &[u8] {
+            &self.pwd
         }
     }
 
@@ -742,7 +757,7 @@ mod tests {
         let path = WalletPath::from(path);
 
         // we'll need a password too
-        let pwd = blake3::hash("mypassword".as_bytes());
+        let pwd = blake3::hash("mypassword".as_bytes()).as_bytes().to_vec();
 
         // create and save
         let mut wallet: Wallet<WalletFile> = Wallet::new("uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;

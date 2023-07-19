@@ -6,20 +6,26 @@
 
 use dusk_bytes::DeserializableSlice;
 
+use std::fs;
+use std::io::Read;
+
 use crate::crypto::decrypt;
 use crate::store;
 use crate::Error;
+use crate::WalletPath;
 
 /// Binary prefix for old Dusk wallet files
 pub const OLD_MAGIC: u32 = 0x1d0c15;
 /// Binary prefix for new binary file format
 pub const MAGIC: u32 = 0x72736b;
-
+/// The latest version of the rusk binary format for wallet dat file
+pub const LATEST_VERSION: Version = (0, 0, 1, 0, false);
 /// (Major, Minor, Patch, Pre, Pre-Higher)
 type Version = (u8, u8, u8, u8, bool);
 
+/// Versions of the potential wallet DAT files we read
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub(crate) enum DatFileVersion {
+pub enum DatFileVersion {
     /// Legacy the oldest format
     Legacy,
     /// Preciding legacy, we have the old one
@@ -28,6 +34,7 @@ pub(crate) enum DatFileVersion {
     RuskBinaryFileFormat(Version),
 }
 
+/// Make sense of the payload and return it
 pub(crate) fn get_seed_and_address(
     file: DatFileVersion,
     mut bytes: Vec<u8>,
@@ -167,6 +174,25 @@ pub(crate) fn check_version(
         }
         None => Err(Error::WalletFileCorrupted),
     }
+}
+
+/// Read the first 12 bytes of the dat file and get the file version from
+/// there
+pub fn read_file_version(file: &WalletPath) -> Result<DatFileVersion, Error> {
+    let path = &file.wallet;
+
+    // make sure file exists
+    if !path.is_file() {
+        return Err(Error::WalletFileNotExists);
+    }
+
+    let mut fs = fs::File::open(path)?;
+
+    let mut header_buf = [0; 12];
+
+    fs.read_exact(&mut header_buf)?;
+
+    check_version(Some(&header_buf))
 }
 
 #[cfg(test)]

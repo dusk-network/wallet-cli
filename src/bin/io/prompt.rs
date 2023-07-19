@@ -15,20 +15,21 @@ use crossterm::{
 
 use anyhow::Result;
 use bip39::{ErrorKind, Language, Mnemonic};
-use blake3::Hash;
-use dusk_wallet::Error;
+use dusk_wallet::{dat::DatFileVersion, Error};
 use requestty::Question;
 
 use dusk_wallet::{Address, Dusk, Lux};
 
 use dusk_wallet::gas;
 use dusk_wallet::{MAX_CONVERTIBLE, MIN_CONVERTIBLE};
+use sha2::{Digest, Sha256};
 
 /// Request the user to authenticate with a password
 pub(crate) fn request_auth(
     msg: &str,
     password: &Option<String>,
-) -> anyhow::Result<Hash> {
+    file_version: DatFileVersion,
+) -> anyhow::Result<Vec<u8>> {
     let pwd = match password.as_ref() {
         Some(p) => p.to_string(),
 
@@ -43,13 +44,14 @@ pub(crate) fn request_auth(
         }
     };
 
-    Ok(blake3::hash(pwd.as_bytes()))
+    Ok(hash(file_version, &pwd))
 }
 
 /// Request the user to create a wallet password
 pub(crate) fn create_password(
     password: &Option<String>,
-) -> anyhow::Result<Hash> {
+    file_version: DatFileVersion,
+) -> anyhow::Result<Vec<u8>> {
     let pwd = match password.as_ref() {
         Some(p) => p.to_string(),
         None => {
@@ -85,8 +87,7 @@ pub(crate) fn create_password(
         }
     };
 
-    let pwd = blake3::hash(pwd.as_bytes());
-    Ok(pwd)
+    Ok(hash(file_version, &pwd))
 }
 
 /// Display the recovery phrase to the user and ask for confirmation
@@ -147,6 +148,20 @@ fn is_valid_dir(dir: &str) -> bool {
     let mut p = std::path::PathBuf::new();
     p.push(dir);
     p.is_dir()
+}
+
+/// Use sha256 for Rusk Binary Format, and blake for the rest
+fn hash(file_version: DatFileVersion, pwd: &str) -> Vec<u8> {
+    match file_version {
+        DatFileVersion::RuskBinaryFileFormat(_) => {
+            let mut hasher = Sha256::new();
+
+            hasher.update(pwd.as_bytes());
+
+            hasher.finalize().to_vec()
+        }
+        _ => blake3::hash(pwd.as_bytes()).as_bytes().to_vec(),
+    }
 }
 
 /// Request a directory
