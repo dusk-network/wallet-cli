@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2023-07-19
+
 ### Added
 
 - Add `rkyv` dependency [#151]
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change `REQUIRED_RUSK_VERSION` to `0.6.0` [#151]
 - Change `Error::Canon` variant to `Error::Rkyv` [#151]
 - Populate cache database with psk(s) on state init [#158]
+- Change `dusk-plonk` to `0.14.0` [#169]
 
 ### Fixed
 - Fix cache resolution for alternative networks [#151]
@@ -447,10 +450,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#482]: https://github.com/dusk-network/rusk/issues/482
 [#479]: https://github.com/dusk-network/rusk/issues/479
 [#158]: https://github.com/dusk-network/wallet-cli/pull/158
+[#169]: https://github.com/dusk-network/wallet-cli/pull/169
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.16.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/dusk-network/wallet-cli/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/dusk-network/wallet-cli/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/dusk-network/wallet-cli/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/dusk-network/wallet-cli/compare/v0.14.0...v0.14.1
