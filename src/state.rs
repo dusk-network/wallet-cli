@@ -9,40 +9,37 @@ use dusk_bytes::{DeserializableSlice, Serializable};
 use dusk_merkle::poseidon::Opening;
 use dusk_pki::ViewKey;
 use dusk_plonk::prelude::*;
-
 use dusk_wallet_core::{
-    EnrichedNote, StakeInfo, StateClient, Store, POSEIDON_TREE_DEPTH,
+    EnrichedNote, StakeInfo, StateClient, POSEIDON_TREE_DEPTH,
 };
-use futures::StreamExt;
 use phoenix_core::Note;
+use rusk_schema::{
+    FindExistingNullifiersRequest, GetAnchorRequest, GetOpeningRequest,
+    GetStakeRequest,
+};
 
 use std::path::Path;
 use std::sync::Mutex;
 
-use rusk_schema::{
-    FindExistingNullifiersRequest, GetAnchorRequest, GetNotesRequest,
-    GetOpeningRequest, GetStakeRequest,
-};
-
 use super::block::Block;
 use super::cache::Cache;
-
 use super::rusk::RuskStateClient;
+
 use crate::store::LocalStore;
-use crate::{Error, MAX_ADDRESSES};
+use crate::Error;
 
 /// Implementation of the StateClient trait from wallet-core
 /// inner is an option because we don't want to open the db twice and lock it
 /// We construct StateStore twice
 pub struct StateStore {
-    inner: Mutex<InnerState>,
-    status: fn(&str),
+    pub(crate) inner: Mutex<InnerState>,
+    pub(crate) status: fn(&str),
     pub(crate) store: LocalStore,
 }
 
-struct InnerState {
-    client: RuskStateClient,
-    cache: Cache,
+pub(crate) struct InnerState {
+    pub(crate) client: RuskStateClient,
+    pub(crate) cache: Cache,
 }
 
 impl StateStore {
@@ -78,57 +75,8 @@ impl StateClient for StateStore {
         &self,
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
-
-        let addresses: Vec<_> = (0..MAX_ADDRESSES)
-            .flat_map(|i| self.store.retrieve_ssk(i as u64))
-            .map(|ssk| {
-                let vk = ssk.view_key();
-                let psk = vk.public_spend_key();
-                (ssk, vk, psk)
-            })
-            .collect();
-
-        self.status("Getting cached block height...");
+        let state = self.inner.lock().unwrap();
         let psk = vk.public_spend_key();
-        let mut last_height = state.cache.last_height()?;
-
-        self.status("Fetching fresh notes...");
-        let msg = GetNotesRequest {
-            height: last_height,
-            vk: vec![], // empty vector means *all* notes will be streamed
-        };
-        let req = tonic::Request::new(msg);
-        let mut stream = state.client.get_notes(req).wait()?.into_inner();
-        self.status("Connection established...");
-
-        self.status("Streaming notes...");
-
-        self.status(format!("From block: {}", last_height).as_str());
-
-        while let Some(item) = stream.next().wait() {
-            let rsp = item?;
-
-            last_height = std::cmp::max(last_height, rsp.height);
-
-            let note = Note::from_slice(&rsp.note)?;
-
-            for (ssk, vk, psk) in addresses.iter() {
-                if vk.owns(&note) {
-                    state.cache.insert(
-                        psk,
-                        rsp.height,
-                        (note, note.gen_nullifier(ssk)),
-                    )?;
-
-                    break;
-                }
-            }
-        }
-
-        println!("Last block: {}", last_height);
-
-        state.cache.persist(last_height)?;
 
         Ok(state
             .cache

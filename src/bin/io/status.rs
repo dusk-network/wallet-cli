@@ -10,10 +10,11 @@ use std::time::Duration;
 
 use tracing::info;
 
-const STATUS_SIZE: usize = 35;
+const STATUS_SIZE: usize = 250;
 
 /// Prints an interactive status message
 pub(crate) fn interactive(status: &str) {
+    println!("{}", status.len());
     let filln = STATUS_SIZE - status.len();
     let fill = if filln > 0 {
         " ".repeat(filln)

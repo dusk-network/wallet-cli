@@ -80,13 +80,18 @@ where
                 .connect_with_status(
                     TransportTCP::new(&settings.state, &settings.prover),
                     status,
+                    &settings.sync_mode,
                 )
                 .await
         }
         #[cfg(not(windows))]
         (TransportMethod::Uds, _) => {
             wallet
-                .connect_with_status(TransportUDS::new(&settings.state), status)
+                .connect_with_status(
+                    TransportUDS::new(&settings.state),
+                    status,
+                    &settings.sync_mode,
+                )
                 .await
         }
 
@@ -212,6 +217,7 @@ async fn exec() -> anyhow::Result<()> {
                             path: file.clone(),
                             pwd,
                         })?;
+
                         (w, pwd)
                     }
                     None => {

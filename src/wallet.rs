@@ -22,6 +22,9 @@ use serde::Serialize;
 use std::fmt::Debug;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::{task, time};
 
 use dusk_bls12_381_sign::{PublicKey, SecretKey};
 use dusk_wallet_core::{
@@ -34,9 +37,10 @@ use rand::SeedableRng;
 use crate::crypto::{decrypt, encrypt};
 use crate::currency::Dusk;
 use crate::prover::Prover;
-use crate::rusk::{RuskClient, RuskEndpoint};
+use crate::rusk::{RuskClient, RuskEndpoint, RuskStateClient};
 use crate::state::StateStore;
 use crate::store::LocalStore;
+use crate::sync::{sync_up, SyncMode};
 use crate::Error;
 use gas::Gas;
 
@@ -66,6 +70,7 @@ pub struct Wallet<F: SecureWalletFile + Debug> {
     store: LocalStore,
     file: Option<F>,
     status: fn(status: &str),
+    sync_on_balance: Option<RuskStateClient>,
 }
 
 impl<F: SecureWalletFile + Debug> Wallet<F> {
@@ -111,6 +116,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 store,
                 file: None,
                 status: |_| {},
+                sync_on_balance: None,
             })
         } else {
             Err(Error::InvalidMnemonicPhrase)
@@ -192,6 +198,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             store,
             file: Some(file),
             status: |_| {},
+            sync_on_balance: None,
         })
     }
 
@@ -228,6 +235,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             store,
             file: Some(file),
             status: |_| {},
+            sync_on_balance: None,
         })
     }
 
@@ -276,6 +284,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         &mut self,
         endpoint: R,
         status: fn(&str),
+        sync_mode: &SyncMode,
     ) -> Result<(), Error>
     where
         R: RuskEndpoint,
@@ -298,15 +307,48 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
         // create a state client
         let mut state =
-            StateStore::new(rusk.state, &cache_dir, self.store.clone())?;
+            StateStore::new(rusk.state.clone(), &cache_dir, self.store)?;
 
         state.set_status_callback(status);
 
+        let store = self.store;
+        let cache_dir = Arc::new(cache_dir);
+
         // create wallet instance
-        self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));
+        self.wallet = Some(WalletCore::new(store, state, prover));
 
         // set our own status callback
         self.status = status;
+
+        // start syncing
+        match sync_mode {
+            SyncMode::Periodic => {
+                task::spawn(async move {
+                    let mut interval =
+                        time::interval(Duration::from_millis(2 * 1000));
+
+                    loop {
+                        println!("{:?}", "sync");
+                        let state = rusk.state.clone();
+                        let cache_dir = Arc::clone(&cache_dir);
+
+                        interval.tick().await;
+
+                        if let Err(e) =
+                            sync_up(state, &cache_dir, store, status).await
+                        {
+                            status(
+                                format!("Error while periodic sync: {:?}", &e)
+                                    .as_str(),
+                            )
+                        };
+                    }
+                });
+            }
+            SyncMode::OnAddressRequest => {
+                self.sync_on_balance = Some(rusk.state);
+            }
+        }
 
         Ok(())
     }
@@ -365,6 +407,18 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         // make sure we own this address
         if !addr.is_owned() {
             return Err(Error::Unauthorized);
+        }
+
+        let cache_dir = {
+            if let Some(file) = &self.file {
+                file.path().cache_dir()
+            } else {
+                return Err(Error::WalletFileMissing);
+            }
+        };
+
+        if let Some(state) = &self.sync_on_balance {
+            sync_up(state.clone(), &cache_dir, self.store, self.status).await?;
         }
 
         // get balance

@@ -7,7 +7,7 @@
 use crate::config::{Network, Transport};
 use crate::io::WalletArgs;
 
-use dusk_wallet::Error;
+use dusk_wallet::{sync::SyncMode, Error};
 use std::fmt;
 use std::path::PathBuf;
 use tracing::Level;
@@ -34,14 +34,6 @@ pub(crate) enum LogLevel {
     Error,
 }
 
-#[derive(clap::ValueEnum, Debug, Clone)]
-pub(crate) enum SyncMode {
-    /// Sync periodically in the background
-    Periodic,
-    /// Sync on every request, by default this is true
-    OnRequest,
-}
-
 #[derive(Debug)]
 pub(crate) struct Logging {
     /// Max log level
@@ -49,6 +41,7 @@ pub(crate) struct Logging {
     /// Log format
     pub format: LogFormat,
 }
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct Settings {
@@ -58,6 +51,7 @@ pub(crate) struct Settings {
     pub(crate) graphql: Url,
 
     pub(crate) logging: Logging,
+    pub(crate) sync_mode: SyncMode,
 
     pub(crate) profile: PathBuf,
     pub(crate) password: Option<String>,
@@ -140,6 +134,7 @@ impl SettingsBuilder {
             logging,
             profile,
             password,
+            sync_mode: Default::default(),
         })
     }
 }

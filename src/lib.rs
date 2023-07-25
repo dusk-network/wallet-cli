@@ -24,8 +24,10 @@ mod error;
 mod rusk;
 mod state;
 mod store;
-mod sync;
 mod wallet;
+
+/// Holds the methods needed for syncing to the network
+pub mod sync;
 
 pub use currency::{Dusk, Lux};
 pub use error::Error;

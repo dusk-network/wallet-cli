@@ -10,7 +10,7 @@ use crate::Error;
 use dusk_bytes::{Error as BytesError, Serializable};
 use dusk_wallet_core::Store;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Seed([u8; 64]);
 
 impl Default for Seed {
@@ -31,8 +31,8 @@ impl Serializable<64> for Seed {
 }
 
 /// Provides a valid wallet seed to dusk_wallet_core
-#[derive(Clone)]
-pub(crate) struct LocalStore {
+#[derive(Clone, Copy)]
+pub struct LocalStore {
     seed: Seed,
 }
 
