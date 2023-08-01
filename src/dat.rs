@@ -20,6 +20,10 @@ pub const OLD_MAGIC: u32 = 0x1d0c15;
 pub const MAGIC: u32 = 0x72736b;
 /// The latest version of the rusk binary format for wallet dat file
 pub const LATEST_VERSION: Version = (0, 0, 1, 0, false);
+/// The type info of the dat file we'll save
+pub const FILE_TYPE: u16 = 0x0200;
+/// Reserved for futures use, 0 for now
+pub const RESERVED: u16 = 0x0000;
 /// (Major, Minor, Patch, Pre, Pre-Higher)
 type Version = (u8, u8, u8, u8, bool);
 
@@ -141,11 +145,11 @@ pub(crate) fn check_version(
                 let file_type = (number & 0x000000FFFF0000) >> 16;
                 let reserved = number & 0x0000000000FFFF;
 
-                if file_type != 0x200 {
+                if file_type != FILE_TYPE as u64 {
                     return Err(Error::WalletFileCorrupted);
                 };
 
-                if reserved != 0x0 {
+                if reserved != RESERVED as u64 {
                     return Err(Error::WalletFileCorrupted);
                 };
 
@@ -193,6 +197,11 @@ pub fn read_file_version(file: &WalletPath) -> Result<DatFileVersion, Error> {
     fs.read_exact(&mut header_buf)?;
 
     check_version(Some(&header_buf))
+}
+
+pub(crate) fn version_bytes(version: Version) -> [u8; 4] {
+    u32::from_be_bytes([version.0, version.1, version.2, version.3])
+        .to_be_bytes()
 }
 
 #[cfg(test)]

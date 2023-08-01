@@ -33,7 +33,10 @@ use rand::SeedableRng;
 use crate::clients::{Prover, StateStore};
 use crate::crypto::encrypt;
 use crate::currency::Dusk;
-use crate::dat::{self, DatFileVersion, MAGIC};
+use crate::dat::{
+    self, version_bytes, DatFileVersion, FILE_TYPE, LATEST_VERSION, MAGIC,
+    RESERVED,
+};
 use crate::rusk::RuskClient;
 use crate::store::LocalStore;
 use crate::Error;
@@ -181,11 +184,11 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 let mut header = Vec::with_capacity(12);
                 header.extend_from_slice(&MAGIC.to_be_bytes());
                 // File type = Rusk Wallet (0x02)
-                header.extend_from_slice(&0x200_u16.to_be_bytes());
+                header.extend_from_slice(&FILE_TYPE.to_be_bytes());
                 // Reserved (0x0)
-                header.extend_from_slice(&0x0000_u16.to_be_bytes());
+                header.extend_from_slice(&RESERVED.to_be_bytes());
                 // Version
-                header.extend_from_slice(&0x00000100_u32.to_be_bytes());
+                header.extend_from_slice(&version_bytes(LATEST_VERSION));
 
                 // create file payload
                 let seed = self.store.get_seed()?;

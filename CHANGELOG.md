@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Populate cache database with psk(s) on state init [#158]
 - Change `dusk-plonk` to `0.14.0` [#169]
 - Save the wallet.dat file with the new Rusk Binary Format [#165]
+- Change blake3 with sha256 for password hashing for new Rusk Binary Format, keep using blake3 for old dat file formats [#162]
 
 ### Fixed
 - Fix cache resolution for alternative networks [#151]
@@ -389,6 +390,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#162]: https://github.com/dusk-network/wallet-cli/issues/162
 [#163]: https://github.com/dusk-network/wallet-cli/issues/163
 [#151]: https://github.com/dusk-network/wallet-cli/issues/151
 [#144]: https://github.com/dusk-network/wallet-cli/issues/144
