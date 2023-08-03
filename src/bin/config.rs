@@ -6,81 +6,15 @@
 
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use url::Url;
-
-pub(crate) enum TransportMethod {
-    Uds,
-    Tcp,
-    None,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub(crate) struct Transport {
-    pub(crate) url: Option<Url>,
-    pub(crate) path: Option<PathBuf>,
-}
-
-impl Transport {
-    pub(crate) fn method(&self) -> TransportMethod {
-        match (&self.url, &self.path) {
-            (Some(_), Some(_)) => {
-                if cfg!(windows) {
-                    TransportMethod::Tcp
-                } else {
-                    TransportMethod::Uds
-                }
-            }
-            (Some(_), None) => TransportMethod::Tcp,
-            (None, Some(_)) => TransportMethod::Uds,
-            (None, None) => TransportMethod::None,
-        }
-    }
-}
-
-impl From<&Transport> for String {
-    fn from(transport: &Transport) -> String {
-        let Transport { url, path } = transport;
-
-        match (&url, &path) {
-            (Some(_), Some(_)) => {
-                if cfg!(windows) {
-                    url.as_ref()
-                        .map(|url| url.as_str().into())
-                        .unwrap_or_default()
-                } else {
-                    path.as_ref()
-                        .map(|path| path.to_string_lossy().into())
-                        .unwrap_or_default()
-                }
-            }
-            (Some(_), None) => url
-                .as_ref()
-                .map(|url| url.as_str().into())
-                .unwrap_or_default(),
-            (None, Some(_)) => path
-                .as_ref()
-                .map(|path| path.to_string_lossy().into())
-                .unwrap_or_default(),
-
-            (None, None) => String::from(""),
-        }
-    }
-}
-
-impl From<Transport> for String {
-    fn from(transport: Transport) -> String {
-        transport.into()
-    }
-}
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(dead_code)]
 pub(crate) struct Network {
-    pub(crate) state: Transport,
-    pub(crate) prover: Transport,
+    pub(crate) state: Url,
+    pub(crate) prover: Url,
     pub(crate) explorer: Option<Url>,
-    pub(crate) graphql: Url,
     pub(crate) network: Option<HashMap<String, Network>>,
 }
 
