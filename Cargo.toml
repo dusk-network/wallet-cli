@@ -45,6 +45,7 @@ bs58 = "0.4"
 rand = "0.8"
 aes = "0.7"
 rocksdb = "0.20.1"
+reqwest = { version = "0.11", features = ["stream"] }
 
 dusk-wallet-core = "0.20.0-piecrust.0.6"
 dusk-bytes = "0.1"

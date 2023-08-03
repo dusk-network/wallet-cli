@@ -10,7 +10,6 @@ use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::io;
 use std::str::Utf8Error;
-use tonic::codegen::http;
 
 use super::clients;
 /// Wallet core error
@@ -20,27 +19,15 @@ pub(crate) type CoreError =
 /// Errors returned by this library
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Status error
-    #[error(transparent)]
-    Status(#[from] tonic::Status),
-    /// Network error
-    #[error(transparent)]
-    Network(#[from] tonic::transport::Error),
-    /// Rusk uri failure
-    #[error("Invalid URI provided for Rusk: {0}")]
-    RuskURI(#[from] http::uri::InvalidUri),
-    /// Rusk connection failure
-    #[error("Couldn't establish connection with Rusk: {0}")]
-    RuskConn(tonic::transport::Error),
-    /// Prover cluster connection failure
-    #[error("Couldn't establish connection with the prover cluster: {0}")]
-    ProverConn(tonic::transport::Error),
     /// Command not available in offline mode
     #[error("This command cannot be performed while offline")]
     Offline,
     /// Unauthorized access to this address
     #[error("Unauthorized access to this address")]
     Unauthorized,
+    /// Rusk error
+    #[error("Rusk error occurred: {0}")]
+    Rusk(String),
     /// Filesystem errors
     #[error(transparent)]
     IO(#[from] io::Error),
@@ -56,6 +43,9 @@ pub enum Error {
     /// Rkyv errors
     #[error("A serialization error occurred.")]
     Rkyv,
+    /// Reqwest errors
+    #[error("A request error occurred: {0}")]
+    Reqwest(#[from] reqwest::Error),
     /// Utf8 errors
     #[error("Utf8 error: {0:?}")]
     Utf8(Utf8Error),
@@ -124,9 +114,6 @@ pub enum Error {
     /// Reached the maximum number of attempts
     #[error("Reached the maximum number of attempts")]
     AttemptsExhausted,
-    /// Socket connection is not available on Windows
-    #[error("Socket connection to {0} is not available on Windows")]
-    SocketsNotSupported(String),
     /// Status callback needs to be set before connecting
     #[error("Status callback needs to be set before connecting")]
     StatusWalletConnected,

@@ -34,7 +34,7 @@ use rand::SeedableRng;
 use crate::clients::{Prover, StateStore};
 use crate::crypto::{decrypt, encrypt};
 use crate::currency::Dusk;
-use crate::rusk::{RuskClient, RuskEndpoint};
+use crate::rusk::RuskClient;
 use crate::store::LocalStore;
 use crate::Error;
 use gas::Gas;
@@ -271,20 +271,21 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
     /// Connect the wallet to the network providing a callback for status
     /// updates
-    pub async fn connect_with_status<R>(
+    pub async fn connect_with_status<S>(
         &mut self,
-        endpoint: R,
+        rusk_addr: S,
+        prov_addr: S,
         status: fn(&str),
     ) -> Result<(), Error>
     where
-        R: RuskEndpoint,
+        S: Into<String>,
     {
         // attempt connection
-        let rusk = RuskClient::connect(endpoint).await?;
+        let rusk = RuskClient::new(rusk_addr, prov_addr);
+        rusk.state.check_connection().await?;
 
         // create a prover client
-        let mut prover =
-            Prover::new(rusk.prover, rusk.state.clone(), rusk.network);
+        let mut prover = Prover::new(rusk.state.clone(), rusk.prover.clone());
         prover.set_status_callback(status);
 
         let cache_dir = {
