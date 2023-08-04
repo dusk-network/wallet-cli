@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for rusk HTTP request [#173]
+- Add `local` network to default.config.toml [#173]
+
+### Changed
+
+- Change `config.toml` to use `http` instead of `grpc` endpoints [#173]
+
+### Removed
+
+- Remove `grpc` support [#173]
+- Remove `gql` support [#173]
+
 ## [0.17.0] - 2023-07-19
 
 ### Added
@@ -451,6 +465,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#479]: https://github.com/dusk-network/rusk/issues/479
 [#158]: https://github.com/dusk-network/wallet-cli/pull/158
 [#169]: https://github.com/dusk-network/wallet-cli/pull/169
+[#173]: https://github.com/dusk-network/wallet-cli/pull/173
 
 <!-- Releases -->
 

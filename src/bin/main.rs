@@ -24,13 +24,10 @@ use blake3::Hash;
 use crate::command::TransactionHistory;
 use crate::settings::{LogFormat, Settings};
 
-#[cfg(not(windows))]
-use dusk_wallet::TransportUDS;
-
 use dusk_wallet::Error;
-use dusk_wallet::{Dusk, SecureWalletFile, TransportTCP, Wallet, WalletPath};
+use dusk_wallet::{Dusk, SecureWalletFile, Wallet, WalletPath};
 
-use config::{Config, TransportMethod};
+use config::Config;
 use io::{prompt, status};
 use io::{GraphQL, WalletArgs};
 
@@ -75,29 +72,18 @@ async fn connect<F>(
 where
     F: SecureWalletFile + std::fmt::Debug,
 {
-    let con = match (&settings.state.method(), &settings.prover.method()) {
-        (TransportMethod::Tcp, TransportMethod::Tcp) => {
-            wallet
-                .connect_with_status(
-                    TransportTCP::new(&settings.state, &settings.prover),
-                    status,
-                )
-                .await
-        }
-        #[cfg(not(windows))]
-        (TransportMethod::Uds, _) => {
-            wallet
-                .connect_with_status(TransportUDS::new(&settings.state), status)
-                .await
-        }
-
-        (_, _) => panic!("IPC method not supported"),
-    };
+    let con = wallet
+        .connect_with_status(
+            &settings.state.to_string(),
+            &settings.prover.to_string(),
+            status,
+        )
+        .await;
 
     // check for connection errors
     match con {
         Err(Error::RocksDB(e)) => panic!{"Invalid cache {e}"},
-        Err(e) => warn!("Connection to Rusk Failed, some operations won't be available: {e:?}"),
+        Err(e) => warn!("Connection to Rusk Failed, some operations won't be available: {e}"),
         _ => {}
     }
 
@@ -284,10 +270,7 @@ async fn exec() -> anyhow::Result<()> {
                 let txh = format!("{:x}", hash);
 
                 // Wait for transaction confirmation from network
-                let gql = GraphQL::new(
-                    settings.graphql.to_string(),
-                    status::headless,
-                );
+                let gql = GraphQL::new(settings.state, status::headless);
                 gql.wait_for(&txh).await?;
 
                 println!("{}", txh);

@@ -7,10 +7,8 @@
 use dusk_wallet_core::Transaction;
 use tokio::time::{sleep, Duration};
 
-use dusk_wallet::Error;
-use gql_client::{Client, GraphQLErrorMessage};
+use dusk_wallet::{Error, RuskHttpClient, RuskRequest};
 use serde::Deserialize;
-use serde_json::Value;
 
 /// GraphQL is a helper struct that aggregates all queries done
 /// to the Dusk GraphQL database.
@@ -18,25 +16,37 @@ use serde_json::Value;
 /// mixed with the wallet logic.
 #[derive(Clone)]
 pub struct GraphQL {
-    url: String,
+    client: RuskHttpClient,
     status: fn(&str),
 }
 
 // helper structs to deserialize response
 #[derive(Deserialize)]
+struct SpentTx {
+    pub txerror: Option<String>,
+    #[serde(alias = "gasSpent", default)]
+    pub gas_spent: f64,
+}
+
+#[derive(Deserialize)]
 struct Tx {
-    pub txerror: String,
-    pub raw: Option<String>,
-    pub gasspent: Option<u64>,
+    pub id: String,
+    #[serde(default)]
+    pub raw: String,
 }
 #[derive(Deserialize)]
-struct Transactions {
+struct Block {
     pub transactions: Vec<Tx>,
 }
 
 #[derive(Deserialize)]
-struct Blocks {
-    pub blocks: Vec<Transactions>,
+struct BlockResponse {
+    pub block: Option<Block>,
+}
+
+#[derive(Deserialize)]
+struct SpentTxResponse {
+    pub tx: Option<SpentTx>,
 }
 
 /// Transaction status
@@ -47,12 +57,6 @@ pub enum TxStatus {
     Error(String),
 }
 
-fn is_database_error(json: &[GraphQLErrorMessage]) -> bool {
-    // we stringify the json and use String.contains()
-    // because GraphQLErrorMessage fields are private
-    format!("{:?}", json[0]).contains("database: transaction not found")
-}
-
 impl GraphQL {
     /// Create a new GraphQL wallet client
     pub fn new<S>(url: S, status: fn(&str)) -> Self
@@ -60,7 +64,7 @@ impl GraphQL {
         S: Into<String>,
     {
         Self {
-            url: url.into(),
+            client: RuskHttpClient::new(url.into()),
             status,
         }
     }
@@ -96,43 +100,18 @@ impl GraphQL {
         &self,
         tx_id: &str,
     ) -> anyhow::Result<TxStatus, GraphQLError> {
-        // graphql connection
-        let client = Client::new(&self.url);
-
         let query =
-            "{transactions(txid:\"####\"){ txerror }}".replace("####", tx_id);
-
-        let response = client.query::<Transactions>(&query).await;
+            "query { tx(hash: \"####\") { err }}".replace("####", tx_id);
+        let response = self.query(&query).await?;
+        let response = serde_json::from_slice::<SpentTxResponse>(&response)?.tx;
 
         match response {
-            Ok(Some(txs)) if txs.transactions.is_empty() => {
-                Ok(TxStatus::NotFound)
-            }
-            Ok(Some(txs)) if txs.transactions[0].txerror.is_empty() => {
-                Ok(TxStatus::Ok)
-            }
-            Ok(Some(txs)) => {
-                let tx = &txs.transactions[0];
-                let err_str = tx.txerror.as_str();
-                let tx_err = serde_json::from_str::<Value>(err_str);
+            Some(SpentTx {
+                txerror: Some(err), ..
+            }) => Ok(TxStatus::Error(err)),
+            Some(_) => Ok(TxStatus::Ok),
 
-                let err = match tx_err {
-                    Ok(data) => data["data"]
-                        .as_str()
-                        .map(|msg| msg.to_string())
-                        .unwrap_or_else(|| err_str.to_string()),
-                    Err(err) => err.to_string(),
-                };
-
-                Ok(TxStatus::Error(err))
-            }
-            Ok(None) => Err(GraphQLError::TxStatus),
-            Err(err) => match err.json() {
-                Some(json) if is_database_error(&json) => {
-                    Ok(TxStatus::NotFound)
-                }
-                _ => Err(GraphQLError::Generic(err)),
-            },
+            None => Ok(TxStatus::NotFound),
         }
     }
 
@@ -140,32 +119,29 @@ impl GraphQL {
     pub async fn txs_for_block(
         &self,
         block_height: u64,
-    ) -> anyhow::Result<Vec<(Transaction, Option<u64>)>, GraphQLError> {
-        // graphql connection
-        let client = Client::new(&self.url);
+    ) -> anyhow::Result<Vec<(Transaction, u64)>, GraphQLError> {
+        let query = "query { block(height: ####) { transactions {id, raw}}}"
+            .replace("####", block_height.to_string().as_str());
 
-        let query =
-            "{blocks(height:####){transactions{ txerror,raw,txid,gasspent }}}"
-                .replace("####", block_height.to_string().as_str());
+        let response = self.query(&query).await?;
+        let response =
+            serde_json::from_slice::<BlockResponse>(&response)?.block;
+        let block = response.ok_or(GraphQLError::BlockInfo)?;
+        let mut ret = vec![];
 
-        let response = client.query::<Blocks>(&query).await;
-        match response {
-            Ok(Some(txs)) if txs.blocks.is_empty() => Ok(vec![]),
-            Ok(Some(txs)) if txs.blocks[0].transactions.is_empty() => {
-                Ok(vec![])
-            }
-            Ok(Some(txs)) => {
-                let block = txs.blocks.first().take().unwrap();
-                let tx = block.transactions.iter().map(|t| {
-                    let raw = base64::decode(t.raw.as_ref().unwrap()).unwrap();
-                    let tx = Transaction::from_slice(&raw).unwrap();
-                    (tx, t.gasspent)
-                });
-                Ok(tx.collect())
-            }
-            Ok(None) => Err(GraphQLError::TxStatus),
-            Err(err) => Err(GraphQLError::Generic(err)),
+        for tx in block.transactions {
+            let tx_raw =
+                hex::decode(&tx.raw).map_err(|_| GraphQLError::TxStatus)?;
+            let ph_tx = Transaction::from_slice(&tx_raw).unwrap();
+            let query = "query { tx(hash: \"####\") { gasSpent, err }}"
+                .replace("####", &tx.id);
+            let response = self.query(&query).await?;
+            let response =
+                serde_json::from_slice::<SpentTxResponse>(&response)?.tx;
+            let spent_tx = response.ok_or(GraphQLError::TxStatus)?;
+            ret.push((ph_tx, spent_tx.gas_spent as u64));
         }
+        Ok(ret)
     }
 }
 
@@ -174,15 +150,33 @@ impl GraphQL {
 pub enum GraphQLError {
     /// Generic errors
     #[error("Error fetching data from the node: {0}")]
-    Generic(gql_client::GraphQLError),
+    Generic(dusk_wallet::Error),
     /// Failed to fetch transaction status
     #[error("Failed to obtain transaction status")]
     TxStatus,
+    #[error("Failed to obtain block info")]
+    BlockInfo,
 }
 
-impl From<gql_client::GraphQLError> for GraphQLError {
-    fn from(e: gql_client::GraphQLError) -> Self {
+impl From<dusk_wallet::Error> for GraphQLError {
+    fn from(e: dusk_wallet::Error) -> Self {
         Self::Generic(e)
+    }
+}
+
+impl From<serde_json::Error> for GraphQLError {
+    fn from(e: serde_json::Error) -> Self {
+        Self::Generic(e.into())
+    }
+}
+
+impl GraphQL {
+    pub async fn query(
+        &self,
+        query: &str,
+    ) -> Result<Vec<u8>, dusk_wallet::Error> {
+        let request = RuskRequest::new("gql", query.as_bytes().to_vec());
+        self.client.call(2, "Chain", &request).await
     }
 }
 
@@ -193,7 +187,9 @@ async fn test() -> Result<(), Box<dyn std::error::Error>> {
         status: |s| {
             println!("{s}");
         },
-        url: "http://nodes.dusk.network:9500/graphql".to_string(),
+        client: RuskHttpClient::new(
+            "http://nodes.dusk.network:9500/graphql".to_string(),
+        ),
     };
     let _ = gql
         .tx_status(
@@ -207,8 +203,20 @@ async fn test() -> Result<(), Box<dyn std::error::Error>> {
             rusk_abi::hash::Hasher::digest(t.to_hash_input_bytes())
         );
         println!("txid: {}", txh);
-        // let raw = base64::decode(&t.raw.as_ref().unwrap()).unwrap();
-        // let tx = Transaction::from_slice(&raw);
     });
+    Ok(())
+}
+
+#[tokio::test]
+async fn deser() -> Result<(), Box<dyn std::error::Error>> {
+    let block_not_found = r#"{"block":null}"#;
+    serde_json::from_str::<BlockResponse>(block_not_found).unwrap();
+
+    let block_without_tx = r#"{"block":{"transactions":[]}}"#;
+    serde_json::from_str::<BlockResponse>(block_without_tx).unwrap();
+
+    let block_with_tx = r#"{"block":{"transactions":[{"id":"88e6804989cc2f3fd5bf94dcd39a4e7b7da9a1114d9b8bf4e0515264bc81c50f"}]}}"#;
+    serde_json::from_str::<BlockResponse>(block_with_tx).unwrap();
+
     Ok(())
 }
