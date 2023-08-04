@@ -15,10 +15,11 @@ use dusk_wallet_core::{
     UnprovenTransaction, POSEIDON_TREE_DEPTH,
 };
 use futures::StreamExt;
-use phoenix_core::transaction::{StakeData, TreeLeaf};
+use phoenix_core::transaction::{ArchivedTreeLeaf, StakeData, TreeLeaf};
 use phoenix_core::{Crossover, Fee, Note};
 use poseidon_merkle::Opening as PoseidonOpening;
 
+use std::mem::size_of;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -43,6 +44,8 @@ const TRANSFER_CONTRACT: &str =
     "0100000000000000000000000000000000000000000000000000000000000000";
 const STAKE_CONTRACT: &str =
     "0200000000000000000000000000000000000000000000000000000000000000";
+
+const RKYV_TREE_LEAF_SIZE: usize = size_of::<ArchivedTreeLeaf>();
 
 /// Implementation of the ProverClient trait from wallet-core
 pub struct Prover {
@@ -245,10 +248,19 @@ impl StateClient for StateStore {
 
         self.status(format!("From block: {}", last_height).as_str());
 
-        while let Some(item) = stream.next().wait() {
-            let item = item?.to_vec();
+        // This buffer is needed because `.bytes_stream();` introduce additional
+        // spliting of chunks according to it's own buffer
+        let mut buffer = vec![];
+
+        while let Some(chunk) = stream.next().wait() {
+            buffer.extend_from_slice(&chunk?);
+            if buffer.len() < RKYV_TREE_LEAF_SIZE {
+                continue;
+            }
             let TreeLeaf { block_height, note } =
-                rkyv::from_bytes(&item).map_err(|_| Error::Rkyv)?;
+                rkyv::from_bytes(&buffer).map_err(|_| Error::Rkyv)?;
+
+            buffer.clear();
 
             last_height = std::cmp::max(last_height, block_height);
 
