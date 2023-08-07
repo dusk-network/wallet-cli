@@ -66,7 +66,7 @@ impl Cache {
         psk: &PublicSpendKey,
         height: u64,
         note_data: (Note, BlsScalar),
-        txn: &rocksdb::Transaction<DB>,
+        txn: rocksdb::Transaction<DB>,
     ) -> Result<(), Error> {
         let cf_name = format!("{:?}", psk);
 
@@ -81,6 +81,7 @@ impl Cache {
         let key = nullifier.to_bytes();
 
         txn.put_cf(&cf, key, data.to_bytes())?;
+        txn.commit()?;
 
         Ok(())
     }

@@ -10,10 +10,7 @@ use crate::io::WalletArgs;
 use dusk_wallet::Error;
 use std::fmt;
 use std::path::PathBuf;
-use tokio::sync::{
-    oneshot,
-    oneshot::{channel, Receiver, Sender},
-};
+
 use tracing::Level;
 use url::Url;
 

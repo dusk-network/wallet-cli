@@ -4,9 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::sync::Arc;
-use std::thread;
-
 use bip39::{Language, Mnemonic, MnemonicType};
 use dusk_wallet::gas;
 use dusk_wallet::{Address, Dusk, Wallet, WalletPath};
@@ -29,7 +26,7 @@ pub(crate) async fn run_loop(
 ) -> anyhow::Result<()> {
     loop {
         // let the user choose (or create) an address
-        let addr = match menu_addr(wallet).await? {
+        let addr = match menu_addr(wallet)? {
             AddrSelect::Address(addr) => *addr,
             AddrSelect::NewAddress => {
                 if wallet.addresses().len() >= MAX_ADDRESSES {
@@ -125,9 +122,7 @@ enum AddrSelect {
 
 /// Allows the user to choose an address from the selected wallet
 /// to start performing operations.
-async fn menu_addr(
-    wallet: &mut Wallet<WalletFile>,
-) -> anyhow::Result<AddrSelect> {
+fn menu_addr(wallet: &mut Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
     let mut address_menu = Menu::title("Addresses");
     for addr in wallet.addresses() {
         let preview = addr.preview();
@@ -149,17 +144,15 @@ async fn menu_addr(
     }
 
     if let Some(rx) = &mut wallet.sync_rx {
-        let rx = Arc::new(rx.clone());
-
-        tokio::spawn(async move {
-            let mut rx = Arc::clone(&rx);
-
-            if let Some(status) = Arc::get_mut(&mut rx) {
-                if let Ok(status) = status.recv_async().await {
-                    println!("{:?}", status);
-                }
-            }
-        });
+        if let Ok(status) = rx.try_recv() {
+            action_menu = action_menu
+                .separator()
+                .separator_msg(format!("Sync Status: {}", status));
+        } else {
+            action_menu = action_menu
+                .separator()
+                .separator_msg("Waiting for Sync to complete..".to_string());
+        }
     }
 
     action_menu = action_menu.separator().add(AddrSelect::Exit, "Exit");

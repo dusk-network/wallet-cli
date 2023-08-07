@@ -242,23 +242,32 @@ impl StateStore {
         let cache = Arc::clone(&state.cache);
         let sender = Arc::new(sync_tx);
 
+        status("Starting Sync..");
+
         tokio::spawn(async move {
             loop {
                 let sender = Arc::clone(&sender);
+                let _ = sender.send("Syncing..".to_string());
 
-                sleep(Duration::from_secs(SYNC_INTERVAL_SECONDS)).await;
-
-                sender.send("Syncing..".to_string()).unwrap();
-
-                if let Err(e) =
-                    sync_db(&mut client, &store, cache.as_ref(), status).await
+                if let Err(e) = sync_db(
+                    &mut client,
+                    &store,
+                    cache.as_ref(),
+                    status,
+                    Arc::clone(&sender),
+                )
+                .await
                 {
+                    // Sender should not panic and if it does something is wrong
+                    // and we should abort only when there's an error because it
+                    // important to tell the user that the sync failed
                     sender
                         .send(format!("Error during sync:.. {:?}", e))
                         .unwrap();
                 }
 
-                sender.send("Syncing Complete".to_string()).unwrap();
+                let _ = sender.send("Syncing Complete".to_string());
+                sleep(Duration::from_secs(SYNC_INTERVAL_SECONDS)).await;
             }
         });
 
