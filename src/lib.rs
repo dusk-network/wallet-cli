@@ -25,9 +25,13 @@ mod rusk;
 mod store;
 mod wallet;
 
+/// Methods for parsing/checking the DAT wallet file
+pub mod dat;
+
+pub use rusk::{RuskHttpClient, RuskRequest};
+
 pub use currency::{Dusk, Lux};
 pub use error::Error;
-pub use rusk::{RuskEndpoint, TransportTCP, TransportUDS};
 pub use wallet::gas;
 pub use wallet::{Address, DecodedNote, SecureWalletFile, Wallet, WalletPath};
 

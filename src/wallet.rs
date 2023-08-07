@@ -13,7 +13,6 @@ use dusk_plonk::prelude::BlsScalar;
 pub use file::{SecureWalletFile, WalletPath};
 
 use bip39::{Language, Mnemonic, Seed};
-use blake3::Hash;
 use dusk_bytes::{DeserializableSlice, Serializable};
 use flume::Receiver;
 use phoenix_core::transaction::ModuleId;
@@ -33,19 +32,18 @@ use rand::prelude::StdRng;
 use rand::SeedableRng;
 
 use crate::clients::{Prover, StateStore};
-use crate::crypto::{decrypt, encrypt};
+use crate::crypto::encrypt;
 use crate::currency::Dusk;
-use crate::rusk::{RuskClient, RuskEndpoint};
+use crate::dat::{
+    self, version_bytes, DatFileVersion, FILE_TYPE, LATEST_VERSION, MAGIC,
+    RESERVED,
+};
+use crate::rusk::RuskClient;
 use crate::store::LocalStore;
 use crate::Error;
 use gas::Gas;
 
 use crate::store;
-
-/// Binary prefix for Dusk wallet files
-const MAGIC: u32 = 0x1d0c15;
-/// Specifies the encoding used to save files
-const VERSION: &[u8] = &[2, 0];
 
 /// The interface to the Dusk Network
 ///
@@ -65,6 +63,7 @@ pub struct Wallet<F: SecureWalletFile + Debug> {
     addresses: Vec<Address>,
     store: LocalStore,
     file: Option<F>,
+    file_version: Option<DatFileVersion>,
     status: fn(status: &str),
     /// Recieve the status/errors of the sync procss
     pub sync_rx: Option<Receiver<String>>,
@@ -112,6 +111,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 addresses: vec![address],
                 store,
                 file: None,
+                file_version: None,
                 status: |_| {},
                 sync_rx: None,
             })
@@ -132,51 +132,34 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         }
 
         // attempt to load and decode wallet
-        let mut bytes = fs::read(&pb)?;
+        let bytes = fs::read(&pb)?;
 
-        // check for magic number
-        let magic =
-            u32::from_le_bytes(bytes[0..4].try_into().unwrap()) & 0x00ffffff;
+        let file_version = dat::check_version(bytes.get(0..12))?;
 
-        if magic != MAGIC {
-            return Self::from_legacy_file(file);
-        }
-
-        bytes.drain(..3);
-
-        // check for version information
-        let [major, minor] = [bytes[0], bytes[1]];
-        bytes.drain(..2);
-
-        // decrypt and interpret file contents
-        let result: Result<(store::Seed, u8), Error> = match (major, minor) {
-            (1, 0) => {
-                bytes = decrypt(&bytes, pwd)?;
-
-                let seed = store::Seed::from_reader(&mut &bytes[..])
-                    .map_err(|_| Error::WalletFileCorrupted)?;
-
-                Ok((seed, 1))
-            }
-            (2, 0) => {
-                let content = decrypt(&bytes, pwd)?;
-                let mut buff = &content[..];
-
-                // extract seed
-                let seed = store::Seed::from_reader(&mut buff)
-                    .map_err(|_| Error::WalletFileCorrupted)?;
-
-                // extract addresses count
-                Ok((seed, buff[0]))
-            }
-            _ => {
-                return Err(Error::UnknownFileVersion(major, minor));
-            }
-        };
-
-        let (seed, address_count) = result?;
+        let (seed, address_count) =
+            dat::get_seed_and_address(file_version, bytes, pwd)?;
 
         let store = LocalStore::new(seed);
+
+        // return early if its legacy
+        if let DatFileVersion::Legacy = file_version {
+            let ssk = store
+                .retrieve_ssk(0)
+                .expect("wallet seed should be available");
+
+            let address = Address::new(0, ssk.public_spend_key());
+
+            // return the store
+            return Ok(Self {
+                wallet: None,
+                addresses: vec![address],
+                store,
+                file: Some(file),
+                file_version: Some(DatFileVersion::Legacy),
+                status: |_| {},
+                sync_rx: None,
+            });
+        }
 
         let addresses: Vec<_> = (0..address_count)
             .map(|i| {
@@ -194,43 +177,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             addresses,
             store,
             file: Some(file),
-            status: |_| {},
-            sync_rx: None,
-        })
-    }
-
-    /// Attempts to load a legacy wallet file (no version number)
-    fn from_legacy_file(file: F) -> Result<Self, Error> {
-        let path = file.path();
-        let pwd = file.pwd();
-
-        // attempt to load and decode wallet
-        let mut bytes = fs::read(path.inner())?;
-
-        // check for old version information and strip it if present
-        if bytes[1] == 0 && bytes[2] == 0 {
-            bytes.drain(..3);
-        }
-
-        bytes = decrypt(&bytes, pwd)?;
-
-        // get our seed
-        let seed = store::Seed::from_reader(&mut &bytes[..])
-            .map_err(|_| Error::WalletFileCorrupted)?;
-
-        let store = LocalStore::new(seed);
-        let ssk = store
-            .retrieve_ssk(0)
-            .expect("wallet seed should be available");
-
-        let address = Address::new(0, ssk.public_spend_key());
-
-        // return the store
-        Ok(Self {
-            wallet: None,
-            addresses: vec![address],
-            store,
-            file: Some(file),
+            file_version: Some(file_version),
             status: |_| {},
             sync_rx: None,
         })
@@ -240,13 +187,19 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     pub fn save(&mut self) -> Result<(), Error> {
         match &self.file {
             Some(f) => {
-                let mut header = Vec::with_capacity(5);
-                header.extend_from_slice(&MAGIC.to_le_bytes()[..3]);
-                header.extend_from_slice(VERSION);
+                let mut header = Vec::with_capacity(12);
+                header.extend_from_slice(&MAGIC.to_be_bytes());
+                // File type = Rusk Wallet (0x02)
+                header.extend_from_slice(&FILE_TYPE.to_be_bytes());
+                // Reserved (0x0)
+                header.extend_from_slice(&RESERVED.to_be_bytes());
+                // Version
+                header.extend_from_slice(&version_bytes(LATEST_VERSION));
 
                 // create file payload
                 let seed = self.store.get_seed()?;
                 let mut payload = seed.to_vec();
+
                 payload.push(self.addresses.len() as u8);
 
                 // encrypt the payload
@@ -277,20 +230,21 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
     /// Connect the wallet to the network providing a callback for status
     /// updates
-    pub async fn connect_with_status<R>(
+    pub async fn connect_with_status<S>(
         &mut self,
-        endpoint: R,
+        rusk_addr: S,
+        prov_addr: S,
         status: fn(&str),
     ) -> Result<(), Error>
     where
-        R: RuskEndpoint,
+        S: Into<String>,
     {
         // attempt connection
-        let rusk = RuskClient::connect(endpoint).await?;
+        let rusk = RuskClient::new(rusk_addr, prov_addr);
+        rusk.state.check_connection().await?;
 
         // create a prover client
-        let mut prover =
-            Prover::new(rusk.prover, rusk.state.clone(), rusk.network);
+        let mut prover = Prover::new(rusk.state.clone(), rusk.prover.clone());
         prover.set_status_callback(status);
 
         let cache_dir = {
@@ -305,7 +259,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
         // create a state client
         let mut state =
-            StateStore::new(&cache_dir, rusk.state, self.store.clone())?;
+            StateStore::new(rusk.state, &cache_dir, self.store.clone())?;
 
         state.set_status_callback(status);
         state.start_sync(sync_tx).await?;
@@ -671,7 +625,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         &self,
         addr: &Address,
         dir: &Path,
-        pwd: Hash,
+        pwd: &[u8],
     ) -> Result<(PathBuf, PathBuf), Error> {
         // we're expecting a directory here
         if !dir.is_dir() {
@@ -712,6 +666,18 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             .iter()
             .find(|a| a.psk == addr.psk)
             .ok_or(Error::AddressNotOwned)
+    }
+
+    /// Return the dat file version from memory or by reading the file
+    /// In order to not read the file version more than once per execution
+    pub fn get_file_version(&self) -> Result<DatFileVersion, Error> {
+        if let Some(file_version) = self.file_version {
+            Ok(file_version)
+        } else if let Some(file) = &self.file {
+            Ok(dat::read_file_version(file.path())?)
+        } else {
+            Err(Error::WalletFileNotExists)
+        }
     }
 }
 
@@ -756,7 +722,7 @@ mod tests {
     #[derive(Debug, Clone)]
     struct WalletFile {
         path: WalletPath,
-        pwd: Hash,
+        pwd: Vec<u8>,
     }
 
     impl SecureWalletFile for WalletFile {
@@ -764,8 +730,8 @@ mod tests {
             &self.path
         }
 
-        fn pwd(&self) -> Hash {
-            self.pwd
+        fn pwd(&self) -> &[u8] {
+            &self.pwd
         }
     }
 
@@ -805,7 +771,7 @@ mod tests {
         let path = WalletPath::from(path);
 
         // we'll need a password too
-        let pwd = blake3::hash("mypassword".as_bytes());
+        let pwd = blake3::hash("mypassword".as_bytes()).as_bytes().to_vec();
 
         // create and save
         let mut wallet: Wallet<WalletFile> = Wallet::new("uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;

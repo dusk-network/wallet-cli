@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::config::{Network, Transport};
+use crate::config::Network;
 use crate::io::WalletArgs;
 
 use dusk_wallet::Error;
@@ -46,10 +46,9 @@ pub(crate) struct Logging {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct Settings {
-    pub(crate) state: Transport,
-    pub(crate) prover: Transport,
+    pub(crate) state: Url,
+    pub(crate) prover: Url,
     pub(crate) explorer: Option<Url>,
-    pub(crate) graphql: Url,
 
     pub(crate) logging: Logging,
 
@@ -88,34 +87,19 @@ impl SettingsBuilder {
         }
         .unwrap_or(network);
 
-        let url = args.state.as_ref().and_then(|value| Url::parse(value).ok());
-        let path = url
+        let state = args
+            .state
             .as_ref()
-            .map_or(args.state.as_ref().map(PathBuf::from), |_| None);
+            .and_then(|value| Url::parse(value).ok())
+            .unwrap_or(network.state);
 
-        let state = if url.is_some() || path.is_some() {
-            Transport { url, path }
-        } else {
-            network.state
-        };
-
-        let url = args
+        let prover = args
             .prover
             .as_ref()
-            .and_then(|value| Url::parse(value).ok());
-
-        let path = url
-            .as_ref()
-            .map_or(args.prover.as_ref().map(PathBuf::from), |_| None);
-
-        let prover = if url.is_some() || path.is_some() {
-            Transport { url, path }
-        } else {
-            network.prover
-        };
+            .and_then(|value| Url::parse(value).ok())
+            .unwrap_or(network.prover);
 
         let explorer = network.explorer;
-        let graphql = network.graphql;
 
         let profile = args.profile.as_ref().cloned().unwrap_or(self.profile);
 
@@ -130,7 +114,6 @@ impl SettingsBuilder {
             state,
             prover,
             explorer,
-            graphql,
             logging,
             profile,
             password,
@@ -218,14 +201,13 @@ impl fmt::Display for Settings {
             }
         )?;
         writeln!(f, "{}", separator)?;
-        writeln!(f, "state: {}", String::from(&self.state))?;
-        writeln!(f, "prover: {}", String::from(&self.prover))?;
+        writeln!(f, "state: {}", self.state)?;
+        writeln!(f, "prover: {}", self.prover)?;
 
         if let Some(explorer) = &self.explorer {
             writeln!(f, "explorer: {explorer}")?;
         }
 
-        writeln!(f, "GraphQL: {}", self.graphql)?;
         writeln!(f, "{separator}")?;
         writeln!(f, "{}", self.logging)
     }

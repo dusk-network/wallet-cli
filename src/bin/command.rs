@@ -323,12 +323,16 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
+
                 let pwd = prompt::request_auth(
                     "Encryption password",
                     &settings.password,
+                    wallet.get_file_version()?,
                 )?;
+
                 let (pub_key, key_pair) =
-                    wallet.export_keys(addr, &dir, pwd)?;
+                    wallet.export_keys(addr, &dir, &pwd)?;
+
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))
             }
             Command::History { addr } => {

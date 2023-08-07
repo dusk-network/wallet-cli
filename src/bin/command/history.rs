@@ -18,7 +18,7 @@ pub struct TransactionHistory {
     direction: TransactionDirection,
     height: u64,
     amount: f64,
-    fee: Option<u64>,
+    fee: u64,
     pub tx: Transaction,
 }
 
@@ -42,7 +42,7 @@ impl Display for TransactionHistory {
         let fee = match self.direction {
             TransactionDirection::In => "".into(),
             TransactionDirection::Out => {
-                let fee = self.fee.unwrap_or_default();
+                let fee = self.fee;
                 let fee = dusk::from_dusk(fee);
                 format!("{: >12.9}", fee)
             }
@@ -66,7 +66,7 @@ pub(crate) async fn transaction_from_notes(
 ) -> anyhow::Result<Vec<TransactionHistory>> {
     let mut ret: Vec<TransactionHistory> = vec![];
     let gql =
-        GraphQL::new(&settings.graphql.to_string(), io::status::interactive);
+        GraphQL::new(&settings.state.to_string(), io::status::interactive);
 
     let nullifiers = notes
         .iter()
@@ -113,7 +113,7 @@ pub(crate) async fn transaction_from_notes(
                     direction,
                     height: decoded_note.block_height,
                     amount: note_amount - inputs_amount,
-                    fee: *gas_spent,
+                    fee: gas_spent * t.fee().gas_price,
                     tx: t.clone(),
                 }),
             }

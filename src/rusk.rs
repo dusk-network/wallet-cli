@@ -4,170 +4,146 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-#[cfg(not(windows))]
-use tokio::net::UnixStream;
-#[cfg(not(windows))]
-use tonic::transport::Uri;
-#[cfg(not(windows))]
-use tower::service_fn;
+use std::io::{self, Write};
 
-use async_trait::async_trait;
-use std::str::FromStr;
+use reqwest::{Body, Response};
+use rkyv::Archive;
 
-use tonic::codegen::InterceptedService;
-use tonic::metadata::MetadataValue;
-use tonic::service::Interceptor;
-use tonic::transport::{Channel, Endpoint};
-use tonic::Status;
-
-use rusk_schema::network_client::NetworkClient as GrpcNetworkClient;
-use rusk_schema::prover_client::ProverClient as GrpcProverClient;
-use rusk_schema::state_client::StateClient as GrpcStateClient;
-
-use crate::error::Error;
-use anyhow::Result;
+use crate::Error;
 
 /// Supported Rusk version
 const REQUIRED_RUSK_VERSION: &str = "0.6.0";
 
-/// Rusk service clients all include versioning middleware
-pub(crate) type RuskNetworkClient =
-    GrpcNetworkClient<InterceptedService<Channel, RuskVersionInterceptor>>;
-pub(crate) type RuskStateClient =
-    GrpcStateClient<InterceptedService<Channel, RuskVersionInterceptor>>;
-pub(crate) type RuskProverClient =
-    GrpcProverClient<InterceptedService<Channel, RuskVersionInterceptor>>;
-
 /// Clients to Rusk services
-pub(crate) struct RuskClient {
-    pub network: RuskNetworkClient,
-    pub state: RuskStateClient,
-    pub prover: RuskProverClient,
+#[derive(Clone)]
+pub struct RuskClient {
+    /// HttpClient connected to the state
+    pub state: RuskHttpClient,
+    /// HttpClient connected to the prover
+    pub prover: RuskHttpClient,
 }
 
 impl RuskClient {
-    /// Attempts a connection to the network and, if successful,
-    /// returns a connected `RuskClient` instance
-    pub async fn connect<E>(endpoint: E) -> Result<Self, Error>
-    where
-        E: RuskEndpoint,
-    {
-        let rusk = Self {
-            network: GrpcNetworkClient::with_interceptor(
-                endpoint.state().await?,
-                RuskVersionInterceptor,
-            ),
-            state: GrpcStateClient::with_interceptor(
-                endpoint.state().await?,
-                RuskVersionInterceptor,
-            ),
-            prover: GrpcProverClient::with_interceptor(
-                endpoint.prover().await?,
-                RuskVersionInterceptor,
-            ),
-        };
-
-        Ok(rusk)
-    }
-}
-
-/// Adds the compatible Rusk version in every request's gRPC headers
-#[derive(Clone)]
-pub struct RuskVersionInterceptor;
-
-impl Interceptor for RuskVersionInterceptor {
-    fn call(
-        &mut self,
-        mut request: tonic::Request<()>,
-    ) -> Result<tonic::Request<()>, Status> {
-        // add `x-rusk-version` to header metadata
-        let md = request.metadata_mut();
-        md.append(
-            "x-rusk-version",
-            MetadataValue::from_static(REQUIRED_RUSK_VERSION),
-        );
-        Ok(request)
-    }
-}
-
-/// Transport details for the Dusk Network
-#[async_trait]
-pub trait RuskEndpoint {
-    /// Returns the [Channel] used to communicate with the state server
-    async fn state(&self) -> Result<Channel, Error>;
-    /// Returns the [Channel] used to communicate with the prover server
-    async fn prover(&self) -> Result<Channel, Error>;
-}
-
-/// Transport details for establishing a TCP/IP connection
-/// to the Dusk Network
-#[derive(Debug)]
-pub struct TransportTCP {
-    rusk_addr: String,
-    prov_addr: String,
-}
-
-impl TransportTCP {
-    /// Creates a new TCP IP transport with the given addresses for the state
-    /// and the prover
+    /// Create a new client specifying rusk address and the prover address
     pub fn new<S>(rusk_addr: S, prov_addr: S) -> Self
     where
         S: Into<String>,
     {
         Self {
-            rusk_addr: rusk_addr.into(),
-            prov_addr: prov_addr.into(),
+            state: RuskHttpClient::new(rusk_addr.into()),
+            prover: RuskHttpClient::new(prov_addr.into()),
         }
     }
 }
 
-#[async_trait]
-impl RuskEndpoint for TransportTCP {
-    async fn state(&self) -> Result<Channel, Error> {
-        Ok(Endpoint::from_str(&self.rusk_addr)?.connect().await?)
-    }
-
-    async fn prover(&self) -> Result<Channel, Error> {
-        Ok(Endpoint::from_str(&self.prov_addr)?.connect().await?)
-    }
+#[derive(Debug)]
+/// RuskRequesst according to the rusk event system
+pub struct RuskRequest {
+    topic: String,
+    data: Vec<u8>,
 }
 
-/// Transport details for establishing a unix-domain socket (UDS)
-/// connection to a local Rusk instance
-pub struct TransportUDS {
-    addr: String,
+impl RuskRequest {
+    /// New RuskRequesst from topic and data
+    pub fn new(topic: &str, data: Vec<u8>) -> Self {
+        let topic = topic.to_string();
+        Self { data, topic }
+    }
+
+    /// Return the binary representation of the RuskRequesst
+    pub fn to_bytes(&self) -> io::Result<Vec<u8>> {
+        let mut buffer = vec![];
+        buffer.write_all(&(self.topic.len() as u32).to_le_bytes())?;
+        buffer.write_all(self.topic.as_bytes())?;
+        buffer.write_all(&self.data)?;
+
+        Ok(buffer)
+    }
+}
+#[derive(Clone)]
+/// Rusk HTTP Binary Client
+pub struct RuskHttpClient {
+    uri: String,
 }
 
-impl TransportUDS {
-    /// Creates a new UDS transport with the given address.
-    pub fn new<S>(path: S) -> Self
+impl RuskHttpClient {
+    /// Create a new HTTP Client
+    pub fn new(uri: String) -> Self {
+        Self { uri }
+    }
+
+    /// Utility for querying the rusk VM
+    pub async fn contract_query<I, const N: usize>(
+        &self,
+        contract: &str,
+        method: &str,
+        value: &I,
+    ) -> Result<Vec<u8>, Error>
     where
-        S: Into<String>,
+        I: Archive,
+        I: rkyv::Serialize<rkyv::ser::serializers::AllocSerializer<N>>,
     {
-        Self { addr: path.into() }
-    }
-}
+        let data = rkyv::to_bytes(value).map_err(|_| Error::Rkyv)?.to_vec();
+        let request = RuskRequest::new(method, data);
 
-#[async_trait]
-impl RuskEndpoint for TransportUDS {
-    #[cfg(not(windows))]
-    async fn state(&self) -> Result<Channel, Error> {
-        let addr = self.addr.clone();
-        Ok(Endpoint::try_from("http://[::]:50051")
-            .expect("parse address")
-            .connect_with_connector(service_fn(move |_: Uri| {
-                let path = (addr[..]).to_string();
-                UnixStream::connect(path)
-            }))
-            .await?)
+        let response = self.call_raw(1, contract, &request, false).await?;
+
+        Ok(response.bytes().await?.to_vec())
     }
 
-    #[cfg(windows)]
-    async fn state(&self) -> Result<Channel, Error> {
-        Err(Error::SocketsNotSupported(self.addr.clone()))
+    /// Check rusk connection
+    pub async fn check_connection(&self) -> Result<(), Error> {
+        reqwest::Client::new().post(&self.uri).send().await?;
+        Ok(())
     }
 
-    async fn prover(&self) -> Result<Channel, Error> {
-        self.state().await
+    /// Send a RuskRequest to a specific target.
+    ///
+    /// The response is interpreted as Binary
+    pub async fn call(
+        &self,
+        target_type: u8,
+        target: &str,
+        request: &RuskRequest,
+    ) -> Result<Vec<u8>, Error> {
+        let response =
+            self.call_raw(target_type, target, request, false).await?;
+        let data = response.bytes().await?;
+        Ok(data.to_vec())
+    }
+    /// Send a RuskRequest to a specific target without parsing the response
+    pub async fn call_raw(
+        &self,
+        target_type: u8,
+        target: &str,
+        request: &RuskRequest,
+        feed: bool,
+    ) -> Result<Response, Error> {
+        let uri = &self.uri;
+        let client = reqwest::Client::new();
+        let mut request = client
+            .post(format!("{uri}/{target_type}/{target}"))
+            .body(Body::from(request.to_bytes()?))
+            .header("Content-Type", "application/octet-stream")
+            .header("x-rusk-version", REQUIRED_RUSK_VERSION);
+
+        if feed {
+            request = request.header("Rusk-Feeder", "1");
+        }
+        let response = request.send().await?;
+
+        let status = response.status();
+        if status.is_client_error() || status.is_server_error() {
+            let error = &response.bytes().await?;
+
+            let error = String::from_utf8(error.to_vec())
+                .unwrap_or("unparsable error".into());
+
+            let msg = format!("{status}: {error}");
+
+            Err(Error::Rusk(msg))
+        } else {
+            Ok(response)
+        }
     }
 }

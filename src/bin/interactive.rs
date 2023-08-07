@@ -5,6 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use bip39::{Language, Mnemonic, MnemonicType};
+use dusk_wallet::dat::{DatFileVersion, LATEST_VERSION};
 use dusk_wallet::gas;
 use dusk_wallet::{Address, Dusk, Wallet, WalletPath};
 use dusk_wallet::{Error, MAX_ADDRESSES};
@@ -87,7 +88,7 @@ pub(crate) async fn run_loop(
                                     // Wait for transaction confirmation from
                                     // network
                                     let gql = GraphQL::new(
-                                        &settings.graphql.to_string(),
+                                        &settings.state.to_string(),
                                         io::status::interactive,
                                     );
                                     gql.wait_for(&txh).await?;
@@ -296,6 +297,7 @@ fn menu_op_offline(
 pub(crate) fn load_wallet(
     wallet_path: &WalletPath,
     settings: &Settings,
+    file_version: DatFileVersion,
 ) -> anyhow::Result<Wallet<WalletFile>> {
     let wallet_found =
         wallet_path.inner().exists().then(|| wallet_path.clone());
@@ -310,6 +312,7 @@ pub(crate) fn load_wallet(
                 let pwd = prompt::request_auth(
                     "Please enter your wallet password",
                     password,
+                    file_version,
                 )?;
                 match Wallet::from_file(WalletFile {
                     path: path.clone(),
@@ -326,12 +329,16 @@ pub(crate) fn load_wallet(
                 }
             }
         }
+        // Use the latest binary format when creating a wallet
         MainMenu::Create => {
             // create a new randomly generated mnemonic phrase
             let mnemonic =
                 Mnemonic::new(MnemonicType::Words12, Language::English);
             // ask user for a password to secure the wallet
-            let pwd = prompt::create_password(password)?;
+            let pwd = prompt::create_password(
+                password,
+                DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
+            )?;
             // display the recovery phrase
             prompt::confirm_recovery_phrase(&mnemonic)?;
             // create and store the wallet
@@ -344,7 +351,7 @@ pub(crate) fn load_wallet(
             // ask user for 12-word recovery phrase
             let phrase = prompt::request_recovery_phrase()?;
             // ask user for a password to secure the wallet
-            let pwd = prompt::create_password(&None)?;
+            let pwd = prompt::create_password(&None, file_version)?;
             // create and store the recovered wallet
             let mut w = Wallet::new(phrase)?;
             let path = wallet_path.clone();

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for rusk HTTP request [#173]
+- Add `local` network to default.config.toml [#173]
+
+### Changed
+
+- Change `config.toml` to use `http` instead of `grpc` endpoints [#173]
+
+### Removed
+
+- Remove `grpc` support [#173]
+- Remove `gql` support [#173]
+
 ## [0.17.0] - 2023-07-19
 
 ### Added
@@ -23,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change `Error::Canon` variant to `Error::Rkyv` [#151]
 - Populate cache database with psk(s) on state init [#158]
 - Change `dusk-plonk` to `0.14.0` [#169]
+- Save the wallet.dat file with the new Rusk Binary Format [#165]
+- Change blake3 with sha256 for password hashing for new Rusk Binary Format, keep using blake3 for old dat file formats [#162]
 
 ### Fixed
 - Fix cache resolution for alternative networks [#151]
@@ -374,6 +390,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#162]: https://github.com/dusk-network/wallet-cli/issues/162
 [#163]: https://github.com/dusk-network/wallet-cli/issues/163
 [#151]: https://github.com/dusk-network/wallet-cli/issues/151
 [#144]: https://github.com/dusk-network/wallet-cli/issues/144
@@ -385,6 +402,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#123]: https://github.com/dusk-network/wallet-cli/issues/123
 [#116]: https://github.com/dusk-network/wallet-cli/issues/116
 [#114]: https://github.com/dusk-network/wallet-cli/issues/114
+[#165]: https://github.com/dusk-network/wallet-cli/issues/165
 [#49]: https://github.com/dusk-network/wallet-cli/issues/49
 [#46]: https://github.com/dusk-network/wallet-cli/issues/46
 [#87]: https://github.com/dusk-network/wallet-cli/issues/87
@@ -451,6 +469,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#479]: https://github.com/dusk-network/rusk/issues/479
 [#158]: https://github.com/dusk-network/wallet-cli/pull/158
 [#169]: https://github.com/dusk-network/wallet-cli/pull/169
+[#173]: https://github.com/dusk-network/wallet-cli/pull/173
 
 <!-- Releases -->
 
