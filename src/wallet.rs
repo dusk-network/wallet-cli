@@ -15,6 +15,7 @@ pub use file::{SecureWalletFile, WalletPath};
 use bip39::{Language, Mnemonic, Seed};
 use blake3::Hash;
 use dusk_bytes::{DeserializableSlice, Serializable};
+use flume::Receiver;
 use phoenix_core::transaction::ModuleId;
 use phoenix_core::Note;
 use rkyv::ser::serializers::AllocSerializer;
@@ -65,6 +66,8 @@ pub struct Wallet<F: SecureWalletFile + Debug> {
     store: LocalStore,
     file: Option<F>,
     status: fn(status: &str),
+    /// Recieve the status/errors of the sync procss
+    pub sync_rx: Option<Receiver<String>>,
 }
 
 impl<F: SecureWalletFile + Debug> Wallet<F> {
@@ -110,6 +113,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 store,
                 file: None,
                 status: |_| {},
+                sync_rx: None,
             })
         } else {
             Err(Error::InvalidMnemonicPhrase)
@@ -191,6 +195,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             store,
             file: Some(file),
             status: |_| {},
+            sync_rx: None,
         })
     }
 
@@ -227,6 +232,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             store,
             file: Some(file),
             status: |_| {},
+            sync_rx: None,
         })
     }
 
@@ -295,17 +301,22 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             }
         };
 
+        let (sync_tx, sync_rx) = flume::unbounded::<String>();
+
         // create a state client
         let mut state =
-            StateStore::new(rusk.state, &cache_dir, self.store.clone())?;
+            StateStore::new(&cache_dir, rusk.state, self.store.clone())?;
 
         state.set_status_callback(status);
+        state.start_sync(sync_tx).await?;
 
         // create wallet instance
         self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));
 
         // set our own status callback
         self.status = status;
+        // set sync reciever to notify successful sync
+        self.sync_rx = Some(sync_rx);
 
         Ok(())
     }

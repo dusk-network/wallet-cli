@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+mod sync;
+
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::{DeserializableSlice, Serializable, Write};
 use dusk_pki::ViewKey;
@@ -11,29 +13,30 @@ use dusk_plonk::prelude::*;
 use dusk_plonk::proof_system::Proof;
 use dusk_schnorr::Signature;
 use dusk_wallet_core::{
-    EnrichedNote, ProverClient, StakeInfo, StateClient, Store, Transaction,
+    EnrichedNote, ProverClient, StakeInfo, StateClient, Transaction,
     UnprovenTransaction, POSEIDON_TREE_DEPTH,
 };
-use futures::StreamExt;
+use flume::Sender;
 use phoenix_core::{Crossover, Fee, Note};
 use poseidon_merkle::Opening as PoseidonOpening;
 
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rusk_schema::{
     ExecuteProverRequest, FindExistingNullifiersRequest, GetAnchorRequest,
-    GetNotesRequest, GetOpeningRequest, GetStakeRequest, PreverifyRequest,
-    PropagateMessage, StctProverRequest, Transaction as TransactionProto,
-    WfctProverRequest,
+    GetOpeningRequest, GetStakeRequest, PreverifyRequest, PropagateMessage,
+    StctProverRequest, Transaction as TransactionProto, WfctProverRequest,
 };
+
+use self::sync::{sync_db, SYNC_INTERVAL_SECONDS};
 
 use super::block::Block;
 use super::cache::Cache;
 
 use super::rusk::{RuskNetworkClient, RuskProverClient, RuskStateClient};
 use crate::store::LocalStore;
-use crate::{Error, MAX_ADDRESSES};
+use crate::Error;
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -195,23 +198,25 @@ impl Prover {
 /// We construct StateStore twice
 pub struct StateStore {
     inner: Mutex<InnerState>,
+    store: LocalStore,
     status: fn(&str),
-    pub(crate) store: LocalStore,
 }
 
 struct InnerState {
     client: RuskStateClient,
-    cache: Cache,
+    cache: Arc<Cache>,
 }
+
+use tokio::time::{sleep, Duration};
 
 impl StateStore {
     /// Creates a new state instance. Should only be called once.
     pub(crate) fn new(
-        client: RuskStateClient,
         data_dir: &Path,
+        client: RuskStateClient,
         store: LocalStore,
     ) -> Result<Self, Error> {
-        let cache = Cache::new(data_dir, &store)?;
+        let cache = Arc::new(Cache::new(data_dir, &store)?);
         let inner = Mutex::new(InnerState { client, cache });
 
         Ok(Self {
@@ -225,6 +230,40 @@ impl StateStore {
     pub fn set_status_callback(&mut self, status: fn(&str)) {
         self.status = status;
     }
+
+    pub async fn start_sync(
+        &self,
+        sync_tx: Sender<String>,
+    ) -> Result<(), Error> {
+        let state = self.inner.lock().unwrap();
+        let status = self.status;
+        let store = self.store.clone();
+        let mut client = state.client.clone();
+        let cache = Arc::clone(&state.cache);
+        let sender = Arc::new(sync_tx);
+
+        tokio::spawn(async move {
+            loop {
+                let sender = Arc::clone(&sender);
+
+                sleep(Duration::from_secs(SYNC_INTERVAL_SECONDS)).await;
+
+                sender.send("Syncing..".to_string()).unwrap();
+
+                if let Err(e) =
+                    sync_db(&mut client, &store, cache.as_ref(), status).await
+                {
+                    sender
+                        .send(format!("Error during sync:.. {:?}", e))
+                        .unwrap();
+                }
+
+                sender.send("Syncing Complete".to_string()).unwrap();
+            }
+        });
+
+        Ok(())
+    }
 }
 
 /// Types that are clients of the state API.
@@ -237,57 +276,8 @@ impl StateClient for StateStore {
         &self,
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
-
-        let addresses: Vec<_> = (0..MAX_ADDRESSES)
-            .flat_map(|i| self.store.retrieve_ssk(i as u64))
-            .map(|ssk| {
-                let vk = ssk.view_key();
-                let psk = vk.public_spend_key();
-                (ssk, vk, psk)
-            })
-            .collect();
-
-        self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
-        let mut last_height = state.cache.last_height()?;
-
-        self.status("Fetching fresh notes...");
-        let msg = GetNotesRequest {
-            height: last_height,
-            vk: vec![], // empty vector means *all* notes will be streamed
-        };
-        let req = tonic::Request::new(msg);
-        let mut stream = state.client.get_notes(req).wait()?.into_inner();
-        self.status("Connection established...");
-
-        self.status("Streaming notes...");
-
-        self.status(format!("From block: {}", last_height).as_str());
-
-        while let Some(item) = stream.next().wait() {
-            let rsp = item?;
-
-            last_height = std::cmp::max(last_height, rsp.height);
-
-            let note = Note::from_slice(&rsp.note)?;
-
-            for (ssk, vk, psk) in addresses.iter() {
-                if vk.owns(&note) {
-                    state.cache.insert(
-                        psk,
-                        rsp.height,
-                        (note, note.gen_nullifier(ssk)),
-                    )?;
-
-                    break;
-                }
-            }
-        }
-
-        println!("Last block: {}", last_height);
-
-        state.cache.persist(last_height)?;
+        let state = self.inner.lock().unwrap();
 
         Ok(state
             .cache

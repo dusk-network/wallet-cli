@@ -50,7 +50,7 @@ impl SecureWalletFile for WalletFile {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
     if let Err(err) = exec().await {
         // display the error message (if any)
@@ -316,7 +316,10 @@ async fn exec() -> anyhow::Result<()> {
             RunResult::Create() | RunResult::Restore() => {}
         },
         None => {
-            interactive::run_loop(&mut wallet, &settings).await?;
+
+                interactive::run_loop(&mut wallet, &settings).await.unwrap();    
+
+            
         }
     }
 

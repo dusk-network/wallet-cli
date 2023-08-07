@@ -4,9 +4,13 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use std::sync::Arc;
+use std::thread;
+
 use bip39::{Language, Mnemonic, MnemonicType};
 use dusk_wallet::gas;
 use dusk_wallet::{Address, Dusk, Wallet, WalletPath};
+use dusk_wallet::{Error, MAX_ADDRESSES};
 use requestty::Question;
 
 use crate::command::DEFAULT_STAKE_GAS_LIMIT;
@@ -17,7 +21,6 @@ use crate::settings::Settings;
 use crate::Menu;
 use crate::WalletFile;
 use crate::{Command, RunResult};
-use dusk_wallet::{Error, MAX_ADDRESSES};
 
 /// Run the interactive UX loop with a loaded wallet
 pub(crate) async fn run_loop(
@@ -26,7 +29,7 @@ pub(crate) async fn run_loop(
 ) -> anyhow::Result<()> {
     loop {
         // let the user choose (or create) an address
-        let addr = match menu_addr(wallet)? {
+        let addr = match menu_addr(wallet).await? {
             AddrSelect::Address(addr) => *addr,
             AddrSelect::NewAddress => {
                 if wallet.addresses().len() >= MAX_ADDRESSES {
@@ -122,7 +125,9 @@ enum AddrSelect {
 
 /// Allows the user to choose an address from the selected wallet
 /// to start performing operations.
-fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
+async fn menu_addr(
+    wallet: &mut Wallet<WalletFile>,
+) -> anyhow::Result<AddrSelect> {
     let mut address_menu = Menu::title("Addresses");
     for addr in wallet.addresses() {
         let preview = addr.preview();
@@ -141,6 +146,20 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
             "Warning:",
             wallet.addresses().len()
         ));
+    }
+
+    if let Some(rx) = &mut wallet.sync_rx {
+        let rx = Arc::new(rx.clone());
+
+        tokio::spawn(async move {
+            let mut rx = Arc::clone(&rx);
+
+            if let Some(status) = Arc::get_mut(&mut rx) {
+                if let Ok(status) = status.recv_async().await {
+                    println!("{:?}", status);
+                }
+            }
+        });
     }
 
     action_menu = action_menu.separator().add(AddrSelect::Exit, "Exit");

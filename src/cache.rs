@@ -13,21 +13,21 @@ use dusk_pki::PublicSpendKey;
 use dusk_plonk::prelude::BlsScalar;
 use dusk_wallet_core::Store;
 use phoenix_core::Note;
-use rocksdb::{Options, WriteBatch, DB};
+use rocksdb::{MultiThreaded, Options, TransactionDB, TransactionDBOptions};
 
 use crate::{error::Error, store::LocalStore, MAX_ADDRESSES};
+
+type DB = TransactionDB<MultiThreaded>;
 
 /// A cache of notes received from Rusk.
 ///
 /// path is the path of the rocks db database
 pub(crate) struct Cache {
     db: DB,
-    // Persist writes atomically
-    write_batch: WriteBatch,
 }
 
 impl Cache {
-    /// Returns a new cache instance.
+    /// Returns a new read_only cache instance.
     pub(crate) fn new<T: AsRef<Path>>(
         path: T,
         store: &LocalStore,
@@ -48,21 +48,25 @@ impl Cache {
         opts.set_write_buffer_size(10_000_000);
 
         // create all CF(s) on startup if we don't have them
-        let db = DB::open_cf(&opts, path, cfs)?;
+        let db = TransactionDB::open_cf(
+            &opts,
+            &TransactionDBOptions::default(),
+            path,
+            cfs,
+        )?;
 
-        let write_batch = WriteBatch::default();
-
-        Ok(Self { db, write_batch })
+        Ok(Self { db })
     }
 
     // We store a column family named by hex representation of the psk.
     // We store the nullifier of the note as key and the value is the bytes
     // representation of the tuple (NoteHeight, Note)
     pub(crate) fn insert(
-        &mut self,
+        &self,
         psk: &PublicSpendKey,
         height: u64,
         note_data: (Note, BlsScalar),
+        txn: &rocksdb::Transaction<DB>,
     ) -> Result<(), Error> {
         let cf_name = format!("{:?}", psk);
 
@@ -76,18 +80,16 @@ impl Cache {
         let data = NoteData { height, note };
         let key = nullifier.to_bytes();
 
-        self.write_batch.put_cf(cf, key, data.to_bytes());
+        txn.put_cf(&cf, key, data.to_bytes())?;
 
         Ok(())
     }
 
-    pub(crate) fn persist(&mut self, last_height: u64) -> Result<(), Error> {
+    pub(crate) fn insert_last_height(
+        &self,
+        last_height: u64,
+    ) -> Result<(), Error> {
         self.db.put(b"last_height", last_height.to_be_bytes())?;
-
-        self.db
-            .write(WriteBatch::from_data(self.write_batch.data()))?;
-
-        self.write_batch.clear();
 
         Ok(())
     }
@@ -115,7 +117,7 @@ impl Cache {
 
         if let Some(cf) = self.db.cf_handle(&cf_name) {
             let iterator =
-                self.db.iterator_cf(cf, rocksdb::IteratorMode::Start);
+                self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
 
             for i in iterator {
                 let (_, note_data) = i?;
@@ -127,6 +129,10 @@ impl Cache {
         };
 
         Ok(notes)
+    }
+
+    pub fn txn(&self) -> rocksdb::Transaction<DB> {
+        self.db.transaction()
     }
 }
 
