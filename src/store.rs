@@ -32,7 +32,7 @@ impl Serializable<64> for Seed {
 
 /// Provides a valid wallet seed to dusk_wallet_core
 #[derive(Clone)]
-pub struct LocalStore {
+pub(crate) struct LocalStore {
     seed: Seed,
 }
 
@@ -50,7 +50,7 @@ impl Store for StateStore {
 
     /// Retrieves the seed used to derive keys.
     fn get_seed(&self) -> Result<[u8; Seed::SIZE], Self::Error> {
-        Ok([0; 64])
+        Ok(self.store.seed.to_bytes())
     }
 }
 

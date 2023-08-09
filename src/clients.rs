@@ -17,15 +17,15 @@ use dusk_wallet_core::{
     UnprovenTransaction, POSEIDON_TREE_DEPTH,
 };
 use flume::Sender;
-use futures::StreamExt;
 use phoenix_core::transaction::StakeData;
 use phoenix_core::{Crossover, Fee, Note};
 use poseidon_merkle::Opening as PoseidonOpening;
+use tokio::time::{sleep, Duration};
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use self::sync::{sync_db, SYNC_INTERVAL_SECONDS};
+use self::sync::sync_db;
 
 use super::block::Block;
 use super::cache::Cache;
@@ -46,8 +46,12 @@ const WFCT_INPUT_SIZE: usize =
 
 const TRANSFER_CONTRACT: &str =
     "0100000000000000000000000000000000000000000000000000000000000000";
+
 const STAKE_CONTRACT: &str =
     "0200000000000000000000000000000000000000000000000000000000000000";
+
+// Sync every 3 seconds for now
+const SYNC_INTERVAL_SECONDS: u64 = 3;
 
 /// Implementation of the ProverClient trait from wallet-core
 pub struct Prover {
@@ -172,16 +176,14 @@ impl Prover {
 /// We construct StateStore twice
 pub struct StateStore {
     inner: Mutex<InnerState>,
-    store: LocalStore,
     status: fn(&str),
+    pub(crate) store: LocalStore,
 }
 
 struct InnerState {
     client: RuskHttpClient,
     cache: Arc<Cache>,
 }
-
-use tokio::time::{sleep, Duration};
 
 impl StateStore {
     /// Creates a new state instance. Should only be called once.
@@ -223,14 +225,8 @@ impl StateStore {
                 let sender = Arc::clone(&sender);
                 let _ = sender.send("Syncing..".to_string());
 
-                if let Err(e) = sync_db(
-                    &mut client,
-                    &store,
-                    cache.as_ref(),
-                    status,
-                    Arc::clone(&sender),
-                )
-                .await
+                if let Err(e) =
+                    sync_db(&mut client, &store, cache.as_ref(), status).await
                 {
                     // Sender should not panic and if it does something is wrong
                     // and we should abort only when there's an error because it

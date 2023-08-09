@@ -1,8 +1,12 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) DUSK NETWORK. All rights reserved.
+
 use std::mem::size_of;
-use std::sync::Arc;
 
 use dusk_wallet_core::Store;
-use flume::Sender;
 use futures::StreamExt;
 use phoenix_core::transaction::{ArchivedTreeLeaf, TreeLeaf};
 
@@ -14,14 +18,12 @@ use crate::{
 use super::TRANSFER_CONTRACT;
 
 const RKYV_TREE_LEAF_SIZE: usize = size_of::<ArchivedTreeLeaf>();
-pub const SYNC_INTERVAL_SECONDS: u64 = 3;
 
 pub(crate) async fn sync_db(
     client: &mut RuskHttpClient,
     store: &LocalStore,
     cache: &Cache,
     status: fn(&str),
-    sender: Arc<Sender<String>>,
 ) -> Result<(), Error> {
     let addresses: Vec<_> = (0..MAX_ADDRESSES)
         .flat_map(|i| store.retrieve_ssk(i as u64))
@@ -57,7 +59,6 @@ pub(crate) async fn sync_db(
     status("Streaming notes...");
 
     status(format!("From block: {}", last_height).as_str());
-    let _ = sender.send("Fetching notes from network".to_string());
 
     // This buffer is needed because `.bytes_stream();` introduce additional
     // spliting of chunks according to it's own buffer
@@ -70,7 +71,6 @@ pub(crate) async fn sync_db(
         }
         let TreeLeaf { block_height, note } =
             rkyv::from_bytes(&buffer).map_err(|_| Error::Rkyv)?;
-        let txn = cache.txn();
 
         buffer.clear();
 
@@ -82,7 +82,6 @@ pub(crate) async fn sync_db(
                     psk,
                     block_height,
                     (note, note.gen_nullifier(ssk)),
-                    txn,
                 )?;
 
                 break;
@@ -93,7 +92,6 @@ pub(crate) async fn sync_db(
     println!("Last block: {}", last_height);
 
     cache.insert_last_height(last_height)?;
-    let _ = sender.send("Finished fetching notes from network".to_string());
 
     Ok(())
 }

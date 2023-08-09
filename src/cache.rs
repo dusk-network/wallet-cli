@@ -13,11 +13,11 @@ use dusk_pki::PublicSpendKey;
 use dusk_plonk::prelude::BlsScalar;
 use dusk_wallet_core::Store;
 use phoenix_core::Note;
-use rocksdb::{MultiThreaded, Options, TransactionDB, TransactionDBOptions};
+use rocksdb::{DBWithThreadMode, MultiThreaded, Options};
 
 use crate::{error::Error, store::LocalStore, MAX_ADDRESSES};
 
-type DB = TransactionDB<MultiThreaded>;
+type DB = DBWithThreadMode<MultiThreaded>;
 
 /// A cache of notes received from Rusk.
 ///
@@ -27,7 +27,7 @@ pub(crate) struct Cache {
 }
 
 impl Cache {
-    /// Returns a new read_only cache instance.
+    /// Returns a new cache instance.
     pub(crate) fn new<T: AsRef<Path>>(
         path: T,
         store: &LocalStore,
@@ -48,12 +48,7 @@ impl Cache {
         opts.set_write_buffer_size(10_000_000);
 
         // create all CF(s) on startup if we don't have them
-        let db = TransactionDB::open_cf(
-            &opts,
-            &TransactionDBOptions::default(),
-            path,
-            cfs,
-        )?;
+        let db = DB::open_cf(&opts, path, cfs)?;
 
         Ok(Self { db })
     }
@@ -66,7 +61,6 @@ impl Cache {
         psk: &PublicSpendKey,
         height: u64,
         note_data: (Note, BlsScalar),
-        txn: rocksdb::Transaction<DB>,
     ) -> Result<(), Error> {
         let cf_name = format!("{:?}", psk);
 
@@ -80,8 +74,7 @@ impl Cache {
         let data = NoteData { height, note };
         let key = nullifier.to_bytes();
 
-        txn.put_cf(&cf, key, data.to_bytes())?;
-        txn.commit()?;
+        self.db.put_cf(&cf, key, data.to_bytes())?;
 
         Ok(())
     }
@@ -130,10 +123,6 @@ impl Cache {
         };
 
         Ok(notes)
-    }
-
-    pub fn txn(&self) -> rocksdb::Transaction<DB> {
-        self.db.transaction()
     }
 }
 

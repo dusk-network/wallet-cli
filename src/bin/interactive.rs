@@ -7,8 +7,7 @@
 use bip39::{Language, Mnemonic, MnemonicType};
 use dusk_wallet::dat::{DatFileVersion, LATEST_VERSION};
 use dusk_wallet::gas;
-use dusk_wallet::{Address, Dusk, Wallet, WalletPath};
-use dusk_wallet::{Error, MAX_ADDRESSES};
+use dusk_wallet::{Address, Dusk, Error, Wallet, WalletPath, MAX_ADDRESSES};
 use requestty::Question;
 
 use crate::command::DEFAULT_STAKE_GAS_LIMIT;
@@ -123,7 +122,7 @@ enum AddrSelect {
 
 /// Allows the user to choose an address from the selected wallet
 /// to start performing operations.
-fn menu_addr(wallet: &mut Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
+fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
     let mut address_menu = Menu::title("Addresses");
     for addr in wallet.addresses() {
         let preview = addr.preview();
@@ -144,7 +143,7 @@ fn menu_addr(wallet: &mut Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
         ));
     }
 
-    if let Some(rx) = &mut wallet.sync_rx {
+    if let Some(rx) = &wallet.sync_rx {
         if let Ok(status) = rx.try_recv() {
             action_menu = action_menu
                 .separator()

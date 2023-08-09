@@ -326,10 +326,7 @@ async fn exec() -> anyhow::Result<()> {
             RunResult::Create() | RunResult::Restore() => {}
         },
         None => {
-
-                interactive::run_loop(&mut wallet, &settings).await.unwrap();    
-
-            
+            interactive::run_loop(&mut wallet, &settings).await?;
         }
     }
 
