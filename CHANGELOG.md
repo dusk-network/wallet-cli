@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2023-08-09
+
 ### Added
 
 - Add support for rusk HTTP request [#173]
@@ -15,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Change `config.toml` to use `http` instead of `grpc` endpoints [#173]
+- Save the wallet.dat file with the new Rusk Binary Format [#165]
+- Change blake3 with sha256 for password hashing for new Rusk Binary Format, 
+  keep using blake3 for old dat file formats [#162]
 
 ### Removed
 
@@ -37,8 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change `Error::Canon` variant to `Error::Rkyv` [#151]
 - Populate cache database with psk(s) on state init [#158]
 - Change `dusk-plonk` to `0.14.0` [#169]
-- Save the wallet.dat file with the new Rusk Binary Format [#165]
-- Change blake3 with sha256 for password hashing for new Rusk Binary Format, keep using blake3 for old dat file formats [#162]
 
 ### Fixed
 - Fix cache resolution for alternative networks [#151]
@@ -473,7 +476,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.17.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/dusk-network/wallet-cli/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/dusk-network/wallet-cli/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/dusk-network/wallet-cli/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/dusk-network/wallet-cli/compare/v0.14.1...v0.15.0
