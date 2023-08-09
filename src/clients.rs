@@ -191,23 +191,19 @@ impl StateStore {
         client: RuskHttpClient,
         data_dir: &Path,
         store: LocalStore,
+        status: fn(&str),
     ) -> Result<Self, Error> {
-        let cache = Arc::new(Cache::new(data_dir, &store)?);
+        let cache = Arc::new(Cache::new(data_dir, &store, status)?);
         let inner = Mutex::new(InnerState { client, cache });
 
         Ok(Self {
             inner,
-            status: |_| {},
+            status,
             store,
         })
     }
 
-    /// Sets the callback method to send status updates
-    pub fn set_status_callback(&mut self, status: fn(&str)) {
-        self.status = status;
-    }
-
-    pub async fn start_sync(
+    pub async fn register_sync(
         &self,
         sync_tx: Sender<String>,
     ) -> Result<(), Error> {
@@ -242,6 +238,15 @@ impl StateStore {
         });
 
         Ok(())
+    }
+
+    pub async fn sync(&self) -> Result<(), Error> {
+        let state = self.inner.lock().unwrap();
+        let status = self.status;
+        let store = self.store.clone();
+        let mut client = state.client.clone();
+
+        sync_db(&mut client, &store, state.cache.as_ref(), status).await
     }
 }
 

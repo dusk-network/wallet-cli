@@ -235,6 +235,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         rusk_addr: S,
         prov_addr: S,
         status: fn(&str),
+        block: bool,
     ) -> Result<(), Error>
     where
         S: Into<String>,
@@ -258,11 +259,18 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         let (sync_tx, sync_rx) = flume::unbounded::<String>();
 
         // create a state client
-        let mut state =
-            StateStore::new(rusk.state, &cache_dir, self.store.clone())?;
+        let state = StateStore::new(
+            rusk.state,
+            &cache_dir,
+            self.store.clone(),
+            status,
+        )?;
 
-        state.set_status_callback(status);
-        state.start_sync(sync_tx).await?;
+        if block {
+            state.sync().await?;
+        } else {
+            state.register_sync(sync_tx).await?;
+        }
 
         // create wallet instance
         self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));

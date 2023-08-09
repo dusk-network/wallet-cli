@@ -68,6 +68,7 @@ async fn connect<F>(
     mut wallet: Wallet<F>,
     settings: &Settings,
     status: fn(&str),
+    block: bool,
 ) -> Wallet<F>
 where
     F: SecureWalletFile + std::fmt::Debug,
@@ -77,6 +78,7 @@ where
             &settings.state.to_string(),
             &settings.prover.to_string(),
             status,
+            block,
         )
         .await;
 
@@ -273,7 +275,10 @@ async fn exec() -> anyhow::Result<()> {
         false => status::interactive,
     };
 
-    wallet = connect(wallet, &settings, status_cb).await;
+    // we block until we connect and sync if its not a interactive command
+    let block = cmd.is_some();
+
+    wallet = connect(wallet, &settings, status_cb, block).await;
 
     // run command
     match cmd {

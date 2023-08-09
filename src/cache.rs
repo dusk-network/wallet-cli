@@ -31,6 +31,7 @@ impl Cache {
     pub(crate) fn new<T: AsRef<Path>>(
         path: T,
         store: &LocalStore,
+        status: fn(&str),
     ) -> Result<Self, Error> {
         let cfs: Vec<_> = (0..MAX_ADDRESSES)
             .map(|i| {
@@ -40,6 +41,8 @@ impl Cache {
                 format!("{:?}", psk)
             })
             .collect();
+
+        status("Opening notes database");
 
         let mut opts = Options::default();
         opts.create_if_missing(true);
