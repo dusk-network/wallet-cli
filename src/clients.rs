@@ -240,6 +240,7 @@ impl StateStore {
         Ok(())
     }
 
+    #[allow(clippy::await_holding_lock)]
     pub async fn sync(&self) -> Result<(), Error> {
         let state = self.inner.lock().unwrap();
         let status = self.status;
