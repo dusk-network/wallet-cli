@@ -64,29 +64,28 @@ pub(crate) async fn sync_db(
     // spliting of chunks according to it's own buffer
     let mut buffer = vec![];
 
-    while let Some(chunk) = stream.next().await {
-        buffer.extend_from_slice(&chunk?);
-        if buffer.len() < RKYV_TREE_LEAF_SIZE {
-            continue;
-        }
-        let TreeLeaf { block_height, note } =
-            rkyv::from_bytes(&buffer).map_err(|_| Error::Rkyv)?;
+    while let Some(http_chunk) = stream.next().await {
+        buffer.extend_from_slice(&http_chunk?);
 
-        buffer.clear();
+        let mut leaf_chunk = buffer.chunks_exact(RKYV_TREE_LEAF_SIZE);
 
-        last_height = std::cmp::max(last_height, block_height);
+        for leaf_bytes in leaf_chunk.by_ref() {
+            let TreeLeaf { block_height, note } =
+                rkyv::from_bytes(leaf_bytes).map_err(|_| Error::Rkyv)?;
 
-        for (ssk, vk, psk) in addresses.iter() {
-            if vk.owns(&note) {
-                cache.insert(
-                    psk,
-                    block_height,
-                    (note, note.gen_nullifier(ssk)),
-                )?;
+            last_height = std::cmp::max(last_height, block_height);
 
-                break;
+            for (ssk, vk, psk) in addresses.iter() {
+                if vk.owns(&note) {
+                    let note_data = (note, note.gen_nullifier(ssk));
+                    cache.insert(psk, block_height, note_data)?;
+
+                    break;
+                }
             }
         }
+
+        buffer = leaf_chunk.remainder().to_vec();
     }
 
     println!("Last block: {}", last_height);
