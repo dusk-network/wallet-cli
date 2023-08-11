@@ -41,7 +41,7 @@ dirs = "4.0"
 bs58 = "0.4"
 rand = "0.8"
 aes = "0.7"
-rocksdb = "0.20.1"
+rocksdb = "0.21"
 reqwest = { version = "0.11", features = ["stream"] }
 
 dusk-wallet-core = "0.20.0-piecrust.0.6"
@@ -66,6 +66,7 @@ rkyv = { version = "=0.7.39", default-features = false }
 
 [dev-dependencies]
 tempfile = "3.2"
+rusk = { branch="remove-recovery-dep", git = "https://www.github.com/dusk-network/rusk", default-features = false}
 
 [profile.release]
 overflow-checks = true
