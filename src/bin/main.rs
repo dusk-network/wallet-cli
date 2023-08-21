@@ -265,7 +265,7 @@ async fn exec() -> anyhow::Result<()> {
         },
         None => {
             // load a wallet in interactive mode
-            interactive::load_wallet(&wallet_path, &settings, file_version?)?
+            interactive::load_wallet(&wallet_path, &settings, file_version)?
         }
     };
 

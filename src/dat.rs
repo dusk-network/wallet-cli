@@ -187,7 +187,7 @@ pub fn read_file_version(file: &WalletPath) -> Result<DatFileVersion, Error> {
 
     // make sure file exists
     if !path.is_file() {
-        return Err(Error::WalletFileNotExists);
+        return Err(Error::WalletFileMissing);
     }
 
     let mut fs = fs::File::open(path)?;

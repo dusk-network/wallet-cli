@@ -296,7 +296,7 @@ fn menu_op_offline(
 pub(crate) fn load_wallet(
     wallet_path: &WalletPath,
     settings: &Settings,
-    file_version: DatFileVersion,
+    file_version: Result<DatFileVersion, Error>,
 ) -> anyhow::Result<Wallet<WalletFile>> {
     let wallet_found =
         wallet_path.inner().exists().then(|| wallet_path.clone());
@@ -306,6 +306,7 @@ pub(crate) fn load_wallet(
     // display main menu
     let wallet = match menu_wallet(wallet_found)? {
         MainMenu::Load(path) => {
+            let file_version = file_version?;
             let mut attempt = 1;
             loop {
                 let pwd = prompt::request_auth(
@@ -349,8 +350,12 @@ pub(crate) fn load_wallet(
         MainMenu::Recover => {
             // ask user for 12-word recovery phrase
             let phrase = prompt::request_recovery_phrase()?;
-            // ask user for a password to secure the wallet
-            let pwd = prompt::create_password(&None, file_version)?;
+            // ask user for a password to secure the wallet, create the latest
+            // wallet file from the seed
+            let pwd = prompt::create_password(
+                &None,
+                DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
+            )?;
             // create and store the recovered wallet
             let mut w = Wallet::new(phrase)?;
             let path = wallet_path.clone();
