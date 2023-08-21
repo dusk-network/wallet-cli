@@ -128,7 +128,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         // make sure file exists
         let pb = path.inner().clone();
         if !pb.is_file() {
-            return Err(Error::WalletFileNotExists);
+            return Err(Error::WalletFileMissing);
         }
 
         // attempt to load and decode wallet
@@ -684,7 +684,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         } else if let Some(file) = &self.file {
             Ok(dat::read_file_version(file.path())?)
         } else {
-            Err(Error::WalletFileNotExists)
+            Err(Error::WalletFileMissing)
         }
     }
 }

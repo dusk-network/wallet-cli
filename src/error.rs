@@ -99,9 +99,6 @@ pub enum Error {
     /// File version not recognized
     #[error("File version {0}.{1} not recognized")]
     UnknownFileVersion(u8, u8),
-    /// Wallet file not found on disk
-    #[error("Wallet file not found on disk")]
-    WalletFileNotExists,
     /// A wallet file with this name already exists
     #[error("A wallet file with this name already exists")]
     WalletFileExists,

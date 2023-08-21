@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fix fetch_notes buffer [#176]
+- Fix bug where we return early when there's no wallet file in interactive [#182]
 
 ## [0.18.0] - 2023-08-09
 
@@ -396,6 +397,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#182]: https://github.com/dusk-network/wallet-cli/issues/182
 [#176]: https://github.com/dusk-network/wallet-cli/issues/176
 [#162]: https://github.com/dusk-network/wallet-cli/issues/162
 [#163]: https://github.com/dusk-network/wallet-cli/issues/163
