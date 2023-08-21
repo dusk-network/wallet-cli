@@ -14,6 +14,7 @@ pub use file::{SecureWalletFile, WalletPath};
 
 use bip39::{Language, Mnemonic, Seed};
 use dusk_bytes::{DeserializableSlice, Serializable};
+use flume::Receiver;
 use phoenix_core::transaction::ModuleId;
 use phoenix_core::Note;
 use rkyv::ser::serializers::AllocSerializer;
@@ -64,6 +65,8 @@ pub struct Wallet<F: SecureWalletFile + Debug> {
     file: Option<F>,
     file_version: Option<DatFileVersion>,
     status: fn(status: &str),
+    /// Recieve the status/errors of the sync procss
+    pub sync_rx: Option<Receiver<String>>,
 }
 
 impl<F: SecureWalletFile + Debug> Wallet<F> {
@@ -110,6 +113,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 file: None,
                 file_version: None,
                 status: |_| {},
+                sync_rx: None,
             })
         } else {
             Err(Error::InvalidMnemonicPhrase)
@@ -153,6 +157,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 file: Some(file),
                 file_version: Some(DatFileVersion::Legacy),
                 status: |_| {},
+                sync_rx: None,
             });
         }
 
@@ -174,6 +179,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             file: Some(file),
             file_version: Some(file_version),
             status: |_| {},
+            sync_rx: None,
         })
     }
 
@@ -229,6 +235,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         rusk_addr: S,
         prov_addr: S,
         status: fn(&str),
+        block: bool,
     ) -> Result<(), Error>
     where
         S: Into<String>,
@@ -249,17 +256,29 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             }
         };
 
-        // create a state client
-        let mut state =
-            StateStore::new(rusk.state, &cache_dir, self.store.clone())?;
+        let (sync_tx, sync_rx) = flume::unbounded::<String>();
 
-        state.set_status_callback(status);
+        // create a state client
+        let state = StateStore::new(
+            rusk.state,
+            &cache_dir,
+            self.store.clone(),
+            status,
+        )?;
+
+        if block {
+            state.sync().await?;
+        } else {
+            state.register_sync(sync_tx).await?;
+        }
 
         // create wallet instance
         self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));
 
         // set our own status callback
         self.status = status;
+        // set sync reciever to notify successful sync
+        self.sync_rx = Some(sync_rx);
 
         Ok(())
     }
