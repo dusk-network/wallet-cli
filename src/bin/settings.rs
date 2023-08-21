@@ -10,6 +10,7 @@ use crate::io::WalletArgs;
 use dusk_wallet::Error;
 use std::fmt;
 use std::path::PathBuf;
+
 use tracing::Level;
 use url::Url;
 
@@ -41,6 +42,7 @@ pub(crate) struct Logging {
     /// Log format
     pub format: LogFormat,
 }
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct Settings {

@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+mod sync;
+
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::{DeserializableSlice, Serializable, Write};
 use dusk_pki::ViewKey;
@@ -11,24 +13,26 @@ use dusk_plonk::prelude::*;
 use dusk_plonk::proof_system::Proof;
 use dusk_schnorr::Signature;
 use dusk_wallet_core::{
-    EnrichedNote, ProverClient, StakeInfo, StateClient, Store, Transaction,
+    EnrichedNote, ProverClient, StakeInfo, StateClient, Transaction,
     UnprovenTransaction, POSEIDON_TREE_DEPTH,
 };
-use futures::StreamExt;
-use phoenix_core::transaction::{ArchivedTreeLeaf, StakeData, TreeLeaf};
+use flume::Sender;
+use phoenix_core::transaction::StakeData;
 use phoenix_core::{Crossover, Fee, Note};
 use poseidon_merkle::Opening as PoseidonOpening;
+use tokio::time::{sleep, Duration};
 
-use std::mem::size_of;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+
+use self::sync::sync_db;
 
 use super::block::Block;
 use super::cache::Cache;
 
 use crate::rusk::{RuskHttpClient, RuskRequest};
 use crate::store::LocalStore;
-use crate::{Error, MAX_ADDRESSES};
+use crate::Error;
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -42,10 +46,12 @@ const WFCT_INPUT_SIZE: usize =
 
 const TRANSFER_CONTRACT: &str =
     "0100000000000000000000000000000000000000000000000000000000000000";
+
 const STAKE_CONTRACT: &str =
     "0200000000000000000000000000000000000000000000000000000000000000";
 
-const RKYV_TREE_LEAF_SIZE: usize = size_of::<ArchivedTreeLeaf>();
+// Sync every 3 seconds for now
+const SYNC_INTERVAL_SECONDS: u64 = 3;
 
 /// Implementation of the ProverClient trait from wallet-core
 pub struct Prover {
@@ -176,7 +182,7 @@ pub struct StateStore {
 
 struct InnerState {
     client: RuskHttpClient,
-    cache: Cache,
+    cache: Arc<Cache>,
 }
 
 impl StateStore {
@@ -185,20 +191,63 @@ impl StateStore {
         client: RuskHttpClient,
         data_dir: &Path,
         store: LocalStore,
+        status: fn(&str),
     ) -> Result<Self, Error> {
-        let cache = Cache::new(data_dir, &store)?;
+        let cache = Arc::new(Cache::new(data_dir, &store, status)?);
         let inner = Mutex::new(InnerState { client, cache });
 
         Ok(Self {
             inner,
-            status: |_| {},
+            status,
             store,
         })
     }
 
-    /// Sets the callback method to send status updates
-    pub fn set_status_callback(&mut self, status: fn(&str)) {
-        self.status = status;
+    pub async fn register_sync(
+        &self,
+        sync_tx: Sender<String>,
+    ) -> Result<(), Error> {
+        let state = self.inner.lock().unwrap();
+        let status = self.status;
+        let store = self.store.clone();
+        let mut client = state.client.clone();
+        let cache = Arc::clone(&state.cache);
+        let sender = Arc::new(sync_tx);
+
+        status("Starting Sync..");
+
+        tokio::spawn(async move {
+            loop {
+                let sender = Arc::clone(&sender);
+                let _ = sender.send("Syncing..".to_string());
+
+                if let Err(e) =
+                    sync_db(&mut client, &store, cache.as_ref(), status).await
+                {
+                    // Sender should not panic and if it does something is wrong
+                    // and we should abort only when there's an error because it
+                    // important to tell the user that the sync failed
+                    sender
+                        .send(format!("Error during sync:.. {:?}", e))
+                        .unwrap();
+                }
+
+                let _ = sender.send("Syncing Complete".to_string());
+                sleep(Duration::from_secs(SYNC_INTERVAL_SECONDS)).await;
+            }
+        });
+
+        Ok(())
+    }
+
+    #[allow(clippy::await_holding_lock)]
+    pub async fn sync(&self) -> Result<(), Error> {
+        let state = self.inner.lock().unwrap();
+        let status = self.status;
+        let store = self.store.clone();
+        let mut client = state.client.clone();
+
+        sync_db(&mut client, &store, state.cache.as_ref(), status).await
     }
 }
 
@@ -212,72 +261,8 @@ impl StateClient for StateStore {
         &self,
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
-        let mut state = self.inner.lock().unwrap();
-
-        let addresses: Vec<_> = (0..MAX_ADDRESSES)
-            .flat_map(|i| self.store.retrieve_ssk(i as u64))
-            .map(|ssk| {
-                let vk = ssk.view_key();
-                let psk = vk.public_spend_key();
-                (ssk, vk, psk)
-            })
-            .collect();
-
-        self.status("Getting cached block height...");
         let psk = vk.public_spend_key();
-        let mut last_height = state.cache.last_height()?;
-
-        self.status("Fetching fresh notes...");
-        // let mut stream = state.client.get_notes(req).wait()?.into_inner();
-        let req = rkyv::to_bytes::<_, 8>(&last_height)
-            .map_err(|_| Error::Rkyv)?
-            .to_vec();
-        let mut stream = state
-            .client
-            .call_raw(
-                1,
-                TRANSFER_CONTRACT,
-                &RuskRequest::new("leaves_from_height", req),
-                true,
-            )
-            .wait()?
-            .bytes_stream();
-        self.status("Connection established...");
-
-        self.status("Streaming notes...");
-
-        self.status(format!("From block: {}", last_height).as_str());
-
-        // This buffer is needed because `.bytes_stream();` introduce additional
-        // spliting of chunks according to it's own buffer
-        let mut buffer = vec![];
-
-        while let Some(http_chunk) = stream.next().wait() {
-            buffer.extend_from_slice(&http_chunk?);
-
-            let mut leaf_chunk = buffer.chunks_exact(RKYV_TREE_LEAF_SIZE);
-
-            for leaf_bytes in leaf_chunk.by_ref() {
-                let TreeLeaf { block_height, note } =
-                    rkyv::from_bytes(leaf_bytes).map_err(|_| Error::Rkyv)?;
-
-                last_height = std::cmp::max(last_height, block_height);
-
-                for (ssk, vk, psk) in addresses.iter() {
-                    if vk.owns(&note) {
-                        let note_data = (note, note.gen_nullifier(ssk));
-                        state.cache.insert(psk, block_height, note_data)?;
-
-                        break;
-                    }
-                }
-            }
-            buffer = leaf_chunk.remainder().to_vec();
-        }
-
-        println!("Last block: {}", last_height);
-
-        state.cache.persist(last_height)?;
+        let state = self.inner.lock().unwrap();
 
         Ok(state
             .cache
