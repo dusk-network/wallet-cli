@@ -33,7 +33,7 @@ use super::cache::Cache;
 
 use crate::rusk::{RuskHttpClient, RuskRequest};
 use crate::store::LocalStore;
-use crate::{Address, Error, SecureWalletFile, Wallet};
+use crate::{Error, SecureWalletFile, Wallet};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
