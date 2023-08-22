@@ -68,7 +68,6 @@ async fn connect<F>(
     mut wallet: Wallet<F>,
     settings: &Settings,
     status: fn(&str),
-    block: bool,
 ) -> Wallet<F>
 where
     F: SecureWalletFile + std::fmt::Debug,
@@ -78,7 +77,6 @@ where
             &settings.state.to_string(),
             &settings.prover.to_string(),
             status,
-            block,
         )
         .await;
 
@@ -169,7 +167,10 @@ async fn exec() -> anyhow::Result<()> {
         _ => {}
     };
 
+    // get the file version early
     let file_version = dat::read_file_version(&wallet_path);
+    // we register for background sync if its interactive
+    let mut is_interactive = false;
 
     // get our wallet ready
     let mut wallet: Wallet<WalletFile> = match cmd {
@@ -202,7 +203,7 @@ async fn exec() -> anyhow::Result<()> {
             Command::Restore { file } => {
                 let (mut w, pwd) = match file {
                     Some(file) => {
-                        // if we restore and old version file make sure we
+                        // if we restore an old version file make sure we
                         // know the corrrect version before asking for the
                         // password
                         let file_version = dat::read_file_version(file)?;
@@ -264,6 +265,7 @@ async fn exec() -> anyhow::Result<()> {
             }
         },
         None => {
+            is_interactive = true;
             // load a wallet in interactive mode
             interactive::load_wallet(&wallet_path, &settings, file_version)?
         }
@@ -275,10 +277,12 @@ async fn exec() -> anyhow::Result<()> {
         false => status::interactive,
     };
 
-    // we block until we connect and sync if its not a interactive command
-    let block = cmd.is_some();
+    wallet = connect(wallet, &settings, status_cb).await;
 
-    wallet = connect(wallet, &settings, status_cb, block).await;
+    if is_interactive {
+        // register for a async-background sync if we are in interactive
+        wallet.register_sync().await?;
+    }
 
     // run command
     match cmd {

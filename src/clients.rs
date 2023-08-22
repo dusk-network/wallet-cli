@@ -22,6 +22,7 @@ use phoenix_core::{Crossover, Fee, Note};
 use poseidon_merkle::Opening as PoseidonOpening;
 use tokio::time::{sleep, Duration};
 
+use std::fmt::Debug;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -32,7 +33,7 @@ use super::cache::Cache;
 
 use crate::rusk::{RuskHttpClient, RuskRequest};
 use crate::store::LocalStore;
-use crate::Error;
+use crate::{Address, Error, SecureWalletFile, Wallet};
 
 const STCT_INPUT_SIZE: usize = Fee::SIZE
     + Crossover::SIZE
@@ -187,12 +188,13 @@ struct InnerState {
 
 impl StateStore {
     /// Creates a new state instance. Should only be called once.
-    pub(crate) fn new(
+    pub(crate) fn new<F: SecureWalletFile + Debug>(
         client: RuskHttpClient,
         data_dir: &Path,
-        store: LocalStore,
+        wallet: &mut Wallet<F>,
         status: fn(&str),
     ) -> Result<Self, Error> {
+        let store = wallet.store.clone();
         let cache = Arc::new(Cache::new(data_dir, &store, status)?);
         let inner = Mutex::new(InnerState { client, cache });
 
@@ -222,7 +224,8 @@ impl StateStore {
                 let _ = sender.send("Syncing..".to_string());
 
                 if let Err(e) =
-                    sync_db(&mut client, &store, cache.as_ref(), status).await
+                    sync_db(&mut client, &store, cache.as_ref(), status, None)
+                        .await
                 {
                     // Sender should not panic and if it does something is wrong
                     // and we should abort only when there's an error because it
@@ -240,14 +243,41 @@ impl StateStore {
         Ok(())
     }
 
+    /// Only blocking sync adds new addresses in the wallet if it detects some
+    /// are missing. We call this during recovery and when we connect first to
+    /// the network to ensure that all addresses with funds are created.
+    ///
+    /// Wallet isn't send so we cannot add addresses to it in async task for
+    /// register_sync
+    ///
+    /// This gets called automatically when you call `wallet.connect`
     #[allow(clippy::await_holding_lock)]
-    pub async fn sync(&self) -> Result<(), Error> {
+    pub async fn sync<F>(&self, wallet: &mut Wallet<F>) -> Result<(), Error>
+    where
+        F: SecureWalletFile + Debug,
+    {
         let state = self.inner.lock().unwrap();
         let status = self.status;
         let store = self.store.clone();
         let mut client = state.client.clone();
 
-        sync_db(&mut client, &store, state.cache.as_ref(), status).await
+        let num_of_addresses = sync_db(
+            &mut client,
+            &store,
+            state.cache.as_ref(),
+            status,
+            Some(wallet.addresses()),
+        )
+        .await?;
+
+        for _ in 0..num_of_addresses {
+            // create addresses which are not there
+            wallet.new_address();
+        }
+        // save the new address count in the wallet file
+        wallet.save()?;
+
+        Ok(())
     }
 }
 
