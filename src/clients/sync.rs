@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::{mem::size_of, ops::AddAssign};
+use std::mem::size_of;
 
 use dusk_wallet_core::Store;
 use futures::StreamExt;
@@ -24,8 +24,8 @@ pub(crate) async fn sync_db(
     store: &LocalStore,
     cache: &Cache,
     status: fn(&str),
-    existing_addresses: Option<&[Address]>,
-) -> Result<u8, Error> {
+    existing_addresses: &[Address],
+) -> Result<usize, Error> {
     let addresses: Vec<_> = (0..MAX_ADDRESSES)
         .flat_map(|i| store.retrieve_ssk(i as u64))
         .map(|ssk| {
@@ -65,7 +65,7 @@ pub(crate) async fn sync_db(
     // spliting of chunks according to it's own buffer
     let mut buffer = vec![];
     // This stores the number of addresses we need to create after a sync-up
-    let mut addresses_to_create = 0u8;
+    let mut address_idx_to_create = 0;
 
     while let Some(http_chunk) = stream.next().await {
         buffer.extend_from_slice(&http_chunk?);
@@ -80,9 +80,9 @@ pub(crate) async fn sync_db(
 
             for (i, (ssk, vk, psk)) in addresses.iter().enumerate() {
                 if vk.owns(&note) {
-                    if let Some(existing_addresses) = existing_addresses {
-                        if existing_addresses.get(i).is_none() {
-                            addresses_to_create.add_assign(1);
+                    if existing_addresses.get(i).is_none() {
+                        if i > address_idx_to_create {
+                            address_idx_to_create = i;
                         }
                     }
 
@@ -101,5 +101,5 @@ pub(crate) async fn sync_db(
 
     cache.insert_last_height(last_height)?;
 
-    Ok(addresses_to_create)
+    Ok(address_idx_to_create)
 }
