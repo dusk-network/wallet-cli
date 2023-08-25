@@ -224,7 +224,7 @@ impl StateStore {
                 let _ = sender.send("Syncing..".to_string());
 
                 if let Err(e) =
-                    sync_db(&mut client, &store, cache.as_ref(), status, None)
+                    sync_db(&mut client, &store, cache.as_ref(), status, &[])
                         .await
                 {
                     // Sender should not panic and if it does something is wrong
@@ -261,19 +261,22 @@ impl StateStore {
         let store = self.store.clone();
         let mut client = state.client.clone();
 
+        let existing_addresses = wallet.addresses().len();
+
         let num_of_addresses = sync_db(
             &mut client,
             &store,
             state.cache.as_ref(),
             status,
-            Some(wallet.addresses()),
+            wallet.addresses(),
         )
         .await?;
 
-        for _ in 0..num_of_addresses {
+        for _ in existing_addresses..=num_of_addresses {
             // create addresses which are not there
             wallet.new_address();
         }
+
         // save the new address count in the wallet file
         wallet.save()?;
 
