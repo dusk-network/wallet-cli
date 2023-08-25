@@ -61,7 +61,7 @@ use crate::store;
 pub struct Wallet<F: SecureWalletFile + Debug> {
     wallet: Option<WalletCore<LocalStore, StateStore, Prover>>,
     addresses: Vec<Address>,
-    store: LocalStore,
+    pub(crate) store: LocalStore,
     file: Option<F>,
     file_version: Option<DatFileVersion>,
     status: fn(status: &str),
@@ -235,7 +235,6 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         rusk_addr: S,
         prov_addr: S,
         status: fn(&str),
-        block: bool,
     ) -> Result<(), Error>
     where
         S: Into<String>,
@@ -256,29 +255,17 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             }
         };
 
-        let (sync_tx, sync_rx) = flume::unbounded::<String>();
-
         // create a state client
-        let state = StateStore::new(
-            rusk.state,
-            &cache_dir,
-            self.store.clone(),
-            status,
-        )?;
-
-        if block {
-            state.sync().await?;
-        } else {
-            state.register_sync(sync_tx).await?;
-        }
+        let state = StateStore::new(rusk.state, &cache_dir, self, status)?;
+        // Do a blocking sync as we connect, register for background sync
+        // externally
+        state.sync(self).await?;
 
         // create wallet instance
         self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));
 
         // set our own status callback
         self.status = status;
-        // set sync reciever to notify successful sync
-        self.sync_rx = Some(sync_rx);
 
         Ok(())
     }
@@ -685,6 +672,22 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             Ok(dat::read_file_version(file.path())?)
         } else {
             Err(Error::WalletFileMissing)
+        }
+    }
+
+    /// Helper function to register for async-sync outside of connect
+    pub async fn register_sync(&mut self) -> Result<(), Error> {
+        if let Some(core_wallet) = &self.wallet {
+            let state = core_wallet.state();
+            let (sync_tx, sync_rx) = flume::unbounded::<String>();
+
+            state.register_sync(sync_tx).await?;
+
+            self.sync_rx = Some(sync_rx);
+
+            Ok(())
+        } else {
+            Err(Error::Offline)
         }
     }
 }

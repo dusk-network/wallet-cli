@@ -11,7 +11,7 @@ use futures::StreamExt;
 use phoenix_core::transaction::{ArchivedTreeLeaf, TreeLeaf};
 
 use crate::{
-    clients::Cache, rusk::RuskHttpClient, store::LocalStore, Error,
+    clients::Cache, rusk::RuskHttpClient, store::LocalStore, Address, Error,
     RuskRequest, MAX_ADDRESSES,
 };
 
@@ -24,7 +24,8 @@ pub(crate) async fn sync_db(
     store: &LocalStore,
     cache: &Cache,
     status: fn(&str),
-) -> Result<(), Error> {
+    existing_addresses: &[Address],
+) -> Result<usize, Error> {
     let addresses: Vec<_> = (0..MAX_ADDRESSES)
         .flat_map(|i| store.retrieve_ssk(i as u64))
         .map(|ssk| {
@@ -63,6 +64,8 @@ pub(crate) async fn sync_db(
     // This buffer is needed because `.bytes_stream();` introduce additional
     // spliting of chunks according to it's own buffer
     let mut buffer = vec![];
+    // This stores the number of addresses we need to create after a sync-up
+    let mut addresses_to_create = 0;
 
     while let Some(http_chunk) = stream.next().await {
         buffer.extend_from_slice(&http_chunk?);
@@ -75,8 +78,12 @@ pub(crate) async fn sync_db(
 
             last_height = std::cmp::max(last_height, block_height);
 
-            for (ssk, vk, psk) in addresses.iter() {
+            for (i, (ssk, vk, psk)) in addresses.iter().enumerate() {
                 if vk.owns(&note) {
+                    if existing_addresses.get(i).is_none() {
+                        addresses_to_create = i;
+                    }
+
                     let note_data = (note, note.gen_nullifier(ssk));
                     cache.insert(psk, block_height, note_data)?;
 
@@ -92,5 +99,5 @@ pub(crate) async fn sync_db(
 
     cache.insert_last_height(last_height)?;
 
-    Ok(())
+    Ok(addresses_to_create)
 }
