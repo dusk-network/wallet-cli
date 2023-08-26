@@ -6,7 +6,8 @@
 
 use bip39::{Language, Mnemonic, MnemonicType};
 use dusk_wallet::dat::{DatFileVersion, LATEST_VERSION};
-use dusk_wallet::gas;
+use dusk_wallet::wasm_wallet::WasmWallet;
+use dusk_wallet::{gas, wasm_wallet};
 use dusk_wallet::{Address, Dusk, Error, Wallet, WalletPath, MAX_ADDRESSES};
 use requestty::Question;
 
@@ -22,6 +23,7 @@ use crate::{Command, RunResult};
 /// Run the interactive UX loop with a loaded wallet
 pub(crate) async fn run_loop(
     wallet: &mut Wallet<WalletFile>,
+    mut wasm_wallet: Option<&mut WasmWallet<WalletFile>>,
     settings: &Settings,
 ) -> anyhow::Result<()> {
     loop {
@@ -45,22 +47,36 @@ pub(crate) async fn run_loop(
 
         loop {
             // request operation to perform
-            let op = if wallet.is_online() {
+            let op = if true {
                 // get balance for this address
                 prompt::hide_cursor()?;
-                let balance = wallet.get_balance(&addr).await?;
+
+                let (spendable, value) = {
+                    if let Some(wasm_wallet) = wasm_wallet.as_mut() {
+                        let res = wasm_wallet.get_balance(&addr)?;
+
+                        println!("balance {:?}", res);
+
+                        (res.maximum, res.value)
+                    } else {
+                        let res = wallet.get_balance(&addr).await?;
+
+                        (res.spendable, res.value)
+                    }
+                };
+
                 prompt::hide_cursor()?;
 
                 // display address information
                 println!("\rAddress: {}", addr);
                 println!(
                     "Balance:\n - Spendable: {}\n - Total: {}",
-                    Dusk::from(balance.spendable),
-                    Dusk::from(balance.value)
+                    Dusk::from(spendable),
+                    Dusk::from(value)
                 );
 
                 // operations menu
-                menu_op(addr.clone(), balance.spendable.into(), settings)
+                menu_op(addr.clone(), spendable.into(), settings)
             } else {
                 // display address information
                 println!("\rAddress: {}", addr);

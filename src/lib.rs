@@ -27,6 +27,8 @@ mod wallet;
 
 /// Methods for parsing/checking the DAT wallet file
 pub mod dat;
+/// Wallet implementation for the wasm binary
+pub mod wasm_wallet;
 
 pub use rusk::{RuskHttpClient, RuskRequest};
 

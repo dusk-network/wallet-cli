@@ -12,7 +12,7 @@ mod menu;
 mod settings;
 
 pub(crate) use command::{Command, RunResult};
-use dusk_wallet::dat::LATEST_VERSION;
+use dusk_wallet::wasm_wallet;
 pub(crate) use menu::Menu;
 
 use clap::Parser;
@@ -24,8 +24,11 @@ use bip39::{Language, Mnemonic, MnemonicType};
 use crate::command::TransactionHistory;
 use crate::settings::{LogFormat, Settings};
 
-use dusk_wallet::{dat, Error};
-use dusk_wallet::{Dusk, SecureWalletFile, Wallet, WalletPath};
+use dusk_wallet::{
+    dat::{self, LATEST_VERSION},
+    wasm_wallet::WasmWallet,
+    Dusk, Error, SecureWalletFile, Wallet, WalletPath,
+};
 
 use config::Config;
 use io::{prompt, status};
@@ -275,10 +278,29 @@ async fn exec() -> anyhow::Result<()> {
         false => status::interactive,
     };
 
+    let mut wasm_wallet;
+
+    if let Some(file) = wallet.file() {
+        println!("{:?}", "Running Wasm wallet");
+
+        let mut wasm = WasmWallet::new("assets/mod.wasm", file.clone())?;
+
+        wasm.connect(
+            &settings.state.to_string(),
+            &settings.prover.to_string(),
+            status_cb,
+        )
+        .await?;
+
+        wasm_wallet = Some(wasm);
+    } else {
+        wasm_wallet = None;
+    }
+
     // we block until we connect and sync if its not a interactive command
     let block = cmd.is_some();
 
-    wallet = connect(wallet, &settings, status_cb, block).await;
+    // wallet = connect(wallet, &settings, status_cb, block).await;
 
     // run command
     match cmd {
@@ -331,7 +353,8 @@ async fn exec() -> anyhow::Result<()> {
             RunResult::Create() | RunResult::Restore() => {}
         },
         None => {
-            interactive::run_loop(&mut wallet, &settings).await?;
+            interactive::run_loop(&mut wallet, wasm_wallet.as_mut(), &settings)
+                .await?;
         }
     }
 

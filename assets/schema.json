@@ -1,0 +1,380 @@
+{
+  "$id": "https://json.schemastore.org/base.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SeedArgs": {
+      "description": "The arguments of the seed function",
+      "type": "object",
+      "required": [
+        "passphrase"
+      ],
+      "properties": {
+        "passphrase": {
+          "description": "An arbitrary sequence of bytes used to generate a secure seed",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "BalanceArgs": {
+      "description": "The arguments of the balance function",
+      "type": "object",
+      "required": [
+        "notes",
+        "seed"
+      ],
+      "properties": {
+        "notes": {
+          "description": "A rkyv serialized [Vec<phoenix_core::Note>]; all notes should have their keys derived from `seed`",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        },
+        "seed": {
+          "description": "Seed used to derive the keys of the wallet",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        }
+      }
+    },
+    "BalanceResponse": {
+      "description": "The response of the balance function",
+      "type": "object",
+      "required": [
+        "maximum",
+        "value"
+      ],
+      "properties": {
+        "maximum": {
+          "description": "Maximum value per transaction",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "value": {
+          "description": "Total computed balance",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      }
+    },
+    "ExecuteCall": {
+      "description": "A call to a contract method",
+      "type": "object",
+      "required": [
+        "contract",
+        "method",
+        "payload"
+      ],
+      "properties": {
+        "contract": {
+          "description": "The id of the contract to call in Base58 format",
+          "type": "string"
+        },
+        "method": {
+          "description": "The name of the method to be called",
+          "type": "string"
+        },
+        "payload": {
+          "description": "The payload of the call",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "OutputType": {
+      "description": "A note type variant",
+      "type": "string",
+      "enum": [
+        "Transparent",
+        "Obfuscated"
+      ]
+    },
+    "ExecuteOutput": {
+      "description": "The output of a transfer",
+      "type": "object",
+      "required": [
+        "note_type",
+        "value",
+        "receiver"
+      ],
+      "properties": {
+        "note_type": {
+          "description": "The type of the note",
+          "$ref": "#/definitions/OutputType"
+        },
+        "value": {
+          "description": "The value of the output",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 1
+        },
+        "receiver": {
+          "description": "The address of the receiver in Base58 format",
+          "type": "string"
+        },
+        "ref_id": {
+          "description": "A reference id to be appended to the output",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 1
+        }
+      }
+    },
+    "PublicSpendKeyArgs": {
+      "description": "The arguments of the public_spend_key function",
+      "type": "object",
+      "required": [
+        "idx",
+        "seed"
+      ],
+      "properties": {
+        "idx": {
+          "description": "The index of the public spend key",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "seed": {
+          "description": "Seed used to derive the keys of the wallet",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        }
+      }
+    },
+    "ExecuteArgs": {
+      "description": "The arguments of the execute function",
+      "type": "object",
+      "required": [
+        "gas_limit",
+        "gas_price",
+        "inputs",
+        "openings",
+        "refund",
+        "rng_seed",
+        "seed"
+      ],
+      "properties": {
+        "call": {
+          "description": "A call to a contract method",
+          "$ref": "#/definitions/ExecuteCall"
+        },
+        "crossover": {
+          "description": "The [phoenix_core::Crossover] value",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "gas_limit": {
+          "description": "The gas limit of the transaction",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "gas_price": {
+          "description": "The gas price per unit for the transaction",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "inputs": {
+          "description": "A rkyv serialized [Vec<phoenix_core::Note>] to be used as inputs",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        },
+        "openings": {
+          "description": "A rkyv serialized [Vec<tx::Opening>] to open the inputs to a Merkle root",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        },
+        "output": {
+          "description": "The transfer output note",
+          "$ref": "#/definitions/ExecuteOutput"
+        },
+        "refund": {
+          "description": "The refund addressin Base58 format",
+          "type": "string"
+        },
+        "rng_seed": {
+          "description": "Seed used to derive the entropy for the notes",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        },
+        "seed": {
+          "description": "Seed used to derive the keys of the wallet",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        }
+      }
+    },
+    "ExecuteResponse": {
+      "description": "The response of the execute function",
+      "type": "object",
+      "required": [
+        "tx",
+        "unspent"
+      ],
+      "properties": {
+        "tx": {
+          "description": "A rkyv serialized [crate::tx::UnspentTransaction]",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        },
+        "unspent": {
+          "description": "A rkyv serialized [Vec<phoenix_core::Note>] containing the notes that weren't used",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "MergeNotesArgs": {
+      "description": "The arguments of the merge_notes function",
+      "type": "object",
+      "required": [
+        "notes"
+      ],
+      "properties": {
+        "notes": {
+          "description": "All serialized list of notes to be merged",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "FilterNotesArgs": {
+      "description": "The arguments of the filter_notes function",
+      "type": "object",
+      "required": [
+        "flags",
+        "notes"
+      ],
+      "properties": {
+        "flags": {
+          "description": "Boolean flags to be negative filtered",
+          "type": "array",
+          "items": {
+            "type": "boolean"
+          }
+        },
+        "notes": {
+          "description": "Rkyv serialized notes to be filtered",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "ViewKeysArgs": {
+      "description": "The arguments of the view_keys function",
+      "type": "object",
+      "required": [
+        "seed"
+      ],
+      "properties": {
+        "seed": {
+          "description": "Seed used to derive the keys of the wallet",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        }
+      }
+    },
+    "NullifiersArgs": {
+      "description": "The arguments of the nullifiers function",
+      "type": "object",
+      "required": [
+        "notes",
+        "seed"
+      ],
+      "properties": {
+        "notes": {
+          "description": "Rkyv serialized notes to have nullifiers generated",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          }
+        },
+        "seed": {
+          "description": "Seed used to derive the keys of the wallet",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        }
+      }
+    }
+  }
+}

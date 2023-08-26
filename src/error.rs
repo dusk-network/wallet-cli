@@ -128,6 +128,9 @@ pub enum Error {
     /// The cache database couldn't find column family required
     #[error("Cache database corrupted")]
     CacheDatabaseCorrupted,
+    /// Error while allocating memory in the wasm module
+    #[error("Wasm allocating memory error")]
+    WasmMemory,
 }
 
 impl From<dusk_bytes::Error> for Error {

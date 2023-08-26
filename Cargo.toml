@@ -44,6 +44,7 @@ aes = "0.7"
 rocksdb = "0.21"
 flume = "0.10.14"
 reqwest = { version = "0.11", features = ["stream"] }
+wasmer = "=3.1"
 
 dusk-wallet-core = "0.20.0-piecrust.0.6"
 dusk-bytes = "0.1"
@@ -63,7 +64,7 @@ tracing-subscriber = { version = "0.3.0", features = [
   "json",
 ] }
 
-rkyv = { version = "=0.7.39", default-features = false }
+rkyv = { version = "0.7", default-features = false }
 
 [dev-dependencies]
 tempfile = "3.2"
