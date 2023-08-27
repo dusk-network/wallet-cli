@@ -28,6 +28,7 @@ pub struct WasmWallet<F: SecureWalletFile> {
 }
 
 // Result we get from a wasm call
+#[derive(Debug)]
 struct CallResult {
     pub status: bool,
     pub ptr: u64,
@@ -154,11 +155,18 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         let ssk = self.store.retrieve_ssk(index.into())?;
 
         let notes = self.unspent_notes(&ssk)?;
+
+        for note in &notes {
+            if !ssk.view_key().owns(note) {
+                println!("{:?}", "that's the problem");
+            }
+        }
+
         let seed = self.store.get_seed()?.to_vec();
 
         let serialized = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&notes)?.into_vec();
 
-        let result: BalanceResponse = self.call_wasm(
+        let result: BalanceResponse = self.wallet_core.call(
             "balance",
             json!({
                 "notes": serialized,
@@ -195,14 +203,6 @@ impl<F: SecureWalletFile> WasmWallet<F> {
 
         Ok(unspent_notes)
     }
-
-    fn call_wasm<T, R>(&mut self, f: &str, args: T) -> anyhow::Result<R>
-    where
-        T: Serialize,
-        R: for<'a> Deserialize<'a>,
-    {
-        self.wallet_core.call(f, args)
-    }
 }
 
 impl WalletCore {
@@ -213,14 +213,13 @@ impl WalletCore {
     {
         let bytes = serde_json::to_string(&args)?;
         let len = Value::I32(bytes.len() as i32);
-
-        if let Some(Value::I32(ptr)) = self
+        let malloc = self
             .instance
             .exports
             .get_function("malloc")?
-            .call(&mut self.store, &[len.clone()])?
-            .get(0)
-        {
+            .call(&mut self.store, &[len.clone()])?;
+
+        if let Some(Value::I32(ptr)) = malloc.get(0) {
             self.instance
                 .exports
                 .get_memory("memory")?
@@ -237,6 +236,8 @@ impl WalletCore {
                 .get(0)
             {
                 let mut result = Self::decompose(*result);
+
+                println!("{:?}", result);
 
                 let result_bytes = result.get_and_free(self)?;
                 let json = String::from_utf8(result_bytes)?;
