@@ -4,51 +4,25 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-mod command;
-mod config;
-mod interactive;
-mod io;
-mod menu;
-mod settings;
-
-pub(crate) use command::{Command, RunResult};
-use dusk_wallet::dat::LATEST_VERSION;
-pub(crate) use menu::Menu;
-
+use anyhow::Result;
 use clap::Parser;
-use std::fs;
-use tracing::{warn, Level};
+use tracing::Level;
 
-use bip39::{Language, Mnemonic, MnemonicType};
+mod args;
+mod command;
+mod interactive;
+mod menu;
+mod node;
+mod prompt;
+mod prover;
+mod settings;
+mod storage;
 
-use crate::command::TransactionHistory;
-use crate::settings::{LogFormat, Settings};
-
-use dusk_wallet::{dat, Error};
-use dusk_wallet::{Dusk, SecureWalletFile, Wallet, WalletPath};
-
-use config::Config;
-use io::{prompt, status};
-use io::{GraphQL, WalletArgs};
-
-#[derive(Debug, Clone)]
-pub(crate) struct WalletFile {
-    path: WalletPath,
-    pwd: Vec<u8>,
-}
-
-impl SecureWalletFile for WalletFile {
-    fn path(&self) -> &WalletPath {
-        &self.path
-    }
-
-    fn pwd(&self) -> &[u8] {
-        &self.pwd
-    }
-}
+type Wallet =
+    dusk_wallet::wallet::Wallet<storage::Storage, node::Node, prover::Prover>;
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     if let Err(err) = exec().await {
         // display the error message (if any)
         match err.downcast_ref::<requestty::ErrorKind>() {
@@ -59,42 +33,16 @@ async fn main() -> anyhow::Result<()> {
             _ => eprintln!("{err}"),
         };
         // give cursor back to the user
-        io::prompt::show_cursor()?;
+        prompt::show_cursor()?;
     }
+
     Ok(())
-}
-
-async fn connect<F>(
-    mut wallet: Wallet<F>,
-    settings: &Settings,
-    status: fn(&str),
-    block: bool,
-) -> Wallet<F>
-where
-    F: SecureWalletFile + std::fmt::Debug,
-{
-    let con = wallet
-        .connect_with_status(
-            &settings.state.to_string(),
-            &settings.prover.to_string(),
-            status,
-            block,
-        )
-        .await;
-
-    // check for connection errors
-    match con {
-        Err(Error::RocksDB(e)) => panic!{"Invalid cache {e}"},
-        Err(e) => warn!("Connection to Rusk Failed, some operations won't be available: {e}"),
-        _ => {}
-    }
-
-    wallet
 }
 
 async fn exec() -> anyhow::Result<()> {
     // parse user args
-    let args = WalletArgs::parse();
+    let args = args::WalletArgs::parse();
+
     // get the subcommand, if any
     let cmd = args.command.clone();
 
@@ -103,26 +51,11 @@ async fn exec() -> anyhow::Result<()> {
     requestty::symbols::set(requestty::symbols::ASCII);
 
     // Get the initial settings from the args
-    let settings_builder = Settings::args(args);
+    let wallet = args.wallet.clone();
+    let settings_builder = settings::Settings::args(args);
 
-    // Obtain the profile dir from the settings
-    let profile_folder = settings_builder.profile().clone();
-
-    fs::create_dir_all(profile_folder.as_path())?;
-
-    // prepare wallet path
-    let mut wallet_path =
-        WalletPath::from(profile_folder.as_path().join("wallet.dat"));
-
-    // load configuration (or use default)
-    let cfg = Config::load(&profile_folder)?;
-
-    wallet_path.set_network_name(settings_builder.args.network.clone());
-
-    // Finally complete the settings by setting the network
-    let settings = settings_builder
-        .network(cfg.network)
-        .map_err(|_| dusk_wallet::Error::NetworkNotFound)?;
+    // Finalize the settings
+    let settings = settings_builder.build();
 
     // generate a subscriber with the desired log level
     //
@@ -143,192 +76,49 @@ async fn exec() -> anyhow::Result<()> {
 
     // set the subscriber as global
     match settings.logging.format {
-        LogFormat::Json => {
+        settings::LogFormat::Json => {
             let subscriber = subscriber.json().flatten_event(true).finish();
             tracing::subscriber::set_global_default(subscriber)?;
         }
-        LogFormat::Plain => {
+        settings::LogFormat::Plain => {
             let subscriber = subscriber.with_ansi(false).finish();
             tracing::subscriber::set_global_default(subscriber)?;
         }
-        LogFormat::Coloured => {
+        settings::LogFormat::Coloured => {
             let subscriber = subscriber.finish();
             tracing::subscriber::set_global_default(subscriber)?;
         }
     };
 
-    let is_headless = cmd.is_some();
-
-    let password = &settings.password;
-
     match cmd {
-        Some(ref cmd) if cmd == &Command::Settings => {
+        Some(ref cmd) if cmd == &command::Command::Settings => {
             println!("{}", &settings);
             return Ok(());
         }
         _ => {}
     };
 
-    let file_version = dat::read_file_version(&wallet_path);
+    let storage = storage::Storage::new(&settings);
+    let node = node::Node::new(&settings);
+    let prover = prover::Prover::new(&settings);
+    let mut wallet = Wallet::new(wallet, storage, node, prover)?;
 
-    // get our wallet ready
-    let mut wallet: Wallet<WalletFile> = match cmd {
-        Some(ref cmd) => match cmd {
-            Command::Create { skip_recovery } => {
-                // create a new randomly generated mnemonic phrase
-                let mnemonic =
-                    Mnemonic::new(MnemonicType::Words12, Language::English);
-                // ask user for a password to secure the wallet
-                // latest version is used for dat file
-                let pwd = prompt::create_password(
-                    password,
-                    dat::DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
-                )?;
-                // skip phrase confirmation if explicitly
-                if !skip_recovery {
-                    prompt::confirm_recovery_phrase(&mnemonic)?;
-                }
-
-                // create wallet
-                let mut w = Wallet::new(mnemonic)?;
-
-                w.save_to(WalletFile {
-                    path: wallet_path,
-                    pwd,
-                })?;
-
-                w
-            }
-            Command::Restore { file } => {
-                let (mut w, pwd) = match file {
-                    Some(file) => {
-                        // if we restore and old version file make sure we
-                        // know the corrrect version before asking for the
-                        // password
-                        let file_version = dat::read_file_version(file)?;
-
-                        let pwd = prompt::request_auth(
-                            "Please enter wallet password",
-                            password,
-                            file_version,
-                        )?;
-
-                        let w = Wallet::from_file(WalletFile {
-                            path: file.clone(),
-                            pwd: pwd.clone(),
-                        })?;
-
-                        (w, pwd)
-                    }
-                    // Use the latest dat file version when there's no dat file
-                    // provided when restoring the wallet
-                    None => {
-                        // ask user for 12-word recovery phrase
-                        let phrase = prompt::request_recovery_phrase()?;
-                        // ask user for a password to secure the wallet
-                        let pwd = prompt::create_password(
-                            password,
-                            dat::DatFileVersion::RuskBinaryFileFormat(
-                                LATEST_VERSION,
-                            ),
-                        )?;
-                        // create wallet
-                        let w = Wallet::new(phrase)?;
-
-                        (w, pwd)
-                    }
-                };
-
-                w.save_to(WalletFile {
-                    path: wallet_path,
-                    pwd,
-                })?;
-
-                w
-            }
-
-            _ => {
-                // Grab the file version for a random command
-                let file_version = file_version?;
-                // load wallet from file
-                let pwd = prompt::request_auth(
-                    "Please enter wallet password",
-                    password,
-                    file_version,
-                )?;
-
-                Wallet::from_file(WalletFile {
-                    path: wallet_path,
-                    pwd,
-                })?
-            }
-        },
-        None => {
-            // load a wallet in interactive mode
-            interactive::load_wallet(&wallet_path, &settings, file_version)?
-        }
-    };
-
-    // set our status callback
-    let status_cb = match is_headless {
-        true => status::headless,
-        false => status::interactive,
-    };
-
-    // we block until we connect and sync if its not a interactive command
-    let block = cmd.is_some();
-
-    wallet = connect(wallet, &settings, status_cb, block).await;
+    let key = wallet.public_spend_keys().await?[0].clone();
+    wallet.node.mint(key, 1000).await?;
+    wallet.sync().await?;
 
     // run command
     match cmd {
         Some(cmd) => match cmd.run(&mut wallet, &settings).await? {
-            RunResult::Balance(balance, spendable) => {
-                if spendable {
-                    println!("{}", Dusk::from(balance.spendable));
-                } else {
-                    println!("{}", Dusk::from(balance.value));
-                }
+            command::RunResult::Balance { value, .. } => {
+                println!("{}", value);
             }
-            RunResult::Address(addr) => {
-                println!("{}", addr);
-            }
-            RunResult::Addresses(addrs) => {
+            command::RunResult::Addresses(addrs) => {
                 for a in addrs {
                     println!("{}", a);
                 }
             }
-            RunResult::Tx(hash) => {
-                let txh = format!("{:x}", hash);
-
-                // Wait for transaction confirmation from network
-                let gql = GraphQL::new(settings.state, status::headless);
-                gql.wait_for(&txh).await?;
-
-                println!("{}", txh);
-            }
-            RunResult::StakeInfo(info, reward) => {
-                if reward {
-                    println!("{}", Dusk::from(info.reward));
-                } else {
-                    let staked_amount = match info.amount {
-                        Some((staked, ..)) => staked,
-                        None => 0,
-                    };
-                    println!("{}", Dusk::from(staked_amount));
-                }
-            }
-            RunResult::ExportedKeys(pub_key, key_pair) => {
-                println!("{},{}", pub_key.display(), key_pair.display())
-            }
-            RunResult::History(transactions) => {
-                println!("{}", TransactionHistory::header());
-                for th in transactions {
-                    println!("{th}");
-                }
-            }
-            RunResult::Settings() => {}
-            RunResult::Create() | RunResult::Restore() => {}
+            command::RunResult::Settings => {}
         },
         None => {
             interactive::run_loop(&mut wallet, &settings).await?;

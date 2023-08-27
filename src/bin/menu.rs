@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use requestty::question::Choice;
-use requestty::{Answer, DefaultSeparator, Separator};
+use requestty::{Answer, DefaultSeparator};
 
 #[derive(Clone, Debug)]
 pub struct Menu<K> {
@@ -37,18 +37,6 @@ where
         }
     }
 
-    pub fn title<T>(title: T) -> Self
-    where
-        T: Into<String>,
-    {
-        let title = format!("─ {:─<12}", format!("{} ", title.into()));
-        let title = Separator(title);
-        let items = vec![title];
-        let keys = HashMap::new();
-
-        Self { items, keys }
-    }
-
     pub fn add<V>(mut self, key: K, item: V) -> Self
     where
         V: Into<Choice<String>>,
@@ -63,27 +51,10 @@ where
         self
     }
 
-    pub fn separator_msg(mut self, msg: String) -> Self {
-        self.items.push(Separator(msg));
-        self
-    }
-
     pub fn answer(&self, answer: &Answer) -> &K {
         let index = answer.as_list_item().unwrap().index;
         let key = self.keys.get(&index);
         key.unwrap()
-    }
-
-    pub fn extend(mut self, other: Self) -> Self {
-        let len = self.items.len();
-
-        self.items.extend(other.items);
-
-        for (key, val) in other.keys.into_iter() {
-            self.keys.insert(key + len, val);
-        }
-
-        self
     }
 }
 
