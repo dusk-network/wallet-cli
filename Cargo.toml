@@ -35,7 +35,7 @@ bs58 = { version = "0.5", optional = true, default-features = false, features = 
 dusk-bytes = { version = "^0.1", optional = true }
 dusk-jubjub = { version = "0.12", optional = true }
 dusk-pki = { version = "0.12", optional = true, features = ["rkyv-impl"] }
-dusk-wallet-core = { path = "/home/vlopes/dev/dusk/wallet-core", optional = true }
+dusk-wallet-core = { git = "https://github.com/dusk-network/wallet-core", optional = true }
 phoenix-core = { version = "0.20.0-rc.0", optional = true, default-features = false, features = ["alloc", "rkyv-impl"] }
 poseidon-merkle = { version = "0.2.1-rc.0", optional = true, features = ["rkyv-impl"] }
 rusk-abi = { version = "0.10.0-piecrust.0.6", optional = true, default-features = false }
@@ -46,7 +46,7 @@ bs58 = { version = "0.5", default-features = false, features = ["alloc", "cb58"]
 dusk-bytes = "^0.1"
 dusk-jubjub = "0.12"
 dusk-pki = { version = "0.12", features = ["rkyv-impl"] }
-dusk-wallet-core = { path = "/home/vlopes/dev/dusk/wallet-core" }
+dusk-wallet-core = { git = "https://github.com/dusk-network/wallet-core" }
 phoenix-core = { version = "0.20.0-rc.0", default-features = false, features = ["alloc", "rkyv-impl"] }
 poseidon-merkle = { version = "0.2.1-rc.0", features = ["rkyv-impl"] }
 rusk-abi = { version = "0.10.0-piecrust.0.6", default-features = false }
