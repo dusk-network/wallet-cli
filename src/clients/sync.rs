@@ -68,8 +68,16 @@ pub(crate) async fn sync_db(
         let mut leaf_chunk = buffer.chunks_exact(RKYV_TREE_LEAF_SIZE);
 
         for leaf_bytes in leaf_chunk.by_ref() {
-            let TreeLeaf { block_height, note } =
-                rkyv::from_bytes(leaf_bytes).map_err(|_| Error::Rkyv)?;
+            let TreeLeaf { block_height, note } = rkyv::from_bytes(leaf_bytes)
+                .map_err(|_| Error::Rkyv)
+                .map_err(|e| {
+                    println!("Invalid note {}", hex::encode(leaf_bytes));
+                    e
+                })?;
+            if *note.pos()==0 {
+                println!("Buffer: {}", hex::encode(leaf_bytes));
+                println!("Note: {note:#?}");
+            }
 
             last_pos = std::cmp::max(last_pos, *note.pos());
 
