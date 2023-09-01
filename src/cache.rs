@@ -82,19 +82,16 @@ impl Cache {
         Ok(())
     }
 
-    pub(crate) fn insert_last_height(
-        &self,
-        last_height: u64,
-    ) -> Result<(), Error> {
-        self.db.put(b"last_height", last_height.to_be_bytes())?;
+    pub(crate) fn insert_last_pos(&self, last_pos: u64) -> Result<(), Error> {
+        self.db.put(b"last_pos", last_pos.to_be_bytes())?;
 
         Ok(())
     }
 
     /// Returns the global block height inserted. If no note has ever been
     /// inserted it returns 0.
-    pub(crate) fn last_height(&self) -> Result<u64, Error> {
-        if let Some(x) = self.db.get(b"last_height")? {
+    pub(crate) fn last_pos(&self) -> Result<u64, Error> {
+        if let Some(x) = self.db.get(b"last_pos")? {
             let buff: [u8; 8] = x.try_into().expect("Invalid u64 in cache db");
 
             return Ok(u64::from_be_bytes(buff));
