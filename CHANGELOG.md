@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Change `fetch_notes` to use note's position instead of height [#190]
+
 ### Fixed
 
 - Fix bug where we return early when there's no wallet file in interactive [#182]
@@ -485,6 +489,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#158]: https://github.com/dusk-network/wallet-cli/pull/158
 [#169]: https://github.com/dusk-network/wallet-cli/pull/169
 [#173]: https://github.com/dusk-network/wallet-cli/pull/173
+[#173]: https://github.com/dusk-network/wallet-cli/pull/190
 
 <!-- Releases -->
 
