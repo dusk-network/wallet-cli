@@ -262,6 +262,7 @@ impl StateClient for StateStore {
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let psk = vk.public_spend_key();
+        self.sync().wait()?;
         let state = self.inner.lock().unwrap();
 
         Ok(state
