@@ -1,10 +1,10 @@
-state = "https://nodes.dusk.network:8585"
-prover = "https://provers.dusk.network:8686"
+state = "https://nodes.dusk.network"
+prover = "https://provers.dusk.network"
 explorer = "https://explorer.dusk.network/transactions/transaction/?id="
 
 [network.devnet]
-state = "https://devnet.nodes.dusk.network:8585"
-prover = "https://devnet.provers.dusk.network:8686"
+state = "https://devnet.nodes.dusk.network"
+prover = "https://devnet.provers.dusk.network"
 explorer = "https://explorer.dusk.network/transactions/transaction/?id="
 
 [network.local]
