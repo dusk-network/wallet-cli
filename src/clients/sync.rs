@@ -89,6 +89,7 @@ pub(crate) async fn sync_db(
                     break;
                 }
             }
+            cache.insert_last_pos(last_pos)?;
         }
 
         buffer = leaf_chunk.remainder().to_vec();
