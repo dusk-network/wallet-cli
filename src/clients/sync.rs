@@ -34,13 +34,15 @@ pub(crate) async fn sync_db(
         })
         .collect();
 
-    status("Getting cached block height...");
+    status("Getting cached note position...");
 
-    let mut last_pos = cache.last_pos()?;
+    let last_pos = cache.last_pos()?;
+    let pos_to_search = last_pos.map(|p| p + 1).unwrap_or_default();
+    let mut last_pos = last_pos.unwrap_or_default();
 
     status("Fetching fresh notes...");
 
-    let req = rkyv::to_bytes::<_, 8>(&(last_pos + 1))
+    let req = rkyv::to_bytes::<_, 8>(&(pos_to_search))
         .map_err(|_| Error::Rkyv)?
         .to_vec();
 
@@ -94,8 +96,6 @@ pub(crate) async fn sync_db(
 
         buffer = leaf_chunk.remainder().to_vec();
     }
-
-    cache.insert_last_pos(last_pos)?;
 
     Ok(())
 }
