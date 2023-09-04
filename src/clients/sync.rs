@@ -76,7 +76,7 @@ pub(crate) async fn sync_db(
                     println!("Invalid note {}", hex::encode(leaf_bytes));
                     e
                 })?;
-            if *note.pos()==0 {
+            if *note.pos() == 0 {
                 println!("Buffer: {}", hex::encode(leaf_bytes));
                 println!("Note: {note:#?}");
             }
