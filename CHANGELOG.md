@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix bug where we return early when there's no wallet file in interactive [#182]
 
+## [0.18.2] - 2023-09-05
+
 ## [0.18.1] - 2023-09-01
 
 ### Fixed
@@ -493,7 +495,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.18.2...HEAD
+[0.18.2]: https://github.com/dusk-network/wallet-cli/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/dusk-network/wallet-cli/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/dusk-network/wallet-cli/compare/v0.16.0...v0.17.0
