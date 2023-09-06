@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Change `fetch_notes` to use note's position instead of height [#190]
+
 ### Fixed
-- Fix fetch_notes buffer [#176]
+
 - Fix bug where we return early when there's no wallet file in interactive [#182]
+
+## [0.18.2] - 2023-09-05
+
+## [0.18.1] - 2023-09-01
+
+### Fixed
+
+- Fix fetch_notes buffer [#176]
 
 ## [0.18.0] - 2023-08-09
 
@@ -479,10 +491,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#158]: https://github.com/dusk-network/wallet-cli/pull/158
 [#169]: https://github.com/dusk-network/wallet-cli/pull/169
 [#173]: https://github.com/dusk-network/wallet-cli/pull/173
+[#173]: https://github.com/dusk-network/wallet-cli/pull/190
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.18.2...HEAD
+[0.18.2]: https://github.com/dusk-network/wallet-cli/compare/v0.18.1...v0.18.2
+[0.18.1]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/dusk-network/wallet-cli/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/dusk-network/wallet-cli/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/dusk-network/wallet-cli/compare/v0.15.0...v0.16.0

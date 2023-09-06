@@ -34,13 +34,15 @@ pub(crate) async fn sync_db(
         })
         .collect();
 
-    status("Getting cached block height...");
+    status("Getting cached note position...");
 
-    let mut last_height = cache.last_height()?;
+    let last_pos = cache.last_pos()?;
+    let pos_to_search = last_pos.map(|p| p + 1).unwrap_or_default();
+    let mut last_pos = last_pos.unwrap_or_default();
 
     status("Fetching fresh notes...");
 
-    let req = rkyv::to_bytes::<_, 8>(&last_height)
+    let req = rkyv::to_bytes::<_, 8>(&(pos_to_search))
         .map_err(|_| Error::Rkyv)?
         .to_vec();
 
@@ -48,7 +50,7 @@ pub(crate) async fn sync_db(
         .call_raw(
             1,
             TRANSFER_CONTRACT,
-            &RuskRequest::new("leaves_from_height", req),
+            &RuskRequest::new("leaves_from_pos", req),
             true,
         )
         .await?
@@ -57,8 +59,6 @@ pub(crate) async fn sync_db(
     status("Connection established...");
 
     status("Streaming notes...");
-
-    status(format!("From block: {}", last_height).as_str());
 
     // This buffer is needed because `.bytes_stream();` introduce additional
     // spliting of chunks according to it's own buffer
@@ -73,7 +73,7 @@ pub(crate) async fn sync_db(
             let TreeLeaf { block_height, note } =
                 rkyv::from_bytes(leaf_bytes).map_err(|_| Error::Rkyv)?;
 
-            last_height = std::cmp::max(last_height, block_height);
+            last_pos = std::cmp::max(last_pos, *note.pos());
 
             for (ssk, vk, psk) in addresses.iter() {
                 if vk.owns(&note) {
@@ -83,14 +83,11 @@ pub(crate) async fn sync_db(
                     break;
                 }
             }
+            cache.insert_last_pos(last_pos)?;
         }
 
         buffer = leaf_chunk.remainder().to_vec();
     }
-
-    println!("Last block: {}", last_height);
-
-    cache.insert_last_height(last_height)?;
 
     Ok(())
 }
