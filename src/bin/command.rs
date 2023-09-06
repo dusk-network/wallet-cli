@@ -10,6 +10,7 @@ use clap::Subcommand;
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::DeserializableSlice;
 use dusk_plonk::prelude::BlsScalar;
+use dusk_wallet::wasm_wallet::WasmWallet;
 use rusk_abi::hash::Hasher;
 use std::{fmt, path::PathBuf};
 
@@ -191,6 +192,7 @@ impl Command {
     pub async fn run(
         self,
         wallet: &mut Wallet<WalletFile>,
+        wasm_wallet: Option<&mut WasmWallet<WalletFile>>,
         settings: &Settings,
     ) -> anyhow::Result<RunResult> {
         match self {
@@ -234,8 +236,20 @@ impl Command {
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
-                let tx = wallet.transfer(sender, &rcvr, amt, gas).await?;
-                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
+                // do the transfer with the wasm wallet
+                if let Some(wasm_wallet) = wasm_wallet {
+                    let tx = wasm_wallet.transfer(
+                        sender,
+                        &rcvr,
+                        1,
+                        *amt,
+                        gas.clone(),
+                    )?;
+
+                    Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
+                } else {
+                    Err(anyhow::anyhow!("No wasm wallet available"))
+                }
             }
             Command::Stake {
                 addr,

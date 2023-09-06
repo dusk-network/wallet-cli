@@ -56,6 +56,7 @@ dusk-poseidon = "0.30"
 dusk-plonk = "0.14"
 dusk-bls12_381-sign = { version = "0.4", default-features = false }
 poseidon-merkle = "0.2.1-rc.0"
+dusk-wallet-core-wasm = { version = "0.21.0", package = "dusk-wallet-core" }
 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.0", features = [

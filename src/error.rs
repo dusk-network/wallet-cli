@@ -131,6 +131,9 @@ pub enum Error {
     /// Error while allocating memory in the wasm module
     #[error("Wasm allocating memory error")]
     WasmMemory,
+    /// Encountered invalid/malformed output from a wasm function call
+    #[error("Malformed output from wasm call")]
+    WasmOutput,
 }
 
 impl From<dusk_bytes::Error> for Error {

@@ -278,83 +278,78 @@ async fn exec() -> anyhow::Result<()> {
         false => status::interactive,
     };
 
-    let mut wasm_wallet;
-
-    if let Some(file) = wallet.file() {
-        println!("{:?}", "Running Wasm wallet");
-
-        let mut wasm = WasmWallet::new("assets/mod.wasm", file.clone())?;
-
-        wasm.connect(
-            &settings.state.to_string(),
-            &settings.prover.to_string(),
-            status_cb,
-        )
-        .await?;
-
-        wasm_wallet = Some(wasm);
-    } else {
-        wasm_wallet = None;
-    }
-
-    // we block until we connect and sync if its not a interactive command
-    let block = cmd.is_some();
-
     // wallet = connect(wallet, &settings, status_cb, block).await;
 
     // run command
     match cmd {
-        Some(cmd) => match cmd.run(&mut wallet, &settings).await? {
-            RunResult::Balance(balance, spendable) => {
-                if spendable {
-                    println!("{}", Dusk::from(balance.spendable));
-                } else {
-                    println!("{}", Dusk::from(balance.value));
+        Some(cmd) => {
+            match cmd.run(&mut wallet, None, &settings).await? {
+                RunResult::Balance(balance, spendable) => {
+                    if spendable {
+                        println!("{}", Dusk::from(balance.spendable));
+                    } else {
+                        println!("{}", Dusk::from(balance.value));
+                    }
                 }
-            }
-            RunResult::Address(addr) => {
-                println!("{}", addr);
-            }
-            RunResult::Addresses(addrs) => {
-                for a in addrs {
-                    println!("{}", a);
+                RunResult::Address(addr) => {
+                    println!("{}", addr);
                 }
-            }
-            RunResult::Tx(hash) => {
-                let txh = format!("{:x}", hash);
+                RunResult::Addresses(addrs) => {
+                    for a in addrs {
+                        println!("{}", a);
+                    }
+                }
+                RunResult::Tx(hash) => {
+                    let txh = format!("{:x}", hash);
 
-                // Wait for transaction confirmation from network
-                let gql = GraphQL::new(settings.state, status::headless);
-                gql.wait_for(&txh).await?;
+                    // Wait for transaction confirmation from network
+                    let gql = GraphQL::new(settings.state, status::headless);
+                    gql.wait_for(&txh).await?;
 
-                println!("{}", txh);
-            }
-            RunResult::StakeInfo(info, reward) => {
-                if reward {
-                    println!("{}", Dusk::from(info.reward));
-                } else {
-                    let staked_amount = match info.amount {
-                        Some((staked, ..)) => staked,
-                        None => 0,
-                    };
-                    println!("{}", Dusk::from(staked_amount));
+                    println!("{}", txh);
                 }
-            }
-            RunResult::ExportedKeys(pub_key, key_pair) => {
-                println!("{},{}", pub_key.display(), key_pair.display())
-            }
-            RunResult::History(transactions) => {
-                println!("{}", TransactionHistory::header());
-                for th in transactions {
-                    println!("{th}");
+                RunResult::StakeInfo(info, reward) => {
+                    if reward {
+                        println!("{}", Dusk::from(info.reward));
+                    } else {
+                        let staked_amount = match info.amount {
+                            Some((staked, ..)) => staked,
+                            None => 0,
+                        };
+                        println!("{}", Dusk::from(staked_amount));
+                    }
                 }
+                RunResult::ExportedKeys(pub_key, key_pair) => {
+                    println!("{},{}", pub_key.display(), key_pair.display())
+                }
+                RunResult::History(transactions) => {
+                    println!("{}", TransactionHistory::header());
+                    for th in transactions {
+                        println!("{th}");
+                    }
+                }
+                RunResult::Settings() => {}
+                RunResult::Create() | RunResult::Restore() => {}
             }
-            RunResult::Settings() => {}
-            RunResult::Create() | RunResult::Restore() => {}
-        },
+        }
         None => {
-            interactive::run_loop(&mut wallet, wasm_wallet.as_mut(), &settings)
-                .await?;
+            if let Some(file) = wallet.file() {
+                println!("{:?}", "Running Wasm wallet");
+
+                let mut wasm_wallet =
+                    WasmWallet::new("assets/mod.wasm", file.clone())?;
+
+                wasm_wallet
+                    .connect(
+                        &settings.state.to_string(),
+                        &settings.prover.to_string(),
+                        status_cb,
+                    )
+                    .await?;
+
+                interactive::run_loop(&mut wallet, wasm_wallet, &settings)
+                    .await?;
+            }
         }
     }
 

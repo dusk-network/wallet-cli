@@ -23,7 +23,7 @@ use crate::{Command, RunResult};
 /// Run the interactive UX loop with a loaded wallet
 pub(crate) async fn run_loop(
     wallet: &mut Wallet<WalletFile>,
-    mut wasm_wallet: Option<&mut WasmWallet<WalletFile>>,
+    mut wasm_wallet: WasmWallet<WalletFile>,
     settings: &Settings,
 ) -> anyhow::Result<()> {
     loop {
@@ -52,17 +52,9 @@ pub(crate) async fn run_loop(
                 prompt::hide_cursor()?;
 
                 let (spendable, value) = {
-                    if let Some(wasm_wallet) = wasm_wallet.as_mut() {
-                        let res = wasm_wallet.get_balance(&addr)?;
+                    let res = wasm_wallet.get_balance(&addr)?;
 
-                        println!("balance {:?}", res);
-
-                        (res.maximum, res.value)
-                    } else {
-                        let res = wallet.get_balance(&addr).await?;
-
-                        (res.spendable, res.value)
-                    }
+                    (res.maximum, res.value)
                 };
 
                 prompt::hide_cursor()?;
@@ -91,7 +83,9 @@ pub(crate) async fn run_loop(
                     if confirm(&cmd)? {
                         // run command
                         prompt::hide_cursor()?;
-                        let result = cmd.run(wallet, settings).await;
+                        let result = cmd
+                            .run(wallet, Some(&mut wasm_wallet), settings)
+                            .await;
                         prompt::show_cursor()?;
                         // output results
                         match result {

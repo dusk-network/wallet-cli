@@ -18,7 +18,7 @@ pub const DEFAULT_LIMIT: u64 = 500_000_000;
 /// The default gas price
 pub const DEFAULT_PRICE: Lux = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Gas price and limit for any transaction
 pub struct Gas {
     /// The gas price in [Lux]
