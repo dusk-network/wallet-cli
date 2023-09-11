@@ -6,16 +6,17 @@
 
 use std::mem::size_of;
 
+use dusk_bytes::{DeserializableSlice, Serializable};
+use dusk_plonk::prelude::BlsScalar;
 use dusk_wallet_core::Store;
 use futures::StreamExt;
 use phoenix_core::transaction::{ArchivedTreeLeaf, TreeLeaf};
 
-use crate::{
-    clients::Cache, rusk::RuskHttpClient, store::LocalStore, Error,
-    RuskRequest, MAX_ADDRESSES,
-};
-
-use super::TRANSFER_CONTRACT;
+use crate::block::Block;
+use crate::clients::{Cache, TRANSFER_CONTRACT};
+use crate::rusk::RuskHttpClient;
+use crate::store::LocalStore;
+use crate::{Error, RuskRequest, MAX_ADDRESSES};
 
 const RKYV_TREE_LEAF_SIZE: usize = size_of::<ArchivedTreeLeaf>();
 
@@ -89,5 +90,63 @@ pub(crate) async fn sync_db(
         buffer = leaf_chunk.remainder().to_vec();
     }
 
+    // Remove spent nullifiers from live notes
+    for (_, _, psk) in addresses {
+        let cf_name = format!("{:?}", psk);
+        let mut nullifiers = vec![];
+
+        if let Some(cf) = cache.db.cf_handle(&cf_name) {
+            let iterator =
+                cache.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
+
+            for i in iterator {
+                let (nullifier, _) = i?;
+                let nullifier = BlsScalar::from_slice(&nullifier)
+                    .expect("key to be a BlsScalar");
+                nullifiers.push(nullifier);
+            }
+
+            if !nullifiers.is_empty() {
+                let spent_cf = format!("spent_{:?}", psk);
+                let spent_cf =
+                    cache.db.cf_handle(&spent_cf).expect("spent_cf to exists");
+                let existing =
+                    fetch_existing_nullifiers_remote(client, &nullifiers)
+                        .wait()?;
+                for n in existing {
+                    let key = n.to_bytes();
+                    let to_move = cache
+                        .db
+                        .get_cf(&cf, key)?
+                        .expect("Note must exists to be moved");
+                    cache.db.put_cf(&spent_cf, key, to_move)?;
+                    cache.db.delete_cf(&cf, n.to_bytes())?;
+                }
+            }
+        };
+    }
     Ok(())
+}
+
+/// Asks the node to return the nullifiers that already exist from the given
+/// nullifiers.
+pub(crate) async fn fetch_existing_nullifiers_remote(
+    client: &RuskHttpClient,
+    nullifiers: &[BlsScalar],
+) -> Result<Vec<BlsScalar>, Error> {
+    if nullifiers.is_empty() {
+        return Ok(vec![]);
+    }
+    let nullifiers = nullifiers.to_vec();
+    let data = client
+        .contract_query::<_, 1024>(
+            TRANSFER_CONTRACT,
+            "existing_nullifiers",
+            &nullifiers,
+        )
+        .await?;
+
+    let nullifiers = rkyv::from_bytes(&data).map_err(|_| Error::Rkyv)?;
+
+    Ok(nullifiers)
 }

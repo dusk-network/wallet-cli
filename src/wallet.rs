@@ -31,6 +31,7 @@ use dusk_wallet_core::{
 use rand::prelude::StdRng;
 use rand::SeedableRng;
 
+use crate::cache::NoteData;
 use crate::clients::{Prover, StateStore};
 use crate::crypto::encrypt;
 use crate::currency::Dusk;
@@ -300,20 +301,22 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             let ssk_index = addr.index()? as u64;
             let ssk = self.store.retrieve_ssk(ssk_index).unwrap();
             let vk = ssk.view_key();
+            let psk = vk.public_spend_key();
 
-            let notes = wallet.state().fetch_notes(&vk).unwrap();
+            let live_notes = wallet.state().fetch_notes(&vk).unwrap();
+            let spent_notes = wallet.state().cache().spent_notes(&psk)?;
 
-            let nullifiers: Vec<_> =
-                notes.iter().map(|(n, _)| n.gen_nullifier(&ssk)).collect();
-            let existing_nullifiers =
-                wallet.state().fetch_existing_nullifiers(&nullifiers[..])?;
-            let history = notes
+            let live_notes = live_notes
                 .into_iter()
-                .zip(nullifiers)
-                .map(|((note, block_height), nullifier)| {
-                    let nullified_by = existing_nullifiers
-                        .contains(&nullifier)
-                        .then_some(nullifier);
+                .map(|(note, height)| (None, note, height));
+            let spent_notes = spent_notes.into_iter().map(
+                |(nullifier, NoteData { note, height })| {
+                    (Some(nullifier), note, height)
+                },
+            );
+            let history = live_notes
+                .chain(spent_notes)
+                .map(|(nullified_by, note, block_height)| {
                     let amount = note.value(Some(&vk)).unwrap();
                     DecodedNote {
                         note,
@@ -323,6 +326,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                     }
                 })
                 .collect();
+
             Ok(history)
         } else {
             Err(Error::Offline)

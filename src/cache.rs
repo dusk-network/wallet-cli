@@ -23,7 +23,7 @@ type DB = DBWithThreadMode<MultiThreaded>;
 ///
 /// path is the path of the rocks db database
 pub(crate) struct Cache {
-    db: DB,
+    pub db: DB,
 }
 
 impl Cache {
@@ -34,11 +34,14 @@ impl Cache {
         status: fn(&str),
     ) -> Result<Self, Error> {
         let cfs: Vec<_> = (0..MAX_ADDRESSES)
-            .map(|i| {
+            .flat_map(|i| {
                 let ssk =
                     store.retrieve_ssk(i as u64).expect("ssk to be available");
                 let psk = ssk.public_spend_key();
-                format!("{:?}", psk)
+
+                let live = format!("{:?}", psk);
+                let spent = format!("spent_{:?}", psk);
+                [live, spent]
             })
             .collect();
 
@@ -117,6 +120,32 @@ impl Cache {
                 let note = NoteData::from_slice(&note_data)?;
 
                 notes.insert(note);
+            }
+        };
+
+        Ok(notes)
+    }
+
+    /// Returns an iterator over all notes inserted for the given PSK, in order
+    /// of block height.
+    pub(crate) fn spent_notes(
+        &self,
+        psk: &PublicSpendKey,
+    ) -> Result<Vec<(BlsScalar, NoteData)>, Error> {
+        let cf_name = format!("spent_{:?}", psk);
+        let mut notes = vec![];
+
+        if let Some(cf) = self.db.cf_handle(&cf_name) {
+            let iterator =
+                self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
+
+            for i in iterator {
+                let (key, note_data) = i?;
+
+                let note = NoteData::from_slice(&note_data)?;
+                let key = BlsScalar::from_slice(&key)?;
+
+                notes.push((key, note));
             }
         };
 

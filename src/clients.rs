@@ -249,6 +249,11 @@ impl StateStore {
 
         sync_db(&mut client, &store, state.cache.as_ref(), status).await
     }
+
+    pub(crate) fn cache(&self) -> Arc<Cache> {
+        let state = self.inner.lock().unwrap();
+        Arc::clone(&state.cache)
+    }
 }
 
 /// Types that are clients of the state API.
@@ -262,7 +267,6 @@ impl StateClient for StateStore {
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let psk = vk.public_spend_key();
-        self.sync().wait()?;
         let state = self.inner.lock().unwrap();
 
         Ok(state
@@ -292,24 +296,9 @@ impl StateClient for StateStore {
     /// nullifiers.
     fn fetch_existing_nullifiers(
         &self,
-        nullifiers: &[BlsScalar],
+        _nullifiers: &[BlsScalar],
     ) -> Result<Vec<BlsScalar>, Self::Error> {
-        let state = self.inner.lock().unwrap();
-
-        self.status("Fetching nullifiers...");
-        let nullifiers = nullifiers.to_vec();
-        let data = state
-            .client
-            .contract_query::<_, 1024>(
-                TRANSFER_CONTRACT,
-                "existing_nullifiers",
-                &nullifiers,
-            )
-            .wait()?;
-
-        let nullifiers = rkyv::from_bytes(&data).map_err(|_| Error::Rkyv)?;
-
-        Ok(nullifiers)
+        Ok(vec![])
     }
 
     /// Queries the node to find the opening for a specific note.
