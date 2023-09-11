@@ -227,9 +227,7 @@ impl StateStore {
                     // Sender should not panic and if it does something is wrong
                     // and we should abort only when there's an error because it
                     // important to tell the user that the sync failed
-                    sender
-                        .send(format!("Error during sync:.. {:?}", e))
-                        .unwrap();
+                    sender.send(format!("Error during sync:.. {e}")).unwrap();
                 }
 
                 let _ = sender.send("Syncing Complete".to_string());

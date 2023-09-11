@@ -6,7 +6,7 @@
 
 use std::mem::size_of;
 
-use dusk_bytes::{DeserializableSlice, Serializable};
+use dusk_bytes::DeserializableSlice;
 use dusk_plonk::prelude::BlsScalar;
 use dusk_wallet_core::Store;
 use futures::StreamExt;
@@ -93,12 +93,12 @@ pub(crate) async fn sync_db(
     // Remove spent nullifiers from live notes
     for (_, _, psk) in addresses {
         let cf_name = format!("{:?}", psk);
-        let mut nullifiers = vec![];
 
         if let Some(cf) = cache.db.cf_handle(&cf_name) {
             let iterator =
                 cache.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
 
+            let mut nullifiers = vec![];
             for i in iterator {
                 let (nullifier, _) = i?;
                 let nullifier = BlsScalar::from_slice(&nullifier)
@@ -107,21 +107,10 @@ pub(crate) async fn sync_db(
             }
 
             if !nullifiers.is_empty() {
-                let spent_cf = format!("spent_{:?}", psk);
-                let spent_cf =
-                    cache.db.cf_handle(&spent_cf).expect("spent_cf to exists");
                 let existing =
                     fetch_existing_nullifiers_remote(client, &nullifiers)
                         .wait()?;
-                for n in existing {
-                    let key = n.to_bytes();
-                    let to_move = cache
-                        .db
-                        .get_cf(&cf, key)?
-                        .expect("Note must exists to be moved");
-                    cache.db.put_cf(&spent_cf, key, to_move)?;
-                    cache.db.delete_cf(&cf, n.to_bytes())?;
-                }
+                cache.spend_notes(&psk, &existing)?;
             }
         };
     }

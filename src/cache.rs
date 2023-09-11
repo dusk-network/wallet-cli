@@ -85,6 +85,39 @@ impl Cache {
         Ok(())
     }
 
+    pub(crate) fn spend_notes(
+        &self,
+        psk: &PublicSpendKey,
+        nullifiers: &[BlsScalar],
+    ) -> Result<(), Error> {
+        if nullifiers.is_empty() {
+            return Ok(());
+        }
+        let cf_name = format!("{:?}", psk);
+        let spent_cf_name = format!("spent_{:?}", psk);
+
+        let cf = self
+            .db
+            .cf_handle(&cf_name)
+            .ok_or(Error::CacheDatabaseCorrupted)?;
+        let spent_cf = self
+            .db
+            .cf_handle(&spent_cf_name)
+            .ok_or(Error::CacheDatabaseCorrupted)?;
+
+        for n in nullifiers {
+            let key = n.to_bytes();
+            let to_move = self
+                .db
+                .get_cf(&cf, key)?
+                .expect("Note must exists to be moved");
+            self.db.put_cf(&spent_cf, key, to_move)?;
+            self.db.delete_cf(&cf, n.to_bytes())?;
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn insert_last_pos(&self, last_pos: u64) -> Result<(), Error> {
         self.db.put(b"last_pos", last_pos.to_be_bytes())?;
 

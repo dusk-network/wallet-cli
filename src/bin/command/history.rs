@@ -6,6 +6,7 @@
 
 use std::fmt::{self, Display};
 
+use dusk_plonk::prelude::BlsScalar;
 use dusk_wallet::DecodedNote;
 use dusk_wallet_core::Transaction;
 use rusk_abi::dusk;
@@ -20,6 +21,7 @@ pub struct TransactionHistory {
     amount: f64,
     fee: u64,
     pub tx: Transaction,
+    id: BlsScalar,
 }
 
 impl TransactionHistory {
@@ -51,19 +53,16 @@ impl Display for TransactionHistory {
         write!(
             f,
             "{: >9} | {:x} | {: ^8} | {: >+17.9} | {}",
-            self.height,
-            Hasher::digest(self.tx.to_hash_input_bytes()),
-            contract,
-            dusk,
-            fee
+            self.height, self.id, contract, dusk, fee
         )
     }
 }
 
 pub(crate) async fn transaction_from_notes(
     settings: &Settings,
-    notes: Vec<DecodedNote>,
+    mut notes: Vec<DecodedNote>,
 ) -> anyhow::Result<Vec<TransactionHistory>> {
+    notes.sort_by(|a, b| a.note.pos().cmp(b.note.pos()));
     let mut ret: Vec<TransactionHistory> = vec![];
     let gql =
         GraphQL::new(&settings.state.to_string(), io::status::interactive);
@@ -84,11 +83,10 @@ pub(crate) async fn transaction_from_notes(
 
         let txs = gql.txs_for_block(decoded_note.block_height).await?;
 
+        let note_hash = decoded_note.note.hash();
         // Looking for the transaction which created the note
         let note_creator = txs.iter().find(|(t, _)| {
-            t.outputs()
-                .iter()
-                .any(|&n| n.hash().eq(&decoded_note.note.hash()))
+            t.outputs().iter().any(|&n| n.hash().eq(&note_hash))
         });
 
         if let Some((t, gas_spent)) = note_creator {
@@ -105,9 +103,7 @@ pub(crate) async fn transaction_from_notes(
                 false => TransactionDirection::In,
             };
             let hash_to_find = Hasher::digest(t.to_hash_input_bytes());
-            match ret.iter_mut().find(|th| {
-                Hasher::digest(th.tx.to_hash_input_bytes()) == hash_to_find
-            }) {
+            match ret.iter_mut().find(|th| th.id == hash_to_find) {
                 Some(tx) => tx.amount += note_amount,
                 None => ret.push(TransactionHistory {
                     direction,
@@ -115,6 +111,7 @@ pub(crate) async fn transaction_from_notes(
                     amount: note_amount - inputs_amount,
                     fee: gas_spent * t.fee().gas_price,
                     tx: t.clone(),
+                    id: hash_to_find,
                 }),
             }
         } else {
@@ -135,6 +132,7 @@ pub(crate) async fn transaction_from_notes(
             }
         }
     }
+    ret.sort_by(|a, b| a.height.cmp(&b.height));
     Ok(ret)
 }
 
