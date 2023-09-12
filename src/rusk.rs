@@ -92,7 +92,7 @@ impl RuskHttpClient {
     }
 
     /// Check rusk connection
-    pub async fn check_connection(&self) -> Result<(), Error> {
+    pub async fn check_connection(&self) -> Result<(), reqwest::Error> {
         reqwest::Client::new().post(&self.uri).send().await?;
         Ok(())
     }

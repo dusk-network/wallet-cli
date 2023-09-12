@@ -21,7 +21,7 @@ use crate::{Error, RuskRequest, MAX_ADDRESSES};
 const RKYV_TREE_LEAF_SIZE: usize = size_of::<ArchivedTreeLeaf>();
 
 pub(crate) async fn sync_db(
-    client: &mut RuskHttpClient,
+    client: &RuskHttpClient,
     store: &LocalStore,
     cache: &Cache,
     status: fn(&str),

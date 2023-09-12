@@ -44,28 +44,24 @@ pub(crate) async fn run_loop(
         };
 
         loop {
+            // get balance for this address
+            prompt::hide_cursor()?;
+            let balance = wallet.get_balance(&addr).await?;
+            let spendable: Dusk = balance.spendable.into();
+            let total: Dusk = balance.value.into();
+            prompt::hide_cursor()?;
+
+            // display address information
+            println!();
+            println!("Address: {}", addr);
+            println!("Balance:");
+            println!(" - Spendable: {spendable}");
+            println!(" - Total: {total}");
+
             // request operation to perform
-            let op = if wallet.is_online() {
-                // get balance for this address
-                prompt::hide_cursor()?;
-                let balance = wallet.get_balance(&addr).await?;
-                prompt::hide_cursor()?;
-
-                // display address information
-                println!("\rAddress: {}", addr);
-                println!(
-                    "Balance:\n - Spendable: {}\n - Total: {}",
-                    Dusk::from(balance.spendable),
-                    Dusk::from(balance.value)
-                );
-
-                // operations menu
-                menu_op(addr.clone(), balance.spendable.into(), settings)
-            } else {
-                // display address information
-                println!("\rAddress: {}", addr);
-                println!("Balance:\n - Spendable: [n/a]\n - Total: [n/a]");
-                menu_op_offline(addr.clone(), settings)
+            let op = match wallet.is_online().await {
+                true => menu_op(addr.clone(), spendable, settings),
+                false => menu_op_offline(addr.clone(), settings),
             };
 
             // perform operations with this address
@@ -274,7 +270,7 @@ fn menu_op_offline(
         .add(CMI::Back, "Back");
 
     let q = Question::select("theme")
-        .message("What would you like to do?")
+        .message("[OFFLINE] What would you like to do?")
         .choices(cmd_menu.clone())
         .build();
 
