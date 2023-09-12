@@ -39,9 +39,8 @@ use crate::dat::{
     self, version_bytes, DatFileVersion, FILE_TYPE, LATEST_VERSION, MAGIC,
     RESERVED,
 };
-use crate::rusk::RuskClient;
 use crate::store::LocalStore;
-use crate::Error;
+use crate::{Error, RuskHttpClient};
 use gas::Gas;
 
 use crate::store;
@@ -242,16 +241,20 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         S: Into<String>,
     {
         // attempt connection
-        let rusk = RuskClient::new(rusk_addr, prov_addr);
-        if let Err(e) = rusk.state.check_connection().await {
-            println!("Connection to Rusk Failed, some operations won't be available: {e}")
-        }
-        if let Err(e) = rusk.prover.check_connection().await {
-            println!("Connection to Prover Failed, some operations won't be available: {e}")
+        let http_state = RuskHttpClient::new(rusk_addr.into());
+        let http_prover = RuskHttpClient::new(prov_addr.into());
+
+        let state_status = http_state.check_connection().await;
+        let prover_status = http_prover.check_connection().await;
+
+        match (&state_status, prover_status) {
+            (Err(e),_)=> println!("Connection to Rusk Failed, some operations won't be available: {e}"),
+            (_,Err(e))=> println!("Connection to Prover Failed, some operations won't be available: {e}"),
+            _=> {},
         }
 
         // create a prover client
-        let mut prover = Prover::new(rusk.state.clone(), rusk.prover.clone());
+        let mut prover = Prover::new(http_state.clone(), http_prover.clone());
         prover.set_status_callback(status);
 
         let cache_dir = {
@@ -266,14 +269,14 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
         // create a state client
         let state = StateStore::new(
-            rusk.state,
+            http_state,
             &cache_dir,
             self.store.clone(),
             status,
         )?;
 
         if block {
-            if self.is_online().await {
+            if state_status.is_ok() {
                 state.sync().await?;
             }
         } else {

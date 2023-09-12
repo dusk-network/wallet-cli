@@ -73,6 +73,11 @@ impl Prover {
     pub fn set_status_callback(&mut self, status: fn(&str)) {
         self.status = status;
     }
+
+    pub async fn check_connection(&self) -> Result<(), reqwest::Error> {
+        self.state.check_connection().await?;
+        self.prover.check_connection().await
+    }
 }
 
 impl ProverClient for Prover {
