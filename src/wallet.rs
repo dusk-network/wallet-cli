@@ -235,7 +235,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         rusk_addr: S,
         prov_addr: S,
         status: fn(&str),
-        block: bool,
+        cache_sync: bool,
     ) -> Result<(), Error>
     where
         S: Into<String>,
@@ -265,8 +265,6 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             }
         };
 
-        let (sync_tx, sync_rx) = flume::unbounded::<String>();
-
         // create a state client
         let state = StateStore::new(
             http_state,
@@ -275,12 +273,15 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             status,
         )?;
 
-        if block {
+        if cache_sync {
             if state_status.is_ok() {
                 state.sync().await?;
             }
         } else {
+            let (sync_tx, sync_rx) = flume::unbounded::<String>();
             state.register_sync(sync_tx).await?;
+            // set sync reciever to notify successful sync
+            self.sync_rx = Some(sync_rx);
         }
 
         // create wallet instance
@@ -288,8 +289,6 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
         // set our own status callback
         self.status = status;
-        // set sync reciever to notify successful sync
-        self.sync_rx = Some(sync_rx);
 
         Ok(())
     }
