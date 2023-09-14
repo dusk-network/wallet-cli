@@ -77,8 +77,17 @@ pub(crate) async fn sync_db(
 
             for (ssk, vk, psk) in addresses.iter() {
                 if vk.owns(&note) {
-                    let note_data = (note, note.gen_nullifier(ssk));
-                    cache.insert(psk, block_height, note_data)?;
+                    let nullifier = note.gen_nullifier(ssk);
+                    let spent =
+                        fetch_existing_nullifiers_remote(client, &[nullifier])
+                            .wait()?
+                            .first()
+                            .is_some();
+                    let note = (note, nullifier);
+                    match spent {
+                        true => cache.insert_spent(psk, block_height, note),
+                        false => cache.insert(psk, block_height, note),
+                    }?;
 
                     break;
                 }

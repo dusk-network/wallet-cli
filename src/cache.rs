@@ -85,6 +85,32 @@ impl Cache {
         Ok(())
     }
 
+    // We store a column family named by hex representation of the psk.
+    // We store the nullifier of the note as key and the value is the bytes
+    // representation of the tuple (NoteHeight, Note)
+    pub(crate) fn insert_spent(
+        &self,
+        psk: &PublicSpendKey,
+        height: u64,
+        note_data: (Note, BlsScalar),
+    ) -> Result<(), Error> {
+        let cf_name = format!("spent_{:?}", psk);
+
+        let cf = self
+            .db
+            .cf_handle(&cf_name)
+            .ok_or(Error::CacheDatabaseCorrupted)?;
+
+        let (note, nullifier) = note_data;
+
+        let data = NoteData { height, note };
+        let key = nullifier.to_bytes();
+
+        self.db.put_cf(&cf, key, data.to_bytes())?;
+
+        Ok(())
+    }
+
     pub(crate) fn spend_notes(
         &self,
         psk: &PublicSpendKey,
