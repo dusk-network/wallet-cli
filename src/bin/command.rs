@@ -10,7 +10,7 @@ use clap::Subcommand;
 use dusk_bls12_381_sign::PublicKey;
 use dusk_bytes::DeserializableSlice;
 use dusk_plonk::prelude::BlsScalar;
-use dusk_wallet::wasm_wallet::WasmWallet;
+use dusk_wallet_core_wasm::types::BalanceResponse;
 use rusk_abi::hash::Hasher;
 use std::{fmt, path::PathBuf};
 
@@ -19,8 +19,8 @@ use crate::settings::Settings;
 use crate::{WalletFile, WalletPath};
 
 use dusk_wallet::gas::Gas;
-use dusk_wallet::{Address, Dusk, Lux, Wallet, EPOCH, MAX_ADDRESSES};
-use dusk_wallet_core::{BalanceInfo, StakeInfo};
+use dusk_wallet::{Address, Dusk, Lux, WasmWallet, EPOCH, MAX_ADDRESSES};
+use dusk_wallet_core::StakeInfo;
 
 pub use history::TransactionHistory;
 
@@ -191,15 +191,14 @@ impl Command {
     /// Runs the command with the provided wallet
     pub async fn run(
         self,
-        wallet: &mut Wallet<WalletFile>,
-        wasm_wallet: Option<&mut WasmWallet<WalletFile>>,
+        wallet: &mut WasmWallet<WalletFile>,
         settings: &Settings,
     ) -> anyhow::Result<RunResult> {
         match self {
             Command::Balance { addr, spendable } => {
                 let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
+                    Some(addr) => addr.index()?,
+                    None => 0,
                 };
 
                 let balance = wallet.get_balance(addr).await?;
@@ -218,7 +217,7 @@ impl Command {
                     wallet.save()?;
                     Ok(RunResult::Address(Box::new(addr)))
                 } else {
-                    Ok(RunResult::Addresses(wallet.addresses().clone()))
+                    Ok(RunResult::Addresses(wallet.addresses().to_vec()))
                 }
             }
             Command::Transfer {
@@ -229,27 +228,18 @@ impl Command {
                 gas_price,
             } => {
                 let sender = match sndr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
+                    Some(addr) => addr.index()?,
+                    None => 0,
                 };
+
                 let mut gas = Gas::default();
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
-                // do the transfer with the wasm wallet
-                if let Some(wasm_wallet) = wasm_wallet {
-                    let tx = wasm_wallet.transfer(
-                        sender,
-                        &rcvr,
-                        1,
-                        *amt,
-                        gas.clone(),
-                    )?;
+                let tx =
+                    wallet.transfer(sender, &rcvr, *amt, gas.clone()).await?;
 
-                    Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
-                } else {
-                    Err(anyhow::anyhow!("No wasm wallet available"))
-                }
+                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::Stake {
                 addr,
@@ -258,14 +248,17 @@ impl Command {
                 gas_price,
             } => {
                 let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
+                    Some(addr) => addr.index()?,
+                    None => 0,
                 };
+
                 let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
                 gas.set_price(gas_price);
                 gas.set_limit(gas_limit);
 
+                // do the transfer with the wasm wallet
                 let tx = wallet.stake(addr, amt, gas).await?;
+
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::StakeAllow {
@@ -275,8 +268,8 @@ impl Command {
                 gas_price,
             } => {
                 let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
+                    Some(addr) => addr.index()?,
+                    None => 0,
                 };
 
                 let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
@@ -288,13 +281,15 @@ impl Command {
                     .map_err(dusk_wallet::Error::from)?;
 
                 let tx = wallet.stake_allow(addr, &key, gas).await?;
+
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::StakeInfo { addr, reward } => {
                 let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
+                    Some(addr) => addr.index()?,
+                    None => 0,
                 };
+
                 let si = wallet.stake_info(addr).await?;
                 Ok(RunResult::StakeInfo(si, reward))
             }
@@ -304,8 +299,8 @@ impl Command {
                 gas_price,
             } => {
                 let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
+                    Some(addr) => addr.index()?,
+                    None => 0,
                 };
 
                 let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
@@ -321,8 +316,8 @@ impl Command {
                 gas_price,
             } => {
                 let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
+                    Some(addr) => addr.index()?,
+                    None => 0,
                 };
 
                 let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
@@ -354,7 +349,7 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let notes = wallet.get_all_notes(addr)?;
+                let notes = wallet.get_all_notes(addr).await?;
 
                 let transactions =
                     history::transaction_from_notes(settings, notes).await?;
@@ -371,7 +366,7 @@ impl Command {
 /// Possible results of running a command in interactive mode
 pub enum RunResult {
     Tx(BlsScalar),
-    Balance(BalanceInfo, bool),
+    Balance(BalanceResponse, bool),
     StakeInfo(StakeInfo, bool),
     Address(Box<Address>),
     Addresses(Vec<Address>),
@@ -391,7 +386,7 @@ impl fmt::Display for RunResult {
                     f,
                     "> Total balance is: {} DUSK\n> Maximum spendable per TX is: {} DUSK",
                     Dusk::from(balance.value),
-                    Dusk::from(balance.spendable)
+                    Dusk::from(balance.maximum)
                 )
             }
             Address(addr) => {

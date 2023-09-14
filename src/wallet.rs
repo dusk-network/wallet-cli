@@ -4,84 +4,122 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-mod address;
-mod file;
+/// Keeps tracks of addresses and index
+pub mod address;
+/// WalletFile and SecureWallet implementation
+pub mod file;
+/// Gas representation
 pub mod gas;
 
-pub use address::Address;
-use dusk_plonk::prelude::BlsScalar;
-pub use file::{SecureWalletFile, WalletPath};
+mod call;
+mod wallet_core;
 
-use bip39::{Language, Mnemonic, Seed};
-use dusk_bytes::{DeserializableSlice, Serializable};
-use flume::Receiver;
-use phoenix_core::transaction::ModuleId;
-use phoenix_core::Note;
-use rkyv::ser::serializers::AllocSerializer;
-use serde::Serialize;
-use std::fmt::Debug;
-use std::fs;
-use std::path::{Path, PathBuf};
-
-use dusk_bls12_381_sign::{PublicKey, SecretKey};
-use dusk_wallet_core::{
-    BalanceInfo, StakeInfo, StateClient, Store, Transaction,
-    Wallet as WalletCore, MAX_CALL_SIZE,
-};
-use rand::prelude::StdRng;
-use rand::SeedableRng;
-
-use crate::clients::{Prover, StateStore};
+use crate::clients::StateStore;
 use crate::crypto::encrypt;
-use crate::currency::Dusk;
 use crate::dat::{
     self, version_bytes, DatFileVersion, FILE_TYPE, LATEST_VERSION, MAGIC,
     RESERVED,
 };
+use crate::error::Error;
+use crate::prover::Prover;
 use crate::rusk::RuskClient;
-use crate::store::LocalStore;
-use crate::Error;
-use gas::Gas;
+use crate::store::{self, LocalStore};
+use crate::wallet::wallet_core::WalletCore;
+use crate::wallet::{call::CallBuilder, file::SecureWalletFile, gas::Gas};
+use crate::Address;
+use crate::Dusk;
+use bip39::{Language, Mnemonic, Seed};
+use dusk_bls12_381_sign::{PublicKey, SecretKey};
+use dusk_bytes::{DeserializableSlice, Serializable};
+use dusk_pki::{PublicSpendKey, ViewKey};
+use dusk_plonk::prelude::BlsScalar;
+use dusk_wallet_core::StakeInfo;
+use dusk_wallet_core::{Store, MAX_CALL_SIZE};
+use dusk_wallet_core_wasm::tx::UnprovenTransaction;
+use dusk_wallet_core_wasm::types::{
+    BalanceArgs, BalanceResponse, ExecuteArgs, ExecuteCall, ExecuteOutput,
+    ExecuteResponse, NullifiersArgs, OutputType, ViewKeysArgs,
+};
+use flume::Receiver;
+use phoenix_core::{Note, Transaction};
+use rand::prelude::StdRng;
+use rand::{Rng, SeedableRng};
+use rand_core::RngCore;
+use rkyv::ser::serializers::AllocSerializer;
+use serde::{Deserialize, Serialize};
 
-use crate::store;
+use std::fs::{self, read};
+use std::path::Path;
+use std::path::PathBuf;
 
-/// The interface to the Dusk Network
-///
-/// The Wallet exposes all methods available to interact with the Dusk Network.
-///
-/// A new [`Wallet`] can be created from a bip39-compatible mnemonic phrase or
-/// an existing wallet file.
-///
-/// The user can generate as many [`Address`] as needed without an active
-/// connection to the network by calling [`Wallet::new_address`] repeatedly.
-///
-/// A wallet must connect to the network using a [`RuskEndpoint`] in order to be
-/// able to perform common operations such as checking balance, transfernig
-/// funds, or staking Dusk.
-pub struct Wallet<F: SecureWalletFile + Debug> {
-    wallet: Option<WalletCore<LocalStore, StateStore, Prover>>,
-    addresses: Vec<Address>,
+/// This is exact same wallet as the one in wallet.rs but uses the wasm binary
+/// to interface with wallet_core
+pub struct WasmWallet<F: SecureWalletFile> {
+    wallet_core: WalletCore,
+    state: Option<StateStore>,
+    prover: Option<Prover>,
     store: LocalStore,
-    file: Option<F>,
-    file_version: Option<DatFileVersion>,
-    status: fn(status: &str),
+    addresses: Vec<Address>,
+    /// DAT File and the file version
+    pub file: Option<(F, DatFileVersion)>,
     /// Recieve the status/errors of the sync procss
     pub sync_rx: Option<Receiver<String>>,
 }
 
-impl<F: SecureWalletFile + Debug> Wallet<F> {
-    /// Returns the file used for the wallet
-    pub fn file(&self) -> &Option<F> {
-        &self.file
-    }
-}
+impl<F: SecureWalletFile> WasmWallet<F> {
+    /// Creates a new wasm wallet instance by reading the given wasm binary file
+    pub fn new<T: AsRef<[u8]>>(
+        wasm_binary: T,
+        file: F,
+    ) -> anyhow::Result<Self> {
+        let wallet_core = WalletCore::new(wasm_binary)?;
 
-impl<F: SecureWalletFile + Debug> Wallet<F> {
-    /// Creates a new wallet instance deriving its seed from a valid BIP39
-    /// mnemonic
-    pub fn new<P>(phrase: P) -> Result<Self, Error>
+        let path = file.path();
+        let pwd = file.pwd();
+
+        // make sure file exists
+        let pb = path.inner().clone();
+        if !pb.is_file() {
+            return Err(Error::WalletFileMissing.into());
+        }
+
+        // attempt to load and decode wallet
+        let bytes = read(&pb)?;
+        let file_version = dat::check_version(bytes.get(0..12))?;
+        let (seed, address_count) =
+            dat::get_seed_and_address(file_version, bytes, pwd)?;
+
+        let store = LocalStore::new(seed);
+
+        let addresses: Vec<_> = (0..address_count)
+            .map(|i| {
+                let ssk = store
+                    .retrieve_ssk(i as u64)
+                    .expect("wallet seed should be available");
+
+                Address::new(i, ssk.public_spend_key())
+            })
+            .collect();
+
+        Ok(Self {
+            wallet_core,
+            state: None,
+            prover: None,
+            store,
+            addresses,
+            file: Some((file, file_version)),
+            sync_rx: None,
+        })
+    }
+
+    /// Create a wallet from menmonic and wasm binary file location
+    pub fn from_mnemonic<T, P>(
+        wasm_binary: T,
+        phrase: P,
+    ) -> anyhow::Result<Self>
     where
         P: Into<String>,
+        T: AsRef<[u8]>,
     {
         // generate mnemonic
         let phrase: String = phrase.into();
@@ -94,7 +132,8 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             let mut bytes = seed.as_bytes();
 
             // Generate a Store Seed type from the mnemonic Seed bytes
-            let seed = store::Seed::from_reader(&mut bytes)?;
+            let seed =
+                store::Seed::from_reader(&mut bytes).map_err(Error::Bytes)?;
 
             let store = LocalStore::new(seed);
 
@@ -105,82 +144,73 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
             let address = Address::new(0, ssk.public_spend_key());
 
+            let wallet_core = WalletCore::new(wasm_binary)?;
+
             // return new wallet instance
-            Ok(Wallet {
-                wallet: None,
+            Ok(Self {
+                wallet_core,
                 addresses: vec![address],
                 store,
                 file: None,
-                file_version: None,
-                status: |_| {},
+                state: None,
+                prover: None,
                 sync_rx: None,
             })
         } else {
-            Err(Error::InvalidMnemonicPhrase)
+            Err(Error::InvalidMnemonicPhrase.into())
         }
     }
 
-    /// Loads wallet given a session
-    pub fn from_file(file: F) -> Result<Self, Error> {
-        let path = file.path();
-        let pwd = file.pwd();
+    /// Connect the wasm wallet to the node and create the state
+    pub async fn connect<S: Into<String>>(
+        &mut self,
+        rusk_addr: S,
+        prov_addr: S,
+        status: fn(&str),
+    ) -> Result<(), Error> {
+        let rusk = RuskClient::new(rusk_addr, prov_addr);
+        rusk.state.check_connection().await?;
 
-        // make sure file exists
-        let pb = path.inner().clone();
-        if !pb.is_file() {
-            return Err(Error::WalletFileMissing);
-        }
+        // create a prover client
+        let mut prover = Prover::new(rusk.state.clone(), rusk.prover.clone());
+        prover.set_status_callback(status);
 
-        // attempt to load and decode wallet
-        let bytes = fs::read(&pb)?;
+        let cache_dir = {
+            if let Some(file) = &self.file {
+                file.0.path().cache_dir()
+            } else {
+                return Err(Error::WalletFileMissing);
+            }
+        };
 
-        let file_version = dat::check_version(bytes.get(0..12))?;
+        let state = StateStore::new(
+            rusk.state,
+            &cache_dir,
+            self.store.clone(),
+            status,
+        )?;
 
-        let (seed, address_count) =
-            dat::get_seed_and_address(file_version, bytes, pwd)?;
+        state.sync().await?;
 
-        let store = LocalStore::new(seed);
+        self.state = Some(state);
+        self.prover = Some(prover);
 
-        // return early if its legacy
-        if let DatFileVersion::Legacy = file_version {
-            let ssk = store
-                .retrieve_ssk(0)
-                .expect("wallet seed should be available");
+        // sync as soon as we connect
 
-            let address = Address::new(0, ssk.public_spend_key());
+        Ok(())
+    }
 
-            // return the store
-            return Ok(Self {
-                wallet: None,
-                addresses: vec![address],
-                store,
-                file: Some(file),
-                file_version: Some(DatFileVersion::Legacy),
-                status: |_| {},
-                sync_rx: None,
-            });
-        }
+    /// Helper function to register for async-sync outside of connect
+    pub async fn register_sync(&mut self) -> anyhow::Result<()> {
+        let state = self.state.as_ref().ok_or(Error::Offline)?;
 
-        let addresses: Vec<_> = (0..address_count)
-            .map(|i| {
-                let ssk = store
-                    .retrieve_ssk(i as u64)
-                    .expect("wallet seed should be available");
+        let (sync_tx, sync_rx) = flume::unbounded::<String>();
 
-                Address::new(i, ssk.public_spend_key())
-            })
-            .collect();
+        state.register_sync(sync_tx).await?;
 
-        // create and return
-        Ok(Self {
-            wallet: None,
-            addresses,
-            store,
-            file: Some(file),
-            file_version: Some(file_version),
-            status: |_| {},
-            sync_rx: None,
-        })
+        self.sync_rx = Some(sync_rx);
+
+        Ok(())
     }
 
     /// Saves wallet to file from which it was loaded
@@ -203,7 +233,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 payload.push(self.addresses.len() as u8);
 
                 // encrypt the payload
-                payload = encrypt(&payload, f.pwd())?;
+                payload = encrypt(&payload, f.0.pwd())?;
 
                 let mut content =
                     Vec::with_capacity(header.len() + payload.len());
@@ -212,143 +242,83 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
                 content.extend_from_slice(&payload);
 
                 // write the content to file
-                fs::write(&f.path().wallet, content)?;
+                fs::write(&f.0.path().wallet, content)?;
                 Ok(())
             }
             None => Err(Error::WalletFileMissing),
         }
     }
 
-    /// Saves wallet to the provided file, changing the previous file path for
-    /// the wallet if any. Note that any subsequent calls to [`save`] will
-    /// use this new file.
-    pub fn save_to(&mut self, file: F) -> Result<(), Error> {
-        // set our new file and save
-        self.file = Some(file);
-        self.save()
-    }
-
-    /// Connect the wallet to the network providing a callback for status
-    /// updates
-    pub async fn connect_with_status<S>(
-        &mut self,
-        rusk_addr: S,
-        prov_addr: S,
-        status: fn(&str),
-        block: bool,
-    ) -> Result<(), Error>
-    where
-        S: Into<String>,
-    {
-        // attempt connection
-        let rusk = RuskClient::new(rusk_addr, prov_addr);
-        rusk.state.check_connection().await?;
-
-        // create a prover client
-        let mut prover = Prover::new(rusk.state.clone(), rusk.prover.clone());
-        prover.set_status_callback(status);
-
-        let cache_dir = {
-            if let Some(file) = &self.file {
-                file.path().cache_dir()
-            } else {
-                return Err(Error::WalletFileMissing);
-            }
-        };
-
-        let (sync_tx, sync_rx) = flume::unbounded::<String>();
-
-        // create a state client
-        let state = StateStore::new(
-            rusk.state,
-            &cache_dir,
-            self.store.clone(),
-            status,
-        )?;
-
-        if block {
-            state.sync().await?;
-        } else {
-            state.register_sync(sync_tx).await?;
-        }
-
-        // create wallet instance
-        self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));
-
-        // set our own status callback
-        self.status = status;
-        // set sync reciever to notify successful sync
-        self.sync_rx = Some(sync_rx);
-
-        Ok(())
-    }
-
-    /// Checks if the wallet has an active connection to the network
-    pub fn is_online(&self) -> bool {
-        self.wallet.is_some()
-    }
-
     /// Fetches the notes from the state.
-    pub fn get_all_notes(
+    pub async fn get_all_notes(
         &self,
         addr: &Address,
-    ) -> Result<Vec<DecodedNote>, Error> {
+    ) -> anyhow::Result<Vec<DecodedNote>> {
         if !addr.is_owned() {
-            return Err(Error::Unauthorized);
+            return Err(Error::Unauthorized.into());
         }
-        if let Some(wallet) = &self.wallet {
-            let ssk_index = addr.index()? as u64;
-            let ssk = self.store.retrieve_ssk(ssk_index).unwrap();
-            let vk = ssk.view_key();
 
-            let notes = wallet.state().fetch_notes(&vk).unwrap();
+        let state = self.state.as_ref().ok_or(Error::Offline)?;
 
-            let nullifiers: Vec<_> =
-                notes.iter().map(|(n, _)| n.gen_nullifier(&ssk)).collect();
-            let existing_nullifiers =
-                wallet.state().fetch_existing_nullifiers(&nullifiers[..])?;
-            let history = notes
-                .into_iter()
-                .zip(nullifiers)
-                .map(|((note, block_height), nullifier)| {
-                    let nullified_by = existing_nullifiers
-                        .contains(&nullifier)
-                        .then_some(nullifier);
-                    let amount = note.value(Some(&vk)).unwrap();
-                    DecodedNote {
-                        note,
-                        amount,
-                        block_height,
-                        nullified_by,
-                    }
-                })
-                .collect();
-            Ok(history)
-        } else {
-            Err(Error::Offline)
-        }
+        let ssk_index = addr.index()? as u64;
+        let ssk = self.store.retrieve_ssk(ssk_index)?;
+        let vk = ssk.view_key();
+
+        let notes = state.fetch_notes(&vk).await?;
+
+        let nullifiers: Vec<_> =
+            notes.iter().map(|(n, _)| n.gen_nullifier(&ssk)).collect();
+        let existing_nullifiers =
+            state.fetch_existing_nullifiers(&nullifiers[..]).await?;
+        let history = notes
+            .into_iter()
+            .zip(nullifiers)
+            .map(|((note, block_height), nullifier)| {
+                let nullified_by = existing_nullifiers
+                    .contains(&nullifier)
+                    .then_some(nullifier);
+                let amount = note.value(Some(&vk)).unwrap();
+                DecodedNote {
+                    note,
+                    amount,
+                    block_height,
+                    nullified_by,
+                }
+            })
+            .collect();
+        Ok(history)
     }
 
-    /// Obtain balance information for a given address
+    /// Return all addresses in the wallet
+    pub fn addresses(&self) -> &[Address] {
+        &self.addresses
+    }
+
+    /// Calculate balance from wallet core
     pub async fn get_balance(
-        &self,
-        addr: &Address,
-    ) -> Result<BalanceInfo, Error> {
-        // make sure we own this address
-        if !addr.is_owned() {
-            return Err(Error::Unauthorized);
-        }
+        &mut self,
+        index: u8,
+    ) -> anyhow::Result<BalanceResponse> {
+        let vks = self.view_keys()?;
 
-        // get balance
-        if let Some(wallet) = &self.wallet {
-            let index = addr.index()? as u64;
-            Ok(wallet.get_balance(index)?)
-        } else {
-            Err(Error::Offline)
-        }
+        let vk = vks.get::<usize>(index.into()).ok_or(Error::BadAddress)?;
+        let notes = self.unspent_notes(vk).await?;
+
+        let seed = self.store.get_seed()?.to_vec();
+
+        let serialized = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&notes)?.into_vec();
+
+        let balance_args = BalanceArgs {
+            notes: serialized,
+            seed,
+        };
+        let result: BalanceResponse =
+            to_json(self.wallet_core.call("balance", balance_args)?)?;
+
+        Ok(result)
     }
 
-    /// Creates a new public address.
+    // Creates a new public address.
     /// The addresses generated are deterministic across sessions.
     pub fn new_address(&mut self) -> &Address {
         let len = self.addresses.len();
@@ -367,246 +337,383 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         &self.addresses[0]
     }
 
-    /// Addresses that have been generated by the user
-    pub fn addresses(&self) -> &Vec<Address> {
-        &self.addresses
-    }
-
-    /// Executes a generic contract call
+    /// Computes an unproven transaction.
+    ///
+    /// # Arguments
+    ///
+    /// * `call` - A contract call to make.
+    ///   - `contract` - The contract to call as Base58.
+    ///   - `method` - A string with the name of the method to call.
+    ///   - `payload` - Arbitrary bytes to be sent to the contract.
+    /// * `crossover` - A inter-contract crossover value.
+    /// * `gas_limit` - The gas limit for the transaction.
+    /// * `gas_price` - The gas price for the transaction.
+    /// * `output` - The output note produced by the transaction.
+    ///   - `type` - The type of the output note. Can be either "Transparent" or
+    ///     "Obfuscated".
+    ///   - `receiver` - The public spend key of the receiver on Base58 format.
+    ///   - `value` - The value of the output note.
+    #[allow(clippy::too_many_arguments)]
     pub async fn execute<C>(
-        &self,
-        sender: &Address,
-        contract_id: ModuleId,
-        call_name: String,
-        call_data: C,
+        &mut self,
+        sender: u8,
+        crossover: Option<u64>,
+        call: Option<(String, String, C)>,
+        output: Option<(OutputType, PublicSpendKey, u64)>,
         gas: Gas,
-    ) -> Result<Transaction, Error>
+    ) -> anyhow::Result<Transaction>
     where
         C: rkyv::Serialize<AllocSerializer<MAX_CALL_SIZE>>,
     {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the sender address
-            if !sender.is_owned() {
-                return Err(Error::Unauthorized);
-            }
+        let vks = self.view_keys()?;
+        let vk = vks.get::<usize>(sender.into()).ok_or(Error::BadAddress)?;
 
-            // check gas limits
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
+        let sender = self
+            .addresses
+            .get(sender as usize)
+            .ok_or(Error::BadAddress)?;
 
-            let mut rng = StdRng::from_entropy();
-            let sender_index =
-                sender.index().expect("owned address should have an index");
+        let refund = bs58::encode(sender.psk().to_bytes()).into_string();
 
-            // transfer
-            let tx = wallet.execute(
-                &mut rng,
-                contract_id.into(),
-                call_name,
-                call_data,
-                sender_index as u64,
-                sender.psk(),
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
+        let mut rng = StdRng::from_entropy();
+        let mut rng_seed = [0; 64];
+
+        rng.fill_bytes(&mut rng_seed);
+
+        let mut openings = Vec::new();
+
+        let notes = self.unspent_notes(vk).await?;
+        let state = self.state.as_ref().ok_or(Error::Offline)?;
+
+        for note in &notes {
+            let opening = state.fetch_opening(note).await?;
+            openings.push(opening);
+        }
+
+        let openings = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&openings)?.to_vec();
+
+        let inputs = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&notes)?.to_vec();
+
+        let mut args = ExecuteArgs {
+            crossover,
+            gas_limit: gas.limit,
+            gas_price: gas.price,
+            inputs,
+            openings,
+            refund,
+            seed: self.store.get_seed()?.to_vec(),
+            rng_seed: rng_seed.to_vec(),
+            call: None,
+            output: None,
+        };
+
+        // set call params if present
+        if let Some((contract, method, payload)) = call {
+            let call_data = rkyv::to_bytes(&payload)?;
+
+            args.call = Some(ExecuteCall {
+                contract,
+                method,
+                payload: call_data.to_vec(),
+            });
+        }
+
+        // Set output
+        if let Some((note_type, reciever, value)) = output {
+            let receiver = bs58::encode(reciever.to_bytes()).into_string();
+
+            args.output = Some(ExecuteOutput {
+                note_type,
+                receiver,
+                ref_id: rng.gen(),
+                value,
+            });
+        }
+
+        let ExecuteResponse { tx, .. } =
+            to_json(self.wallet_core.call("execute", args)?)?;
+
+        let prover = self.prover.as_ref().ok_or(Error::Offline)?;
+
+        if let Ok(unproven_tx) = rkyv::from_bytes::<UnprovenTransaction>(&tx) {
+            Ok(prover
+                .compute_proof_and_propagate_wasm(&unproven_tx)
+                .await?)
         } else {
-            Err(Error::Offline)
+            Err(Error::WasmOutput.into())
         }
     }
 
-    /// Transfers funds between addresses
+    /// Transfer
     pub async fn transfer(
-        &self,
-        sender: &Address,
-        rcvr: &Address,
-        amt: Dusk,
+        &mut self,
+        sender: u8,
+        reciever: &Address,
+        value: u64,
         gas: Gas,
-    ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the sender address
-            if !sender.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-            // make sure amount is positive
-            if amt == 0 {
-                return Err(Error::AmountIsZero);
-            }
-            // check gas limits
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
+    ) -> anyhow::Result<Transaction> {
+        let output = (OutputType::Obfuscated, *reciever.psk(), value);
 
-            let mut rng = StdRng::from_entropy();
-            let ref_id = BlsScalar::random(&mut rng);
-            let sender_index =
-                sender.index().expect("owned address should have an index");
-
-            // transfer
-            let tx = wallet.transfer(
-                &mut rng,
-                sender_index as u64,
-                sender.psk(),
-                rcvr.psk(),
-                *amt,
-                gas.limit,
-                gas.price,
-                ref_id,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
-        }
+        self.execute::<()>(sender, None, None, Some(output), gas)
+            .await
     }
 
-    /// Stakes Dusk
+    /// Stake
     pub async fn stake(
-        &self,
-        addr: &Address,
+        &mut self,
+        index: u8,
         amt: Dusk,
         gas: Gas,
-    ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-            // make sure amount is positive
-            if amt == 0 {
-                return Err(Error::AmountIsZero);
-            }
-            // check if the gas is enough
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
+    ) -> anyhow::Result<Transaction> {
+        let addr = self
+            .addresses
+            .get(index as usize)
+            .ok_or(Error::BadAddress)?;
 
-            let mut rng = StdRng::from_entropy();
-            let sender_index = addr.index()?;
+        let refund = addr.psk();
 
-            // stake
-            let tx = wallet.stake(
-                &mut rng,
-                sender_index as u64,
-                sender_index as u64,
-                addr.psk(),
-                *amt,
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized.into());
         }
+        // make sure amount is positive
+        if amt == 0 {
+            return Err(Error::AmountIsZero.into());
+        }
+        // check if the gas is enough
+        if !gas.is_enough() {
+            return Err(Error::NotEnoughGas.into());
+        }
+
+        let state = self.state.as_ref().ok_or(Error::Offline)?;
+        let prover = self.prover.as_ref().ok_or(Error::Offline)?;
+
+        let sender = self.store.retrieve_ssk(index.into())?;
+        let sk = self.store.retrieve_sk(index.into())?;
+        let pk = PublicKey::from(&sk);
+
+        let stake = state.fetch_stake(&pk).await?;
+
+        if stake.amount.is_some() {
+            return Err(Error::AlreadyStaked.into());
+        }
+
+        let value = amt.0;
+
+        let stake = CallBuilder::new(
+            &mut StdRng::from_entropy(),
+            *refund,
+            value,
+            rusk_abi::STAKE_CONTRACT,
+            sender,
+        )
+        .gas(&gas)
+        .prove_stct(prover)
+        .await?
+        .get_stake(sk, pk, stake.counter);
+
+        let call_data = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&stake)?.to_vec();
+
+        let call = Some((
+            bs58::encode(rusk_abi::STAKE_CONTRACT.to_bytes()).into_string(),
+            String::from("stake"),
+            call_data,
+        ));
+
+        let output = (OutputType::Transparent, *refund, value);
+
+        self.execute(index, None, call, Some(output), gas).await
     }
 
-    /// Allow a `staker` BLS key to stake
+    /// stake allow
     pub async fn stake_allow(
-        &self,
-        addr: &Address,
+        &mut self,
+        index: u8,
         staker: &PublicKey,
         gas: Gas,
-    ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
+    ) -> anyhow::Result<Transaction> {
+        let addr = self
+            .addresses
+            .get(index as usize)
+            .ok_or(Error::BadAddress)?;
 
-            // check if the gas is enough
-            // TODO: This should be tuned with the right usage for this tx
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
+        let refund = addr.psk();
 
-            let mut rng = StdRng::from_entropy();
-            let index = addr.index()? as u64;
-
-            let tx = wallet.allow(
-                &mut rng,
-                index,
-                index,
-                addr.psk(),
-                staker,
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized.into());
         }
+
+        // check if the gas is enough
+        // TODO: This should be tuned with the right usage for this tx
+        if !gas.is_enough() {
+            return Err(Error::NotEnoughGas.into());
+        }
+
+        let sender = self.store.retrieve_ssk(index.into())?;
+        let sk = self.store.retrieve_sk(index.into())?;
+        let pk = PublicKey::from(&sk);
+
+        let stake = self
+            .state
+            .as_ref()
+            .ok_or(Error::Offline)?
+            .fetch_stake(&pk)
+            .await?;
+
+        let allow = CallBuilder::new(
+            &mut StdRng::from_entropy(),
+            *refund,
+            0,
+            rusk_abi::STAKE_CONTRACT,
+            sender,
+        )
+        .get_stake_allow(sk, pk, stake.counter, staker);
+
+        let call_data = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&allow)?.to_vec();
+
+        let call = Some((
+            bs58::encode(rusk_abi::STAKE_CONTRACT.to_bytes()).into_string(),
+            String::from("allow"),
+            call_data,
+        ));
+
+        let output = (OutputType::Transparent, *refund, 0);
+
+        self.execute(index, None, call, Some(output), gas).await
     }
 
-    /// Obtains stake information for a given address
-    pub async fn stake_info(&self, addr: &Address) -> Result<StakeInfo, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-            let index = addr.index()? as u64;
-            wallet.get_stake(index).map_err(Error::from)
-        } else {
-            Err(Error::Offline)
-        }
+    /// Get stake-info
+    pub async fn stake_info(&mut self, index: u8) -> anyhow::Result<StakeInfo> {
+        Ok(self
+            .state
+            .as_ref()
+            .ok_or(Error::Offline)?
+            .fetch_stake(&PublicKey::from(
+                &self.store.retrieve_sk(index.into())?,
+            ))
+            .await?)
     }
 
-    /// Unstakes Dusk
+    /// unstake
     pub async fn unstake(
-        &self,
-        addr: &Address,
+        &mut self,
+        index: u8,
         gas: Gas,
-    ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
+    ) -> anyhow::Result<Transaction> {
+        let addr = self
+            .addresses
+            .get(index as usize)
+            .ok_or(Error::BadAddress)?;
 
-            let mut rng = StdRng::from_entropy();
-            let index = addr.index()? as u64;
+        let index = addr.index()?;
+        let refund = addr.psk();
 
-            let tx = wallet.unstake(
-                &mut rng,
-                index,
-                index,
-                addr.psk(),
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized.into());
         }
+
+        let sender = self.store.retrieve_ssk(index.into())?;
+        let sk = self.store.retrieve_sk(index.into())?;
+        let pk = PublicKey::from(&sk);
+
+        let state = self.state.as_ref().ok_or(Error::Offline)?;
+        let prover = self.prover.as_ref().ok_or(Error::Offline)?;
+
+        let stake = state.fetch_stake(&pk).await?;
+
+        let (value, _) = stake.amount.ok_or(Error::NotStaked)?;
+
+        let unstake = CallBuilder::new(
+            &mut StdRng::from_entropy(),
+            *refund,
+            value,
+            rusk_abi::STAKE_CONTRACT,
+            sender,
+        )
+        .gas(&gas)
+        .prove_wfct(prover)
+        .await?
+        .get_unstake(sk, pk, stake.counter);
+
+        let call_data = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&unstake)?.to_vec();
+
+        let call = Some((
+            bs58::encode(rusk_abi::STAKE_CONTRACT.to_bytes()).into_string(),
+            String::from("unstake"),
+            call_data,
+        ));
+
+        let output = (OutputType::Transparent, *refund, 0);
+
+        self.execute(index, None, call, Some(output), gas).await
     }
 
-    /// Withdraw accumulated staking reward for a given address
+    /// withdraw
     pub async fn withdraw_reward(
-        &self,
-        addr: &Address,
+        &mut self,
+        index: u8,
         gas: Gas,
-    ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
+    ) -> anyhow::Result<Transaction> {
+        let addr = self
+            .addresses
+            .get(index as usize)
+            .ok_or(Error::BadAddress)?;
 
-            let mut rng = StdRng::from_entropy();
-            let index = addr.index()? as u64;
+        let refund = addr.psk();
 
-            let tx = wallet.withdraw(
-                &mut rng,
-                index,
-                index,
-                addr.psk(),
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized.into());
         }
+
+        let sender = self.store.retrieve_ssk(index.into())?;
+        let sk = self.store.retrieve_sk(index.into())?;
+        let pk = PublicKey::from(&sk);
+
+        let mut rng = StdRng::from_entropy();
+
+        let stake = self
+            .state
+            .as_ref()
+            .ok_or(Error::Offline)?
+            .fetch_stake(&pk)
+            .await?;
+
+        let unstake = CallBuilder::new(
+            &mut rng,
+            *refund,
+            0,
+            rusk_abi::STAKE_CONTRACT,
+            sender,
+        )
+        .get_withdraw(&mut rng, pk, sk, stake.counter);
+
+        let call_data = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&unstake)?.to_vec();
+
+        let call = Some((
+            bs58::encode(rusk_abi::STAKE_CONTRACT.to_bytes()).into_string(),
+            String::from("withdraw"),
+            call_data,
+        ));
+
+        let output = (OutputType::Transparent, *refund, 0);
+
+        self.execute(index, None, call, Some(output), gas).await
+    }
+
+    /// claim an address
+    pub fn claim_as_address(&self, addr: Address) -> Result<&Address, Error> {
+        self.addresses()
+            .iter()
+            .find(|a| a.psk == addr.psk)
+            .ok_or(Error::AddressNotOwned)
+    }
+
+    /// Checks if the wallet has an active connection to the network
+    pub fn is_online(&self) -> bool {
+        self.state.is_some() && self.prover.is_some()
     }
 
     /// Returns bls key pair for provisioner nodes
@@ -668,24 +775,81 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         Ok((path.with_extension("keys"), path.with_extension("cpk")))
     }
 
-    /// Obtain the owned `Address` for a given address
-    pub fn claim_as_address(&self, addr: Address) -> Result<&Address, Error> {
-        self.addresses()
-            .iter()
-            .find(|a| a.psk == addr.psk)
-            .ok_or(Error::AddressNotOwned)
+    fn view_keys(&mut self) -> anyhow::Result<Vec<ViewKey>> {
+        let view_key_args = ViewKeysArgs {
+            seed: self.store.get_seed()?.to_vec(),
+        };
+
+        let view_keys: Vec<u8> =
+            self.wallet_core.call("view_keys", view_key_args)?;
+
+        if let Ok(view_keys) = rkyv::from_bytes(&view_keys) {
+            Ok(view_keys)
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to get view keys for seed from wallet-core"
+            ))
+        }
+    }
+
+    async fn unspent_notes(
+        &mut self,
+        vk: &ViewKey,
+    ) -> anyhow::Result<Vec<Note>> {
+        let state = self.state.as_ref().ok_or(Error::Offline)?;
+
+        let notes = state
+            .fetch_notes(vk)
+            .await?
+            .into_iter()
+            .map(|(notes, _)| notes)
+            .collect();
+
+        let nullifiers: Vec<u8> = self.wallet_core.call(
+            "nullifiers",
+            NullifiersArgs {
+                notes: rkyv::to_bytes::<Vec<Note>, MAX_CALL_SIZE>(&notes)?
+                    .to_vec(),
+                seed: self.store.get_seed()?.to_vec(),
+            },
+        )?;
+
+        if let Ok(nullifiers) = rkyv::from_bytes::<Vec<BlsScalar>>(&nullifiers)
+        {
+            let existing_nullifiers =
+                state.fetch_existing_nullifiers(&nullifiers).await?;
+
+            let unspent_notes = notes
+                .into_iter()
+                .zip(nullifiers.into_iter())
+                .filter(|(_, nullifier)| {
+                    !existing_nullifiers.contains(nullifier)
+                })
+                .map(|(note, _)| note)
+                .collect();
+
+            Ok(unspent_notes)
+        } else {
+            Err(anyhow::anyhow!("Failed fetch nullifiers from wallet-core"))
+        }
     }
 
     /// Return the dat file version from memory or by reading the file
     /// In order to not read the file version more than once per execution
     pub fn get_file_version(&self) -> Result<DatFileVersion, Error> {
-        if let Some(file_version) = self.file_version {
-            Ok(file_version)
-        } else if let Some(file) = &self.file {
-            Ok(dat::read_file_version(file.path())?)
+        if let Some((_, version)) = &self.file {
+            Ok(*version)
         } else {
             Err(Error::WalletFileMissing)
         }
+    }
+
+    /// Save to a particular location
+    pub fn save_to(&mut self, file: F) -> anyhow::Result<(), Error> {
+        // set our new file and save
+        self.file =
+            Some((file, DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION)));
+        self.save()
     }
 }
 
@@ -699,6 +863,14 @@ pub struct DecodedNote {
     pub block_height: u64,
     /// Nullified by
     pub nullified_by: Option<BlsScalar>,
+}
+
+fn to_json<D>(bytes: Vec<u8>) -> anyhow::Result<D>
+where
+    D: for<'a> Deserialize<'a>,
+{
+    let json = String::from_utf8(bytes)?;
+    Ok(serde_json::from_str(&json)?)
 }
 
 /// Bls key pair helper structure
@@ -721,10 +893,12 @@ mod base64 {
 
 #[cfg(test)]
 mod tests {
+    use super::{WasmWallet as Wallet, *};
+    use crate::WalletPath;
 
-    use super::*;
     use tempfile::tempdir;
 
+    const WASM_WALLET: &[u8] = include_bytes!("../assets/mod.wasm");
     const TEST_ADDR: &str = "2w7fRQW23Jn9Bgm1GQW9eC2bD9U883dAwqP7HAr2F8g1syzPQaPYrxSyyVZ81yDS5C1rv9L8KjdPBsvYawSx3QCW";
 
     #[derive(Debug, Clone)]
@@ -746,7 +920,7 @@ mod tests {
     #[test]
     fn wallet_basics() -> Result<(), Box<dyn std::error::Error>> {
         // create a wallet from a mnemonic phrase
-        let mut wallet: Wallet<WalletFile> = Wallet::new("uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;
+        let mut wallet: Wallet<WalletFile> = Wallet::from_mnemonic(WASM_WALLET, "uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;
 
         // check address generation
         let default_addr = wallet.default_address().clone();
@@ -757,15 +931,15 @@ mod tests {
         assert_eq!(wallet.addresses.len(), 2);
 
         // create another wallet with different mnemonic
-        let wallet: Wallet<WalletFile> = Wallet::new("demise monitor elegant cradle squeeze cheap parrot venture stereo humor scout denial action receive flat")?;
+        let wallet: Wallet<WalletFile> = Wallet::from_mnemonic(WASM_WALLET, "demise monitor elegant cradle squeeze cheap parrot venture stereo humor scout denial action receive flat")?;
 
         // check addresses are different
         let addr = wallet.default_address();
         assert!(format!("{}", addr).ne(TEST_ADDR));
 
         // attempt to create a wallet from an invalid mnemonic
-        let bad_wallet: Result<Wallet<WalletFile>, Error> =
-            Wallet::new("good luck with life");
+        let bad_wallet: anyhow::Result<Wallet<WalletFile>> =
+            Wallet::from_mnemonic("assets/mod.wasm", "good luck with life");
         assert!(bad_wallet.is_err());
 
         Ok(())
@@ -782,12 +956,12 @@ mod tests {
         let pwd = blake3::hash("mypassword".as_bytes()).as_bytes().to_vec();
 
         // create and save
-        let mut wallet: Wallet<WalletFile> = Wallet::new("uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;
+        let mut wallet: Wallet<WalletFile> = Wallet::from_mnemonic(WASM_WALLET, "uphold stove tennis fire menu three quick apple close guilt poem garlic volcano giggle comic")?;
         let file = WalletFile { path, pwd };
         wallet.save_to(file.clone())?;
 
         // load from file and check
-        let loaded_wallet = Wallet::from_file(file)?;
+        let loaded_wallet = Wallet::new(WASM_WALLET, file)?;
 
         let original_addr = wallet.default_address();
         let loaded_addr = loaded_wallet.default_address();

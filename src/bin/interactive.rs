@@ -6,9 +6,10 @@
 
 use bip39::{Language, Mnemonic, MnemonicType};
 use dusk_wallet::dat::{DatFileVersion, LATEST_VERSION};
-use dusk_wallet::wasm_wallet::WasmWallet;
-use dusk_wallet::{gas, wasm_wallet};
-use dusk_wallet::{Address, Dusk, Error, Wallet, WalletPath, MAX_ADDRESSES};
+use dusk_wallet::gas;
+use dusk_wallet::{
+    Address, Dusk, Error, WalletPath, WasmWallet, MAX_ADDRESSES,
+};
 use requestty::Question;
 
 use crate::command::DEFAULT_STAKE_GAS_LIMIT;
@@ -18,12 +19,12 @@ use crate::prompt;
 use crate::settings::Settings;
 use crate::Menu;
 use crate::WalletFile;
+use crate::WASM_BINARY;
 use crate::{Command, RunResult};
 
 /// Run the interactive UX loop with a loaded wallet
 pub(crate) async fn run_loop(
-    wallet: &mut Wallet<WalletFile>,
-    mut wasm_wallet: WasmWallet<WalletFile>,
+    wallet: &mut WasmWallet<WalletFile>,
     settings: &Settings,
 ) -> anyhow::Result<()> {
     loop {
@@ -52,7 +53,7 @@ pub(crate) async fn run_loop(
                 prompt::hide_cursor()?;
 
                 let (spendable, value) = {
-                    let res = wasm_wallet.get_balance(&addr)?;
+                    let res = wallet.get_balance(addr.index()?).await?;
 
                     (res.maximum, res.value)
                 };
@@ -83,9 +84,7 @@ pub(crate) async fn run_loop(
                     if confirm(&cmd)? {
                         // run command
                         prompt::hide_cursor()?;
-                        let result = cmd
-                            .run(wallet, Some(&mut wasm_wallet), settings)
-                            .await;
+                        let result = cmd.run(wallet, settings).await;
                         prompt::show_cursor()?;
                         // output results
                         match result {
@@ -132,7 +131,7 @@ enum AddrSelect {
 
 /// Allows the user to choose an address from the selected wallet
 /// to start performing operations.
-fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
+fn menu_addr(wallet: &WasmWallet<WalletFile>) -> anyhow::Result<AddrSelect> {
     let mut address_menu = Menu::title("Addresses");
     for addr in wallet.addresses() {
         let preview = addr.preview();
@@ -307,7 +306,7 @@ pub(crate) fn load_wallet(
     wallet_path: &WalletPath,
     settings: &Settings,
     file_version: Result<DatFileVersion, Error>,
-) -> anyhow::Result<Wallet<WalletFile>> {
+) -> anyhow::Result<WasmWallet<WalletFile>> {
     let wallet_found =
         wallet_path.inner().exists().then(|| wallet_path.clone());
 
@@ -324,10 +323,13 @@ pub(crate) fn load_wallet(
                     password,
                     file_version,
                 )?;
-                match Wallet::from_file(WalletFile {
-                    path: path.clone(),
-                    pwd,
-                }) {
+                match WasmWallet::new(
+                    WASM_BINARY,
+                    WalletFile {
+                        path: path.clone(),
+                        pwd,
+                    },
+                ) {
                     Ok(wallet) => break wallet,
                     Err(_) if attempt > 2 => {
                         return Err(Error::AttemptsExhausted)?;
@@ -352,7 +354,7 @@ pub(crate) fn load_wallet(
             // display the recovery phrase
             prompt::confirm_recovery_phrase(&mnemonic)?;
             // create and store the wallet
-            let mut w = Wallet::new(mnemonic)?;
+            let mut w = WasmWallet::from_mnemonic(WASM_BINARY, mnemonic)?;
             let path = wallet_path.clone();
             w.save_to(WalletFile { path, pwd })?;
             w
@@ -367,7 +369,7 @@ pub(crate) fn load_wallet(
                 DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
             )?;
             // create and store the recovered wallet
-            let mut w = Wallet::new(phrase)?;
+            let mut w = WasmWallet::from_mnemonic(WASM_BINARY, phrase)?;
             let path = wallet_path.clone();
             w.save_to(WalletFile { path, pwd })?;
             w

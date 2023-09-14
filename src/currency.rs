@@ -18,7 +18,7 @@ pub type Lux = u64;
 
 /// Denomination for DUSK
 #[derive(Copy, Clone, Debug, Eq)]
-pub struct Dusk(Lux);
+pub struct Dusk(pub Lux);
 
 impl Dusk {
     /// The smallest value that can be represented by Dusk currency

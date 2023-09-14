@@ -12,7 +12,6 @@ mod menu;
 mod settings;
 
 pub(crate) use command::{Command, RunResult};
-use dusk_wallet::wasm_wallet;
 pub(crate) use menu::Menu;
 
 use clap::Parser;
@@ -26,13 +25,15 @@ use crate::settings::{LogFormat, Settings};
 
 use dusk_wallet::{
     dat::{self, LATEST_VERSION},
-    wasm_wallet::WasmWallet,
-    Dusk, Error, SecureWalletFile, Wallet, WalletPath,
+    wallet::WasmWallet,
+    Dusk, Error, SecureWalletFile, WalletPath,
 };
 
 use config::Config;
 use io::{prompt, status};
 use io::{GraphQL, WalletArgs};
+
+const WASM_BINARY: &[u8] = include_bytes!("../../assets/mod.wasm");
 
 #[derive(Debug, Clone)]
 pub(crate) struct WalletFile {
@@ -68,20 +69,18 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn connect<F>(
-    mut wallet: Wallet<F>,
+    mut wallet: WasmWallet<F>,
     settings: &Settings,
     status: fn(&str),
-    block: bool,
-) -> Wallet<F>
+) -> WasmWallet<F>
 where
     F: SecureWalletFile + std::fmt::Debug,
 {
     let con = wallet
-        .connect_with_status(
+        .connect(
             &settings.state.to_string(),
             &settings.prover.to_string(),
             status,
-            block,
         )
         .await;
 
@@ -175,7 +174,7 @@ async fn exec() -> anyhow::Result<()> {
     let file_version = dat::read_file_version(&wallet_path);
 
     // get our wallet ready
-    let mut wallet: Wallet<WalletFile> = match cmd {
+    let mut wasm_wallet: WasmWallet<WalletFile> = match cmd {
         Some(ref cmd) => match cmd {
             Command::Create { skip_recovery } => {
                 // create a new randomly generated mnemonic phrase
@@ -193,7 +192,7 @@ async fn exec() -> anyhow::Result<()> {
                 }
 
                 // create wallet
-                let mut w = Wallet::new(mnemonic)?;
+                let mut w = WasmWallet::from_mnemonic(WASM_BINARY, mnemonic)?;
 
                 w.save_to(WalletFile {
                     path: wallet_path,
@@ -216,10 +215,13 @@ async fn exec() -> anyhow::Result<()> {
                             file_version,
                         )?;
 
-                        let w = Wallet::from_file(WalletFile {
-                            path: file.clone(),
-                            pwd: pwd.clone(),
-                        })?;
+                        let w = WasmWallet::new(
+                            WASM_BINARY,
+                            WalletFile {
+                                path: file.clone(),
+                                pwd: pwd.clone(),
+                            },
+                        )?;
 
                         (w, pwd)
                     }
@@ -236,7 +238,7 @@ async fn exec() -> anyhow::Result<()> {
                             ),
                         )?;
                         // create wallet
-                        let w = Wallet::new(phrase)?;
+                        let w = WasmWallet::from_mnemonic(WASM_BINARY, phrase)?;
 
                         (w, pwd)
                     }
@@ -260,10 +262,13 @@ async fn exec() -> anyhow::Result<()> {
                     file_version,
                 )?;
 
-                Wallet::from_file(WalletFile {
-                    path: wallet_path,
-                    pwd,
-                })?
+                WasmWallet::new(
+                    WASM_BINARY,
+                    WalletFile {
+                        path: wallet_path,
+                        pwd,
+                    },
+                )?
             }
         },
         None => {
@@ -278,15 +283,15 @@ async fn exec() -> anyhow::Result<()> {
         false => status::interactive,
     };
 
-    // wallet = connect(wallet, &settings, status_cb, block).await;
+    wasm_wallet = connect(wasm_wallet, &settings, status_cb).await;
 
     // run command
     match cmd {
         Some(cmd) => {
-            match cmd.run(&mut wallet, None, &settings).await? {
+            match cmd.run(&mut wasm_wallet, &settings).await? {
                 RunResult::Balance(balance, spendable) => {
                     if spendable {
-                        println!("{}", Dusk::from(balance.spendable));
+                        println!("{}", Dusk::from(balance.maximum));
                     } else {
                         println!("{}", Dusk::from(balance.value));
                     }
@@ -333,23 +338,9 @@ async fn exec() -> anyhow::Result<()> {
             }
         }
         None => {
-            if let Some(file) = wallet.file() {
-                println!("{:?}", "Running Wasm wallet");
-
-                let mut wasm_wallet =
-                    WasmWallet::new("assets/mod.wasm", file.clone())?;
-
-                wasm_wallet
-                    .connect(
-                        &settings.state.to_string(),
-                        &settings.prover.to_string(),
-                        status_cb,
-                    )
-                    .await?;
-
-                interactive::run_loop(&mut wallet, wasm_wallet, &settings)
-                    .await?;
-            }
+            // register for background sync in interactive
+            wasm_wallet.register_sync().await?;
+            interactive::run_loop(&mut wasm_wallet, &settings).await?;
         }
     }
 

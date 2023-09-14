@@ -13,29 +13,32 @@
 //! through the network of their choice, stake and withdraw rewards, etc.
 
 #![deny(missing_docs)]
+#![allow(clippy::await_holding_lock)]
 
-mod block;
 mod cache;
 mod clients;
 mod crypto;
 
 mod currency;
 mod error;
+mod prover;
 mod rusk;
 mod store;
-mod wallet;
 
 /// Methods for parsing/checking the DAT wallet file
 pub mod dat;
 /// Wallet implementation for the wasm binary
-pub mod wasm_wallet;
+pub mod wallet;
 
 pub use rusk::{RuskHttpClient, RuskRequest};
 
 pub use currency::{Dusk, Lux};
 pub use error::Error;
-pub use wallet::gas;
-pub use wallet::{Address, DecodedNote, SecureWalletFile, Wallet, WalletPath};
+pub use wallet::{
+    address::Address,
+    file::{SecureWalletFile, WalletPath},
+    gas, DecodedNote, WasmWallet,
+};
 
 /// The largest amount of Dusk that is possible to convert
 pub const MAX_CONVERTIBLE: Dusk = Dusk::MAX;

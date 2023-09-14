@@ -4,17 +4,10 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::clients::StateStore;
-use crate::store::LocalStore;
 use phoenix_core::Error as PhoenixError;
 use rand_core::Error as RngError;
 use std::io;
 use std::str::Utf8Error;
-
-use super::clients;
-/// Wallet core error
-pub(crate) type CoreError =
-    dusk_wallet_core::Error<LocalStore, StateStore, clients::Prover>;
 
 /// Errors returned by this library
 #[derive(Debug, thiserror::Error)]
@@ -145,25 +138,6 @@ impl From<dusk_bytes::Error> for Error {
 impl From<block_modes::InvalidKeyIvLength> for Error {
     fn from(_: block_modes::InvalidKeyIvLength) -> Self {
         Self::WalletFileCorrupted
-    }
-}
-
-impl From<CoreError> for Error {
-    fn from(e: CoreError) -> Self {
-        use dusk_wallet_core::Error::*;
-        match e {
-            Store(err) | State(err) | Prover(err) => err,
-            Rkyv => Self::Rkyv,
-            Rng(err) => Self::Rng(err),
-            Bytes(err) => Self::Bytes(err),
-            Phoenix(err) => Self::Phoenix(err),
-            NotEnoughBalance => Self::NotEnoughBalance,
-            NoteCombinationProblem => Self::NoteCombinationProblem,
-            AlreadyStaked { .. } => Self::AlreadyStaked,
-            NotStaked { .. } => Self::NotStaked,
-            NoReward { .. } => Self::NoReward,
-            Utf8(err) => Self::Utf8(err.utf8_error()),
-        }
     }
 }
 

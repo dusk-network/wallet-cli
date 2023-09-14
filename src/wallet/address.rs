@@ -35,7 +35,8 @@ impl Address {
         &self.psk
     }
 
-    pub(crate) fn index(&self) -> Result<u8, Error> {
+    /// fetch the index of address
+    pub fn index(&self) -> Result<u8, Error> {
         self.index.ok_or(Error::AddressNotOwned)
     }
 
