@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fmt::{self, Display};
 
 use dusk_plonk::prelude::BlsScalar;
@@ -74,6 +76,8 @@ pub(crate) async fn transaction_from_notes(
         })
         .collect::<Vec<_>>();
 
+    let mut block_txs = HashMap::new();
+
     for mut decoded_note in notes {
         // Set the position to max, in order to match the note with the one
         // in the tx
@@ -81,7 +85,13 @@ pub(crate) async fn transaction_from_notes(
 
         let note_amount = decoded_note.amount as f64;
 
-        let txs = gql.txs_for_block(decoded_note.block_height).await?;
+        let txs = match block_txs.entry(decoded_note.block_height) {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => {
+                let txs = gql.txs_for_block(decoded_note.block_height).await?;
+                v.insert(txs)
+            }
+        };
 
         let note_hash = decoded_note.note.hash();
         // Looking for the transaction which created the note
