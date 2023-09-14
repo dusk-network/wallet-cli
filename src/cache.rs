@@ -23,7 +23,7 @@ type DB = DBWithThreadMode<MultiThreaded>;
 ///
 /// path is the path of the rocks db database
 pub(crate) struct Cache {
-    pub db: DB,
+    db: DB,
 }
 
 impl Cache {
