@@ -6,7 +6,6 @@
 
 use std::mem::size_of;
 
-use dusk_bytes::DeserializableSlice;
 use dusk_plonk::prelude::BlsScalar;
 use dusk_wallet_core::Store;
 use futures::StreamExt;
@@ -92,27 +91,13 @@ pub(crate) async fn sync_db(
 
     // Remove spent nullifiers from live notes
     for (_, _, psk) in addresses {
-        let cf_name = format!("{:?}", psk);
+        let nullifiers = cache.unspent_notes_id(&psk)?;
 
-        if let Some(cf) = cache.db.cf_handle(&cf_name) {
-            let iterator =
-                cache.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
-
-            let mut nullifiers = vec![];
-            for i in iterator {
-                let (nullifier, _) = i?;
-                let nullifier = BlsScalar::from_slice(&nullifier)
-                    .expect("key to be a BlsScalar");
-                nullifiers.push(nullifier);
-            }
-
-            if !nullifiers.is_empty() {
-                let existing =
-                    fetch_existing_nullifiers_remote(client, &nullifiers)
-                        .wait()?;
-                cache.spend_notes(&psk, &existing)?;
-            }
-        };
+        if !nullifiers.is_empty() {
+            let existing =
+                fetch_existing_nullifiers_remote(client, &nullifiers).wait()?;
+            cache.spend_notes(&psk, &existing)?;
+        }
     }
     Ok(())
 }

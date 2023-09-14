@@ -134,8 +134,31 @@ impl Cache {
         }))
     }
 
-    /// Returns an iterator over all notes inserted for the given PSK, in order
-    /// of block height.
+    /// Returns an iterator over all unspent notes nullifier for the given PSK.
+    pub(crate) fn unspent_notes_id(
+        &self,
+        psk: &PublicSpendKey,
+    ) -> Result<Vec<BlsScalar>, Error> {
+        let cf_name = format!("{:?}", psk);
+        let mut notes = vec![];
+
+        if let Some(cf) = self.db.cf_handle(&cf_name) {
+            let iterator =
+                self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
+
+            for i in iterator {
+                let (id, _) = i?;
+
+                let id = BlsScalar::from_slice(&id)?;
+                notes.push(id);
+            }
+        };
+
+        Ok(notes)
+    }
+
+    /// Returns an iterator over all unspent notes inserted for the given PSK,
+    /// in order of note position.
     pub(crate) fn notes(
         &self,
         psk: &PublicSpendKey,
