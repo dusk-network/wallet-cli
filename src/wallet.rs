@@ -31,6 +31,7 @@ use dusk_wallet_core::{
 use rand::prelude::StdRng;
 use rand::SeedableRng;
 
+use crate::cache::NoteData;
 use crate::clients::{Prover, StateStore};
 use crate::crypto::encrypt;
 use crate::currency::Dusk;
@@ -38,9 +39,8 @@ use crate::dat::{
     self, version_bytes, DatFileVersion, FILE_TYPE, LATEST_VERSION, MAGIC,
     RESERVED,
 };
-use crate::rusk::RuskClient;
 use crate::store::LocalStore;
-use crate::Error;
+use crate::{Error, RuskHttpClient};
 use gas::Gas;
 
 use crate::store;
@@ -235,17 +235,26 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         rusk_addr: S,
         prov_addr: S,
         status: fn(&str),
-        block: bool,
+        cache_sync: bool,
     ) -> Result<(), Error>
     where
         S: Into<String>,
     {
         // attempt connection
-        let rusk = RuskClient::new(rusk_addr, prov_addr);
-        rusk.state.check_connection().await?;
+        let http_state = RuskHttpClient::new(rusk_addr.into());
+        let http_prover = RuskHttpClient::new(prov_addr.into());
+
+        let state_status = http_state.check_connection().await;
+        let prover_status = http_prover.check_connection().await;
+
+        match (&state_status, prover_status) {
+            (Err(e),_)=> println!("Connection to Rusk Failed, some operations won't be available: {e}"),
+            (_,Err(e))=> println!("Connection to Prover Failed, some operations won't be available: {e}"),
+            _=> {},
+        }
 
         // create a prover client
-        let mut prover = Prover::new(rusk.state.clone(), rusk.prover.clone());
+        let mut prover = Prover::new(http_state.clone(), http_prover.clone());
         prover.set_status_callback(status);
 
         let cache_dir = {
@@ -256,20 +265,23 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             }
         };
 
-        let (sync_tx, sync_rx) = flume::unbounded::<String>();
-
         // create a state client
         let state = StateStore::new(
-            rusk.state,
+            http_state,
             &cache_dir,
             self.store.clone(),
             status,
         )?;
 
-        if block {
-            state.sync().await?;
+        if cache_sync {
+            if state_status.is_ok() {
+                state.sync().await?;
+            }
         } else {
+            let (sync_tx, sync_rx) = flume::unbounded::<String>();
             state.register_sync(sync_tx).await?;
+            // set sync reciever to notify successful sync
+            self.sync_rx = Some(sync_rx);
         }
 
         // create wallet instance
@@ -277,56 +289,70 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
         // set our own status callback
         self.status = status;
-        // set sync reciever to notify successful sync
-        self.sync_rx = Some(sync_rx);
 
         Ok(())
     }
 
     /// Checks if the wallet has an active connection to the network
-    pub fn is_online(&self) -> bool {
-        self.wallet.is_some()
+    pub async fn is_online(&self) -> bool {
+        match self.wallet.as_ref() {
+            Some(w) => w.state().check_connection().await.is_ok(),
+            None => false,
+        }
+    }
+
+    pub(crate) async fn connected_wallet(
+        &self,
+    ) -> Result<&WalletCore<LocalStore, StateStore, Prover>, Error> {
+        match self.wallet.as_ref() {
+            Some(w) => {
+                w.state().check_connection().await?;
+                Ok(w)
+            }
+            None => Err(Error::Offline),
+        }
     }
 
     /// Fetches the notes from the state.
-    pub fn get_all_notes(
+    pub async fn get_all_notes(
         &self,
         addr: &Address,
     ) -> Result<Vec<DecodedNote>, Error> {
         if !addr.is_owned() {
             return Err(Error::Unauthorized);
         }
-        if let Some(wallet) = &self.wallet {
-            let ssk_index = addr.index()? as u64;
-            let ssk = self.store.retrieve_ssk(ssk_index).unwrap();
-            let vk = ssk.view_key();
 
-            let notes = wallet.state().fetch_notes(&vk).unwrap();
+        let wallet = self.connected_wallet().await?;
+        let ssk_index = addr.index()? as u64;
+        let ssk = self.store.retrieve_ssk(ssk_index).unwrap();
+        let vk = ssk.view_key();
+        let psk = vk.public_spend_key();
 
-            let nullifiers: Vec<_> =
-                notes.iter().map(|(n, _)| n.gen_nullifier(&ssk)).collect();
-            let existing_nullifiers =
-                wallet.state().fetch_existing_nullifiers(&nullifiers[..])?;
-            let history = notes
-                .into_iter()
-                .zip(nullifiers)
-                .map(|((note, block_height), nullifier)| {
-                    let nullified_by = existing_nullifiers
-                        .contains(&nullifier)
-                        .then_some(nullifier);
-                    let amount = note.value(Some(&vk)).unwrap();
-                    DecodedNote {
-                        note,
-                        amount,
-                        block_height,
-                        nullified_by,
-                    }
-                })
-                .collect();
-            Ok(history)
-        } else {
-            Err(Error::Offline)
-        }
+        let live_notes = wallet.state().fetch_notes(&vk).unwrap();
+        let spent_notes = wallet.state().cache().spent_notes(&psk)?;
+
+        let live_notes = live_notes
+            .into_iter()
+            .map(|(note, height)| (None, note, height));
+        let spent_notes = spent_notes.into_iter().map(
+            |(nullifier, NoteData { note, height })| {
+                (Some(nullifier), note, height)
+            },
+        );
+        let history = live_notes
+            .chain(spent_notes)
+            .map(|(nullified_by, note, block_height)| {
+                let amount = note.value(Some(&vk)).unwrap();
+                DecodedNote {
+                    note,
+                    amount,
+                    block_height,
+                    nullified_by,
+                }
+            })
+            .collect();
+
+        Ok(history)
     }
 
     /// Obtain balance information for a given address
@@ -384,36 +410,33 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     where
         C: rkyv::Serialize<AllocSerializer<MAX_CALL_SIZE>>,
     {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the sender address
-            if !sender.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-
-            // check gas limits
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
-
-            let mut rng = StdRng::from_entropy();
-            let sender_index =
-                sender.index().expect("owned address should have an index");
-
-            // transfer
-            let tx = wallet.execute(
-                &mut rng,
-                contract_id.into(),
-                call_name,
-                call_data,
-                sender_index as u64,
-                sender.psk(),
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        let wallet = self.connected_wallet().await?;
+        // make sure we own the sender address
+        if !sender.is_owned() {
+            return Err(Error::Unauthorized);
         }
+
+        // check gas limits
+        if !gas.is_enough() {
+            return Err(Error::NotEnoughGas);
+        }
+
+        let mut rng = StdRng::from_entropy();
+        let sender_index =
+            sender.index().expect("owned address should have an index");
+
+        // transfer
+        let tx = wallet.execute(
+            &mut rng,
+            contract_id.into(),
+            call_name,
+            call_data,
+            sender_index as u64,
+            sender.psk(),
+            gas.limit,
+            gas.price,
+        )?;
+        Ok(tx)
     }
 
     /// Transfers funds between addresses
@@ -424,40 +447,37 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         amt: Dusk,
         gas: Gas,
     ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the sender address
-            if !sender.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-            // make sure amount is positive
-            if amt == 0 {
-                return Err(Error::AmountIsZero);
-            }
-            // check gas limits
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
-
-            let mut rng = StdRng::from_entropy();
-            let ref_id = BlsScalar::random(&mut rng);
-            let sender_index =
-                sender.index().expect("owned address should have an index");
-
-            // transfer
-            let tx = wallet.transfer(
-                &mut rng,
-                sender_index as u64,
-                sender.psk(),
-                rcvr.psk(),
-                *amt,
-                gas.limit,
-                gas.price,
-                ref_id,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        let wallet = self.connected_wallet().await?;
+        // make sure we own the sender address
+        if !sender.is_owned() {
+            return Err(Error::Unauthorized);
         }
+        // make sure amount is positive
+        if amt == 0 {
+            return Err(Error::AmountIsZero);
+        }
+        // check gas limits
+        if !gas.is_enough() {
+            return Err(Error::NotEnoughGas);
+        }
+
+        let mut rng = StdRng::from_entropy();
+        let ref_id = BlsScalar::random(&mut rng);
+        let sender_index =
+            sender.index().expect("owned address should have an index");
+
+        // transfer
+        let tx = wallet.transfer(
+            &mut rng,
+            sender_index as u64,
+            sender.psk(),
+            rcvr.psk(),
+            *amt,
+            gas.limit,
+            gas.price,
+            ref_id,
+        )?;
+        Ok(tx)
     }
 
     /// Stakes Dusk
@@ -467,37 +487,34 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         amt: Dusk,
         gas: Gas,
     ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-            // make sure amount is positive
-            if amt == 0 {
-                return Err(Error::AmountIsZero);
-            }
-            // check if the gas is enough
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
-
-            let mut rng = StdRng::from_entropy();
-            let sender_index = addr.index()?;
-
-            // stake
-            let tx = wallet.stake(
-                &mut rng,
-                sender_index as u64,
-                sender_index as u64,
-                addr.psk(),
-                *amt,
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        let wallet = self.connected_wallet().await?;
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized);
         }
+        // make sure amount is positive
+        if amt == 0 {
+            return Err(Error::AmountIsZero);
+        }
+        // check if the gas is enough
+        if !gas.is_enough() {
+            return Err(Error::NotEnoughGas);
+        }
+
+        let mut rng = StdRng::from_entropy();
+        let sender_index = addr.index()?;
+
+        // stake
+        let tx = wallet.stake(
+            &mut rng,
+            sender_index as u64,
+            sender_index as u64,
+            addr.psk(),
+            *amt,
+            gas.limit,
+            gas.price,
+        )?;
+        Ok(tx)
     }
 
     /// Allow a `staker` BLS key to stake
@@ -507,48 +524,42 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         staker: &PublicKey,
         gas: Gas,
     ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-
-            // check if the gas is enough
-            // TODO: This should be tuned with the right usage for this tx
-            if !gas.is_enough() {
-                return Err(Error::NotEnoughGas);
-            }
-
-            let mut rng = StdRng::from_entropy();
-            let index = addr.index()? as u64;
-
-            let tx = wallet.allow(
-                &mut rng,
-                index,
-                index,
-                addr.psk(),
-                staker,
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        let wallet = self.connected_wallet().await?;
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized);
         }
+
+        // check if the gas is enough
+        // TODO: This should be tuned with the right usage for this tx
+        if !gas.is_enough() {
+            return Err(Error::NotEnoughGas);
+        }
+
+        let mut rng = StdRng::from_entropy();
+        let index = addr.index()? as u64;
+
+        let tx = wallet.allow(
+            &mut rng,
+            index,
+            index,
+            addr.psk(),
+            staker,
+            gas.limit,
+            gas.price,
+        )?;
+        Ok(tx)
     }
 
     /// Obtains stake information for a given address
     pub async fn stake_info(&self, addr: &Address) -> Result<StakeInfo, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-            let index = addr.index()? as u64;
-            wallet.get_stake(index).map_err(Error::from)
-        } else {
-            Err(Error::Offline)
+        let wallet = self.connected_wallet().await?;
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized);
         }
+        let index = addr.index()? as u64;
+        wallet.get_stake(index).map_err(Error::from)
     }
 
     /// Unstakes Dusk
@@ -557,27 +568,24 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         addr: &Address,
         gas: Gas,
     ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-
-            let mut rng = StdRng::from_entropy();
-            let index = addr.index()? as u64;
-
-            let tx = wallet.unstake(
-                &mut rng,
-                index,
-                index,
-                addr.psk(),
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        let wallet = self.connected_wallet().await?;
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized);
         }
+
+        let mut rng = StdRng::from_entropy();
+        let index = addr.index()? as u64;
+
+        let tx = wallet.unstake(
+            &mut rng,
+            index,
+            index,
+            addr.psk(),
+            gas.limit,
+            gas.price,
+        )?;
+        Ok(tx)
     }
 
     /// Withdraw accumulated staking reward for a given address
@@ -586,27 +594,24 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         addr: &Address,
         gas: Gas,
     ) -> Result<Transaction, Error> {
-        if let Some(wallet) = &self.wallet {
-            // make sure we own the staking address
-            if !addr.is_owned() {
-                return Err(Error::Unauthorized);
-            }
-
-            let mut rng = StdRng::from_entropy();
-            let index = addr.index()? as u64;
-
-            let tx = wallet.withdraw(
-                &mut rng,
-                index,
-                index,
-                addr.psk(),
-                gas.limit,
-                gas.price,
-            )?;
-            Ok(tx)
-        } else {
-            Err(Error::Offline)
+        let wallet = self.connected_wallet().await?;
+        // make sure we own the staking address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized);
         }
+
+        let mut rng = StdRng::from_entropy();
+        let index = addr.index()? as u64;
+
+        let tx = wallet.withdraw(
+            &mut rng,
+            index,
+            index,
+            addr.psk(),
+            gas.limit,
+            gas.price,
+        )?;
+        Ok(tx)
     }
 
     /// Returns bls key pair for provisioner nodes

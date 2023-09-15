@@ -340,7 +340,7 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let notes = wallet.get_all_notes(addr)?;
+                let notes = wallet.get_all_notes(addr).await?;
 
                 let transactions =
                     history::transaction_from_notes(settings, notes).await?;

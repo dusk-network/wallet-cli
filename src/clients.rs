@@ -73,6 +73,11 @@ impl Prover {
     pub fn set_status_callback(&mut self, status: fn(&str)) {
         self.status = status;
     }
+
+    pub async fn check_connection(&self) -> Result<(), reqwest::Error> {
+        self.state.check_connection().await?;
+        self.prover.check_connection().await
+    }
 }
 
 impl ProverClient for Prover {
@@ -203,6 +208,12 @@ impl StateStore {
         })
     }
 
+    pub async fn check_connection(&self) -> Result<(), reqwest::Error> {
+        let client = { self.inner.lock().unwrap().client.clone() };
+
+        client.check_connection().await
+    }
+
     pub async fn register_sync(
         &self,
         sync_tx: Sender<String>,
@@ -210,7 +221,7 @@ impl StateStore {
         let state = self.inner.lock().unwrap();
         let status = self.status;
         let store = self.store.clone();
-        let mut client = state.client.clone();
+        let client = state.client.clone();
         let cache = Arc::clone(&state.cache);
         let sender = Arc::new(sync_tx);
 
@@ -221,18 +232,13 @@ impl StateStore {
                 let sender = Arc::clone(&sender);
                 let _ = sender.send("Syncing..".to_string());
 
-                if let Err(e) =
-                    sync_db(&mut client, &store, cache.as_ref(), status).await
-                {
-                    // Sender should not panic and if it does something is wrong
-                    // and we should abort only when there's an error because it
-                    // important to tell the user that the sync failed
-                    sender
-                        .send(format!("Error during sync:.. {:?}", e))
-                        .unwrap();
-                }
+                let sync_status =
+                    sync_db(&client, &store, &cache, status).await;
+                let _ = match sync_status {
+                    Ok(_) => sender.send("Syncing Complete".to_string()),
+                    Err(e) => sender.send(format!("Error during sync:.. {e}")),
+                };
 
-                let _ = sender.send("Syncing Complete".to_string());
                 sleep(Duration::from_secs(SYNC_INTERVAL_SECONDS)).await;
             }
         });
@@ -240,14 +246,23 @@ impl StateStore {
         Ok(())
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn sync(&self) -> Result<(), Error> {
-        let state = self.inner.lock().unwrap();
-        let status = self.status;
         let store = self.store.clone();
-        let mut client = state.client.clone();
+        let status = self.status;
+        let (cache, client) = {
+            let state = self.inner.lock().unwrap();
 
-        sync_db(&mut client, &store, state.cache.as_ref(), status).await
+            let cache = state.cache.clone();
+            let client = state.client.clone();
+            (cache, client)
+        };
+
+        sync_db(&client, &store, cache.as_ref(), status).await
+    }
+
+    pub(crate) fn cache(&self) -> Arc<Cache> {
+        let state = self.inner.lock().unwrap();
+        Arc::clone(&state.cache)
     }
 }
 
@@ -262,7 +277,6 @@ impl StateClient for StateStore {
         vk: &ViewKey,
     ) -> Result<Vec<EnrichedNote>, Self::Error> {
         let psk = vk.public_spend_key();
-        self.sync().wait()?;
         let state = self.inner.lock().unwrap();
 
         Ok(state
@@ -292,24 +306,9 @@ impl StateClient for StateStore {
     /// nullifiers.
     fn fetch_existing_nullifiers(
         &self,
-        nullifiers: &[BlsScalar],
+        _nullifiers: &[BlsScalar],
     ) -> Result<Vec<BlsScalar>, Self::Error> {
-        let state = self.inner.lock().unwrap();
-
-        self.status("Fetching nullifiers...");
-        let nullifiers = nullifiers.to_vec();
-        let data = state
-            .client
-            .contract_query::<_, 1024>(
-                TRANSFER_CONTRACT,
-                "existing_nullifiers",
-                &nullifiers,
-            )
-            .wait()?;
-
-        let nullifiers = rkyv::from_bytes(&data).map_err(|_| Error::Rkyv)?;
-
-        Ok(nullifiers)
+        Ok(vec![])
     }
 
     /// Queries the node to find the opening for a specific note.

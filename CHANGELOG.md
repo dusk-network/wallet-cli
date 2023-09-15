@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add balance display when offline
+
 ### Changed
 
+- Change `connect` and `connect_with_status`to specify if cache sync is required
+- Change spent notes to be in a different ColumnFamily
+- Change `StateClient::fetch_existing_nullifiers` to return empty data.
 - Change `fetch_notes` to use note's position instead of height [#190]
+
+### Removed
+
+- Remove cache sync from `StateClient::fetch_notes`
+- Remove `RuskClient` struct
 
 ### Fixed
 

@@ -14,28 +14,6 @@ use crate::Error;
 /// Supported Rusk version
 const REQUIRED_RUSK_VERSION: &str = "0.6.0";
 
-/// Clients to Rusk services
-#[derive(Clone)]
-pub struct RuskClient {
-    /// HttpClient connected to the state
-    pub state: RuskHttpClient,
-    /// HttpClient connected to the prover
-    pub prover: RuskHttpClient,
-}
-
-impl RuskClient {
-    /// Create a new client specifying rusk address and the prover address
-    pub fn new<S>(rusk_addr: S, prov_addr: S) -> Self
-    where
-        S: Into<String>,
-    {
-        Self {
-            state: RuskHttpClient::new(rusk_addr.into()),
-            prover: RuskHttpClient::new(prov_addr.into()),
-        }
-    }
-}
-
 #[derive(Debug)]
 /// RuskRequesst according to the rusk event system
 pub struct RuskRequest {
@@ -92,7 +70,7 @@ impl RuskHttpClient {
     }
 
     /// Check rusk connection
-    pub async fn check_connection(&self) -> Result<(), Error> {
+    pub async fn check_connection(&self) -> Result<(), reqwest::Error> {
         reqwest::Client::new().post(&self.uri).send().await?;
         Ok(())
     }
