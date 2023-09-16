@@ -42,4 +42,4 @@ pub const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
 /// The length of an epoch in blocks
 pub const EPOCH: u64 = 2160;
 /// Max addresses the wallet can store
-pub const MAX_ADDRESSES: usize = 255;
+pub const MAX_ADDRESSES: usize = 5;

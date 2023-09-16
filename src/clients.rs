@@ -24,6 +24,7 @@ use tokio::time::{sleep, Duration};
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use self::sync::sync_db;
 
@@ -102,6 +103,38 @@ impl ProverClient for Prover {
         let preverify_req = RuskRequest::new("preverify", tx_bytes.clone());
         let _ = self.state.call(2, "rusk", &preverify_req).wait()?;
         self.status("Preverify success!");
+
+        self.status("Waiting for tx propagation...");
+        // Get the current system time
+        let now = SystemTime::now();
+
+        let d = now.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+
+        // current_min = 42
+        let current_minute = d.as_secs() / 60 % (60);
+        // current_sec =
+        let current_second = d.as_secs() % 60;
+
+        let minute_interval = 10;
+
+        let target_minute = current_minute - (current_minute % minute_interval)
+            + minute_interval;
+
+        let delay_seconds =
+            (target_minute - current_minute) * 60 - current_second;
+
+        let seconds_until_next_roundend_minute =
+            Duration::from_secs(delay_seconds);
+
+        println!(
+            "Waiting for {} seconds until minute {target_minute}",
+            seconds_until_next_roundend_minute.as_secs()
+        );
+
+        // Sleep for the calculated duration
+        std::thread::sleep(seconds_until_next_roundend_minute);
+
+        println!("Woke up at a round-end minute.");
 
         self.status("Propagating tx...");
         let propagate_req = RuskRequest::new("propagate_tx", tx_bytes);
