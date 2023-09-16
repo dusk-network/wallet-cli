@@ -23,7 +23,7 @@ pub struct GraphQL {
 // helper structs to deserialize response
 #[derive(Deserialize)]
 struct SpentTx {
-    pub txerror: Option<String>,
+    pub err: Option<String>,
     #[serde(alias = "gasSpent", default)]
     pub gas_spent: f64,
 }
@@ -106,11 +106,8 @@ impl GraphQL {
         let response = serde_json::from_slice::<SpentTxResponse>(&response)?.tx;
 
         match response {
-            Some(SpentTx {
-                txerror: Some(err), ..
-            }) => Ok(TxStatus::Error(err)),
+            Some(SpentTx { err: Some(err), .. }) => Ok(TxStatus::Error(err)),
             Some(_) => Ok(TxStatus::Ok),
-
             None => Ok(TxStatus::NotFound),
         }
     }
