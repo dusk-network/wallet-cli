@@ -231,9 +231,7 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let mut gas = Gas::default();
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx = wallet.transfer(sender, &rcvr, amt, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
@@ -248,9 +246,7 @@ impl Command {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
                 };
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx = wallet.stake(addr, amt, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
@@ -266,9 +262,7 @@ impl Command {
                     None => wallet.default_address(),
                 };
 
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let key_data = bs58::decode(key).into_vec()?;
                 let key = PublicKey::from_slice(&key_data[..])
@@ -295,9 +289,7 @@ impl Command {
                     None => wallet.default_address(),
                 };
 
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx = wallet.unstake(addr, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
@@ -312,9 +304,7 @@ impl Command {
                     None => wallet.default_address(),
                 };
 
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx = wallet.withdraw_reward(addr, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
