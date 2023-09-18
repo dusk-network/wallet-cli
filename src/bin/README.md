@@ -7,35 +7,18 @@ USAGE:
     rusk-wallet [OPTIONS] [SUBCOMMAND]
 
 OPTIONS:
-    -p, --profile <PROFILE>
-            Directory to store user data [default: `$HOME/.dusk/rusk-wallet`]
-
-    -n, --network <NETWORK>
-            Network to connect to
-
-        --password <PASSWORD>
-            Set the password for wallet's creation [env: RUSK_WALLET_PWD=]
-
-        --state <STATE>
-            The state server socket path or fully qualified URL
-
-        --prover <PROVER>
-            The prover server socket path or fully qualified URL
-
-        --log-level <LOG_LEVEL>
-            Output log level [default: info] [possible values: trace, debug,
-                                                               info, warn,
-                                                               error]
-
-        --log-type <LOG_TYPE>
-            Logging output type (valid: "json", "plain", "coloured")
-
-    -h, --help
-            Print help information
-
-    -V, --version
-            Print version information
-
+    -p, --profile <PROFILE>        Directory to store user data [default: `$HOME/.dusk/rusk-wallet`]
+    -n, --network <NETWORK>        Network to connect to
+        --password <PASSWORD>      Set the password for wallet's creation [env:
+                                   RUSK_WALLET_PWD=password]
+        --state <STATE>            The state server fully qualified URL
+        --prover <PROVER>          The prover server fully qualified URL
+        --log-level <LOG_LEVEL>    Output log level [default: info] [possible values: trace, debug,
+                                   info, warn, error]
+        --log-type <LOG_TYPE>      Logging output type [default: coloured] [possible values: json,
+                                   plain, coloured]
+    -h, --help                     Print help information
+    -V, --version                  Print version information
 
 SUBCOMMANDS:
     create         Create a new wallet
