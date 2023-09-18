@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix bug where we return early when there's no wallet file in interactive [#182]
+- Fix bug where wallet file got corrupted when loading a old version and creating a new address [#198]
 
 ## [0.18.2] - 2023-09-05
 
@@ -422,6 +423,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
 [#182]: https://github.com/dusk-network/wallet-cli/issues/182
+[#198]: https://github.com/dusk-network/wallet-cli/issues/198
 [#176]: https://github.com/dusk-network/wallet-cli/issues/176
 [#162]: https://github.com/dusk-network/wallet-cli/issues/162
 [#163]: https://github.com/dusk-network/wallet-cli/issues/163

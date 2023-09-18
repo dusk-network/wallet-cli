@@ -12,6 +12,7 @@ use requestty::Question;
 
 use crate::command::DEFAULT_STAKE_GAS_LIMIT;
 use crate::io;
+use crate::io::prompt::request_auth;
 use crate::io::GraphQL;
 use crate::prompt;
 use crate::settings::Settings;
@@ -37,7 +38,27 @@ pub(crate) async fn run_loop(
                 }
 
                 let addr = wallet.new_address().clone();
-                wallet.save()?;
+                let file_version = wallet.get_file_version()?;
+
+                let password = &settings.password;
+                // if the version file is old, ask for password and save as
+                // latest dat file
+                if file_version.is_old() {
+                    let pwd = request_auth(
+                        "Updating your wallet data file, please enter your wallet password ",
+                        password,
+                        DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
+                    )?;
+
+                    wallet.save_to(WalletFile {
+                        path: wallet.file().clone().unwrap().path,
+                        pwd,
+                    })?;
+                } else {
+                    // else just save
+                    wallet.save()?;
+                }
+
                 addr
             }
             AddrSelect::Exit => std::process::exit(0),
