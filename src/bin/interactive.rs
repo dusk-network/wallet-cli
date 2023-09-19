@@ -99,7 +99,7 @@ pub(crate) async fn run_loop(
                             Ok(res) => {
                                 println!("\r{}", res);
                                 if let RunResult::Tx(hash) = res {
-                                    let txh = format!("{:x}", hash);
+                                    let txh = format!("{hash:x}");
 
                                     // Wait for transaction confirmation from
                                     // network
@@ -110,11 +110,8 @@ pub(crate) async fn run_loop(
                                     gql.wait_for(&txh).await?;
 
                                     if let Some(explorer) = &settings.explorer {
-                                        let base_url = explorer.to_string();
-
-                                        let url =
-                                            format!("{}{}", base_url, txh);
-                                        println!("> URL: {}", url);
+                                        let url = format!("{explorer}{txh}");
+                                        println!("> URL: {url}");
                                         prompt::launch_explorer(url)?;
                                     }
                                 }
@@ -238,16 +235,14 @@ fn menu_op(
             sndr: Some(addr),
             rcvr: prompt::request_rcvr_addr("recipient")?,
             amt: prompt::request_token_amt("transfer", balance)?,
-            gas_limit: Some(prompt::request_gas_limit(gas::DEFAULT_LIMIT)?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(gas::DEFAULT_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::Stake => AddrOp::Run(Box::new(Command::Stake {
             addr: Some(addr),
             amt: prompt::request_token_amt("stake", balance)?,
-            gas_limit: Some(prompt::request_gas_limit(
-                DEFAULT_STAKE_GAS_LIMIT,
-            )?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::StakeInfo => AddrOp::Run(Box::new(Command::StakeInfo {
             addr: Some(addr),
@@ -255,17 +250,13 @@ fn menu_op(
         })),
         CMI::Unstake => AddrOp::Run(Box::new(Command::Unstake {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit(
-                DEFAULT_STAKE_GAS_LIMIT,
-            )?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::Withdraw => AddrOp::Run(Box::new(Command::Withdraw {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit(
-                DEFAULT_STAKE_GAS_LIMIT,
-            )?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
@@ -440,8 +431,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let sndr = sndr.as_ref().expect("sender to be a valid address");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Send from = {}", sndr.preview());
             println!("   > Recipient = {}", rcvr.preview());
@@ -456,8 +445,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let addr = addr.as_ref().expect("address to be valid");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Stake from {}", addr.preview());
             println!("   > Amount to stake = {} DUSK", amt);
@@ -470,8 +457,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let addr = addr.as_ref().expect("address to be valid");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Unstake from {}", addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
@@ -483,8 +468,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let addr = addr.as_ref().expect("address to be valid");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Reward from {}", addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));

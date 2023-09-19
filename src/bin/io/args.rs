@@ -28,11 +28,11 @@ pub(crate) struct WalletArgs {
     #[clap(long, env = "RUSK_WALLET_PWD")]
     pub password: Option<String>,
 
-    /// The state server socket path or fully qualified URL
+    /// The state server fully qualified URL
     #[clap(long)]
     pub state: Option<String>,
 
-    /// The prover server socket path or fully qualified URL
+    /// The prover server fully qualified URL
     #[clap(long)]
     pub prover: Option<String>,
 
