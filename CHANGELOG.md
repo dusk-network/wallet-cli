@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add balance display when offline
+- Add `Wallet::sync` method for sync cache update
+- Add `Wallet::register_sync` method for async cache update
 
 ### Changed
 
-- Change `connect` and `connect_with_status`to specify if cache sync is required
+- Change wallet to not sync automatically
 - Change spent notes to be in a different ColumnFamily
 - Change `StateClient::fetch_existing_nullifiers` to return empty data.
 - Change `fetch_notes` to use note's position instead of height [#190]

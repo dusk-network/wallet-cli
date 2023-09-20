@@ -68,7 +68,6 @@ async fn connect<F>(
     mut wallet: Wallet<F>,
     settings: &Settings,
     status: fn(&str),
-    cache_sync: bool,
 ) -> Wallet<F>
 where
     F: SecureWalletFile + std::fmt::Debug,
@@ -78,7 +77,6 @@ where
             &settings.state.to_string(),
             &settings.prover.to_string(),
             status,
-            cache_sync,
         )
         .await;
 
@@ -275,10 +273,7 @@ async fn exec() -> anyhow::Result<()> {
         false => status::interactive,
     };
 
-    // if any command is provided, cache must by synced before any operation
-    let cache_sync = cmd.is_some();
-
-    wallet = connect(wallet, &settings, status_cb, cache_sync).await;
+    wallet = connect(wallet, &settings, status_cb).await;
 
     // run command
     match cmd {
@@ -331,6 +326,7 @@ async fn exec() -> anyhow::Result<()> {
             RunResult::Create() | RunResult::Restore() => {}
         },
         None => {
+            wallet.register_sync().await?;
             interactive::run_loop(&mut wallet, &settings).await?;
         }
     }

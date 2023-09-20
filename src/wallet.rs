@@ -235,7 +235,6 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         rusk_addr: S,
         prov_addr: S,
         status: fn(&str),
-        cache_sync: bool,
     ) -> Result<(), Error>
     where
         S: Into<String>,
@@ -273,17 +272,6 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
             status,
         )?;
 
-        if cache_sync {
-            if state_status.is_ok() {
-                state.sync().await?;
-            }
-        } else {
-            let (sync_tx, sync_rx) = flume::unbounded::<String>();
-            state.register_sync(sync_tx).await?;
-            // set sync reciever to notify successful sync
-            self.sync_rx = Some(sync_rx);
-        }
-
         // create wallet instance
         self.wallet = Some(WalletCore::new(self.store.clone(), state, prover));
 
@@ -291,6 +279,24 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         self.status = status;
 
         Ok(())
+    }
+
+    /// Sync wallet state
+    pub async fn sync(&self) -> Result<(), Error> {
+        self.connected_wallet().await?.state().sync().await
+    }
+
+    /// Helper function to register for async-sync outside of connect
+    pub async fn register_sync(&mut self) -> Result<(), Error> {
+        match self.wallet.as_ref() {
+            Some(w) => {
+                let (sync_tx, sync_rx) = flume::unbounded::<String>();
+                w.state().register_sync(sync_tx).await?;
+                self.sync_rx = Some(sync_rx);
+                Ok(())
+            }
+            None => Err(Error::Offline),
+        }
     }
 
     /// Checks if the wallet has an active connection to the network
