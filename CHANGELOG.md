@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2023-09-20
+
 ### Added
 
 - Add balance display when offline
@@ -511,7 +513,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.18.2...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/dusk-network/wallet-cli/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/dusk-network/wallet-cli/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/dusk-network/wallet-cli/compare/v0.17.0...v0.18.0
