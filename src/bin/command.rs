@@ -196,6 +196,10 @@ impl Command {
     ) -> anyhow::Result<RunResult> {
         match self {
             Command::Balance { addr, spendable } => {
+                // don't check result of wallet sync, since we support offline
+                // balance
+                let _ = wallet.sync().await;
+
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
@@ -227,6 +231,7 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let sender = match sndr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
@@ -242,6 +247,7 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
@@ -257,6 +263,7 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
@@ -284,6 +291,7 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
@@ -299,6 +307,7 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
@@ -327,6 +336,7 @@ impl Command {
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))
             }
             Command::History { addr } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
