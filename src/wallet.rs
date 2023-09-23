@@ -253,6 +253,9 @@ impl<F: SecureWalletFile> WasmWallet<F> {
             status,
         )?;
 
+        // Sync once we connect
+        state.sync().await?;
+
         self.state = Some(state);
         self.prover = Some(prover);
 
@@ -742,6 +745,14 @@ impl<F: SecureWalletFile> WasmWallet<F> {
             .iter()
             .find(|a| a.psk == addr.psk)
             .ok_or(Error::AddressNotOwned)
+    }
+
+    /// Get the wallet file details
+    pub fn file(&self) -> Result<&F, Error> {
+        match &self.file {
+            Some((file, _)) => Ok(file),
+            None => Err(Error::WalletFileMissing),
+        }
     }
 
     /// Returns bls key pair for provisioner nodes

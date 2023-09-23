@@ -54,7 +54,7 @@ pub(crate) async fn run_loop(
                     )?;
 
                     wallet.save_to(WalletFile {
-                        path: wallet.file().clone().unwrap().path,
+                        path: wallet.file()?.clone().path,
                         pwd,
                     })?;
                 } else {
@@ -70,8 +70,8 @@ pub(crate) async fn run_loop(
         loop {
             // get balance for this address
             prompt::hide_cursor()?;
-            let balance = wallet.get_balance(&addr).await?;
-            let spendable: Dusk = balance.spendable.into();
+            let balance = wallet.get_balance(addr.index()?).await?;
+            let spendable: Dusk = balance.maximum.into();
             let total: Dusk = balance.value.into();
             prompt::hide_cursor()?;
 

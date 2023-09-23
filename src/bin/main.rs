@@ -77,7 +77,7 @@ where
     F: SecureWalletFile + std::fmt::Debug,
 {
     let con = wallet
-        .connect(
+        .connect_with_status(
             &settings.state.to_string(),
             &settings.prover.to_string(),
             status,

@@ -20,7 +20,7 @@ use crate::{WalletFile, WalletPath};
 
 use dusk_wallet::gas::{Gas, DEFAULT_LIMIT, DEFAULT_PRICE};
 use dusk_wallet::{Address, Dusk, Lux, WasmWallet, EPOCH, MAX_ADDRESSES};
-use dusk_wallet_core::{BalanceInfo, StakeInfo};
+use dusk_wallet_core::StakeInfo;
 
 pub use history::TransactionHistory;
 
