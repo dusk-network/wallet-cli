@@ -49,6 +49,15 @@ impl Gas {
         self.price = price.into().unwrap_or(DEFAULT_PRICE);
     }
 
+    /// Set the price and return the Gas
+    pub fn with_price<T>(mut self, price: T) -> Self
+    where
+        T: Into<Lux>,
+    {
+        self.price = price.into();
+        self
+    }
+
     /// Set the limit
     pub fn set_limit<T>(&mut self, limit: T)
     where

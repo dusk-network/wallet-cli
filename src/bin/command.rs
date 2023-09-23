@@ -18,9 +18,9 @@ use crate::io::prompt;
 use crate::settings::Settings;
 use crate::{WalletFile, WalletPath};
 
-use dusk_wallet::gas::Gas;
+use dusk_wallet::gas::{Gas, DEFAULT_LIMIT, DEFAULT_PRICE};
 use dusk_wallet::{Address, Dusk, Lux, WasmWallet, EPOCH, MAX_ADDRESSES};
-use dusk_wallet_core::StakeInfo;
+use dusk_wallet_core::{BalanceInfo, StakeInfo};
 
 pub use history::TransactionHistory;
 
@@ -72,7 +72,7 @@ pub(crate) enum Command {
 
     /// Send DUSK through the network
     Transfer {
-        /// Address from which to send DUSK
+        /// Address from which to send DUSK [default: first address]
         #[clap(short, long)]
         sndr: Option<Address>,
 
@@ -85,18 +85,18 @@ pub(crate) enum Command {
         amt: Dusk,
 
         /// Max amt of gas for this transaction
-        #[clap(short = 'l', long)]
-        gas_limit: Option<u64>,
+        #[clap(short = 'l', long, default_value_t= DEFAULT_LIMIT)]
+        gas_limit: u64,
 
-        /// Max price you're willing to pay for gas used (in LUX)
-        #[clap(short = 'p', long)]
-        gas_price: Option<Lux>,
+        /// Price you're going to pay for each gas unit (in LUX)
+        #[clap(short = 'p', long, default_value_t= DEFAULT_PRICE)]
+        gas_price: Lux,
     },
 
     /// Start staking DUSK
     Stake {
-        /// Address from which to stake DUSK
-        #[clap(short, long)]
+        /// Address from which to stake DUSK [default: first address]
+        #[clap(short = 's', long)]
         addr: Option<Address>,
 
         /// Amount of DUSK to stake
@@ -104,17 +104,17 @@ pub(crate) enum Command {
         amt: Dusk,
 
         /// Max amt of gas for this transaction
-        #[clap(short = 'l', long)]
-        gas_limit: Option<u64>,
+        #[clap(short = 'l', long, default_value_t= DEFAULT_STAKE_GAS_LIMIT)]
+        gas_limit: u64,
 
-        /// Max price you're willing to pay for gas used (in LUX)
-        #[clap(short = 'p', long)]
-        gas_price: Option<Lux>,
+        /// Price you're going to pay for each gas unit (in LUX)
+        #[clap(short = 'p', long, default_value_t= DEFAULT_PRICE)]
+        gas_price: Lux,
     },
 
     /// Check your stake information
     StakeInfo {
-        /// Address used to stake
+        /// Address used to stake [default: first address]
         #[clap(short, long)]
         addr: Option<Address>,
 
@@ -125,7 +125,7 @@ pub(crate) enum Command {
 
     /// Allow a provisioner key to stake
     StakeAllow {
-        /// Address used to perform the operation
+        /// Address used to perform the operation [default: first address]
         #[clap(short, long)]
         addr: Option<Address>,
 
@@ -134,47 +134,48 @@ pub(crate) enum Command {
         key: String,
 
         /// Max amt of gas for this transaction
-        #[clap(short = 'l', long)]
-        gas_limit: Option<u64>,
+        #[clap(short = 'l', long, default_value_t= DEFAULT_STAKE_GAS_LIMIT)]
+        gas_limit: u64,
 
-        /// Max price you're willing to pay for gas used (in LUX)
-        #[clap(short = 'p', long)]
-        gas_price: Option<Lux>,
+        /// Price you're going to pay for each gas unit (in LUX)
+        #[clap(short = 'p', long, default_value_t= DEFAULT_PRICE)]
+        gas_price: Lux,
     },
 
     /// Unstake a key's stake
     Unstake {
-        /// Address from which your DUSK was staked
+        /// Address from which your DUSK was staked [default: first address]
         #[clap(short, long)]
         addr: Option<Address>,
 
         /// Max amt of gas for this transaction
-        #[clap(short = 'l', long)]
-        gas_limit: Option<u64>,
+        #[clap(short = 'l', long, default_value_t= DEFAULT_STAKE_GAS_LIMIT)]
+        gas_limit: u64,
 
-        /// Max price you're willing to pay for gas used (in LUX)
-        #[clap(short = 'p', long)]
-        gas_price: Option<Lux>,
+        /// Price you're going to pay for each gas unit (in LUX)
+        #[clap(short = 'p', long, default_value_t= DEFAULT_PRICE)]
+        gas_price: Lux,
     },
 
     /// Withdraw accumulated reward for a stake key
     Withdraw {
-        /// Address from which your DUSK was staked
+        /// Address from which your DUSK was staked [default: first address]
         #[clap(short, long)]
         addr: Option<Address>,
 
         /// Max amt of gas for this transaction
-        #[clap(short = 'l', long)]
-        gas_limit: Option<u64>,
+        #[clap(short = 'l', long, default_value_t= DEFAULT_STAKE_GAS_LIMIT)]
+        gas_limit: u64,
 
-        /// Max price you're willing to pay for gas used (in LUX)
-        #[clap(short = 'p', long)]
-        gas_price: Option<Lux>,
+        /// Price you're going to pay for each gas unit (in LUX)
+        #[clap(short = 'p', long, default_value_t= DEFAULT_PRICE)]
+        gas_price: Lux,
     },
 
     /// Export BLS provisioner key pair
     Export {
-        /// Address for which you want the exported keys
+        /// Address for which you want the exported keys [default: first
+        /// address]
         #[clap(short, long)]
         addr: Option<Address>,
 
@@ -196,6 +197,10 @@ impl Command {
     ) -> anyhow::Result<RunResult> {
         match self {
             Command::Balance { addr, spendable } => {
+                // don't check result of wallet sync, since we support offline
+                // balance
+                let _ = wallet.sync().await;
+
                 let addr = match addr {
                     Some(addr) => addr.index()?,
                     None => 0,
@@ -227,14 +232,12 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let sender = match sndr {
                     Some(addr) => addr.index()?,
                     None => 0,
                 };
-
-                let mut gas = Gas::default();
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx =
                     wallet.transfer(sender, &rcvr, *amt, gas.clone()).await?;
@@ -247,14 +250,12 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => addr.index()?,
                     None => 0,
                 };
-
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 // do the transfer with the wasm wallet
                 let tx = wallet.stake(addr, amt, gas).await?;
@@ -267,14 +268,13 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => addr.index()?,
                     None => 0,
                 };
 
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let key_data = bs58::decode(key).into_vec()?;
                 let key = PublicKey::from_slice(&key_data[..])
@@ -298,14 +298,13 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => addr.index()?,
                     None => 0,
                 };
 
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx = wallet.unstake(addr, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
@@ -315,14 +314,13 @@ impl Command {
                 gas_limit,
                 gas_price,
             } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => addr.index()?,
                     None => 0,
                 };
 
-                let mut gas = Gas::new(DEFAULT_STAKE_GAS_LIMIT);
-                gas.set_price(gas_price);
-                gas.set_limit(gas_limit);
+                let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx = wallet.withdraw_reward(addr, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
@@ -345,6 +343,7 @@ impl Command {
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))
             }
             Command::History { addr } => {
+                wallet.sync().await?;
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),

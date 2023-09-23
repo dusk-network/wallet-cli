@@ -7,13 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2023-09-20
+
+### Added
+
+- Add balance display when offline
+- Add `Wallet::sync` method for sync cache update
+- Add `Wallet::register_sync` method for async cache update
+
 ### Changed
 
+- Change wallet to not sync automatically
+- Change spent notes to be in a different ColumnFamily
+- Change `StateClient::fetch_existing_nullifiers` to return empty data.
 - Change `fetch_notes` to use note's position instead of height [#190]
+
+### Removed
+
+- Remove cache sync from `StateClient::fetch_notes`
+- Remove `RuskClient` struct
 
 ### Fixed
 
 - Fix bug where we return early when there's no wallet file in interactive [#182]
+- Fix bug where wallet file got corrupted when loading a old version and creating a new address [#198]
 
 ## [0.18.2] - 2023-09-05
 
@@ -410,6 +427,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
 [#182]: https://github.com/dusk-network/wallet-cli/issues/182
+[#198]: https://github.com/dusk-network/wallet-cli/issues/198
 [#176]: https://github.com/dusk-network/wallet-cli/issues/176
 [#162]: https://github.com/dusk-network/wallet-cli/issues/162
 [#163]: https://github.com/dusk-network/wallet-cli/issues/163
@@ -495,7 +513,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.18.2...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/dusk-network/wallet-cli/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/dusk-network/wallet-cli/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/dusk-network/wallet-cli/compare/v0.17.0...v0.18.0

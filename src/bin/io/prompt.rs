@@ -4,9 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::io::stdout;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::{io::stdout, println};
 
 use crossterm::{
     cursor::{Hide, Show},

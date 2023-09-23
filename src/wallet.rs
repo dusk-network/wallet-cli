@@ -14,6 +14,7 @@ pub mod gas;
 mod call;
 mod wallet_core;
 
+use crate::cache::NoteData;
 use crate::clients::StateStore;
 use crate::crypto::encrypt;
 use crate::dat::{
@@ -22,12 +23,10 @@ use crate::dat::{
 };
 use crate::error::Error;
 use crate::prover::Prover;
-use crate::rusk::RuskClient;
 use crate::store::{self, LocalStore};
 use crate::wallet::wallet_core::WalletCore;
 use crate::wallet::{call::CallBuilder, file::SecureWalletFile, gas::Gas};
-use crate::Address;
-use crate::Dusk;
+use crate::{Address, Dusk, RuskHttpClient};
 use bip39::{Language, Mnemonic, Seed};
 use dusk_bls12_381_sign::{PublicKey, SecretKey};
 use dusk_bytes::{DeserializableSlice, Serializable};
@@ -161,48 +160,9 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         }
     }
 
-    /// Connect the wasm wallet to the node and create the state
-    pub async fn connect<S: Into<String>>(
-        &mut self,
-        rusk_addr: S,
-        prov_addr: S,
-        status: fn(&str),
-    ) -> Result<(), Error> {
-        let rusk = RuskClient::new(rusk_addr, prov_addr);
-        rusk.state.check_connection().await?;
-
-        // create a prover client
-        let mut prover = Prover::new(rusk.state.clone(), rusk.prover.clone());
-        prover.set_status_callback(status);
-
-        let cache_dir = {
-            if let Some(file) = &self.file {
-                file.0.path().cache_dir()
-            } else {
-                return Err(Error::WalletFileMissing);
-            }
-        };
-
-        let state = StateStore::new(
-            rusk.state,
-            &cache_dir,
-            self.store.clone(),
-            status,
-        )?;
-
-        state.sync().await?;
-
-        self.state = Some(state);
-        self.prover = Some(prover);
-
-        // sync as soon as we connect
-
-        Ok(())
-    }
-
     /// Helper function to register for async-sync outside of connect
     pub async fn register_sync(&mut self) -> anyhow::Result<()> {
-        let state = self.state.as_ref().ok_or(Error::Offline)?;
+        let state = self.state().await?;
 
         let (sync_tx, sync_rx) = flume::unbounded::<String>();
 
@@ -249,34 +209,106 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         }
     }
 
-    /// Fetches the notes from the state.
+    /// Connect the wallet to the network providing a callback for status
+    /// updates
+    pub async fn connect_with_status<S>(
+        &mut self,
+        rusk_addr: S,
+        prov_addr: S,
+        status: fn(&str),
+    ) -> Result<(), Error>
+    where
+        S: Into<String>,
+    {
+        // attempt connection
+        let http_state = RuskHttpClient::new(rusk_addr.into());
+        let http_prover = RuskHttpClient::new(prov_addr.into());
+
+        let state_status = http_state.check_connection().await;
+        let prover_status = http_prover.check_connection().await;
+
+        match (&state_status, prover_status) {
+            (Err(e),_)=> println!("Connection to Rusk Failed, some operations won't be available: {e}"),
+            (_,Err(e))=> println!("Connection to Prover Failed, some operations won't be available: {e}"),
+            _=> {},
+        }
+
+        // create a prover client
+        let mut prover = Prover::new(http_state.clone(), http_prover.clone());
+        prover.set_status_callback(status);
+
+        let cache_dir = {
+            if let Some(file) = &self.file {
+                file.0.path().cache_dir()
+            } else {
+                return Err(Error::WalletFileMissing);
+            }
+        };
+
+        // create a state client
+        let state = StateStore::new(
+            http_state,
+            &cache_dir,
+            self.store.clone(),
+            status,
+        )?;
+
+        self.state = Some(state);
+        self.prover = Some(prover);
+
+        Ok(())
+    }
+
+    /// Sync wallet state
+    pub async fn sync(&self) -> Result<(), Error> {
+        self.state().await?.sync().await
+    }
+
+    /// Checks if the wallet has an active connection to the network
+    pub async fn is_online(&self) -> bool {
+        self.state().await.is_ok()
+    }
+
+    pub(crate) async fn state(&self) -> Result<&StateStore, Error> {
+        match self.state.as_ref() {
+            Some(w) => {
+                w.check_connection().await?;
+
+                Ok(w)
+            }
+            None => Err(Error::Offline),
+        }
+    }
+
+    /// Fetch all the notes history
     pub async fn get_all_notes(
         &self,
         addr: &Address,
-    ) -> anyhow::Result<Vec<DecodedNote>> {
+    ) -> Result<Vec<DecodedNote>, Error> {
         if !addr.is_owned() {
-            return Err(Error::Unauthorized.into());
+            return Err(Error::Unauthorized);
         }
 
-        let state = self.state.as_ref().ok_or(Error::Offline)?;
-
+        let state = self.state().await?;
         let ssk_index = addr.index()? as u64;
         let ssk = self.store.retrieve_ssk(ssk_index)?;
         let vk = ssk.view_key();
+        let psk = vk.public_spend_key();
 
-        let notes = state.fetch_notes(&vk).await?;
+        let live_notes = state.fetch_notes(&vk).await?;
+        let spent_notes = state.cache().spent_notes(&psk)?;
 
-        let nullifiers: Vec<_> =
-            notes.iter().map(|(n, _)| n.gen_nullifier(&ssk)).collect();
-        let existing_nullifiers =
-            state.fetch_existing_nullifiers(&nullifiers[..]).await?;
-        let history = notes
+        let live_notes = live_notes
             .into_iter()
-            .zip(nullifiers)
-            .map(|((note, block_height), nullifier)| {
-                let nullified_by = existing_nullifiers
-                    .contains(&nullifier)
-                    .then_some(nullifier);
+            .map(|(note, height)| (None, note, height));
+        let spent_notes = spent_notes.into_iter().map(
+            |(nullifier, NoteData { note, height })| {
+                (Some(nullifier), note, height)
+            },
+        );
+        let history = live_notes
+            .chain(spent_notes)
+            .map(|(nullified_by, note, block_height)| {
                 let amount = note.value(Some(&vk)).unwrap();
                 DecodedNote {
                     note,
@@ -286,6 +318,7 @@ impl<F: SecureWalletFile> WasmWallet<F> {
                 }
             })
             .collect();
+
         Ok(history)
     }
 
@@ -383,7 +416,7 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         let mut openings = Vec::new();
 
         let notes = self.unspent_notes(vk).await?;
-        let state = self.state.as_ref().ok_or(Error::Offline)?;
+        let state = self.state().await?;
 
         for note in &notes {
             let opening = state.fetch_opening(note).await?;
@@ -485,7 +518,7 @@ impl<F: SecureWalletFile> WasmWallet<F> {
             return Err(Error::NotEnoughGas.into());
         }
 
-        let state = self.state.as_ref().ok_or(Error::Offline)?;
+        let state = self.state().await?;
         let prover = self.prover.as_ref().ok_or(Error::Offline)?;
 
         let sender = self.store.retrieve_ssk(index.into())?;
@@ -618,7 +651,7 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         let sk = self.store.retrieve_sk(index.into())?;
         let pk = PublicKey::from(&sk);
 
-        let state = self.state.as_ref().ok_or(Error::Offline)?;
+        let state = self.state().await?;
         let prover = self.prover.as_ref().ok_or(Error::Offline)?;
 
         let stake = state.fetch_stake(&pk).await?;
@@ -711,11 +744,6 @@ impl<F: SecureWalletFile> WasmWallet<F> {
             .ok_or(Error::AddressNotOwned)
     }
 
-    /// Checks if the wallet has an active connection to the network
-    pub fn is_online(&self) -> bool {
-        self.state.is_some() && self.prover.is_some()
-    }
-
     /// Returns bls key pair for provisioner nodes
     pub fn provisioner_keys(
         &self,
@@ -796,7 +824,7 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         &mut self,
         vk: &ViewKey,
     ) -> anyhow::Result<Vec<Note>> {
-        let state = self.state.as_ref().ok_or(Error::Offline)?;
+        let state = self.state().await?;
 
         let notes = state
             .fetch_notes(vk)
@@ -816,6 +844,8 @@ impl<F: SecureWalletFile> WasmWallet<F> {
 
         if let Ok(nullifiers) = rkyv::from_bytes::<Vec<BlsScalar>>(&nullifiers)
         {
+            let state = self.state().await?;
+
             let existing_nullifiers =
                 state.fetch_existing_nullifiers(&nullifiers).await?;
 
@@ -844,7 +874,9 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         }
     }
 
-    /// Save to a particular location
+    /// Saves wallet to the provided file, changing the previous file path for
+    /// the wallet if any. Note that any subsequent calls to [`save`] will
+    /// use this new file with the latest Rusk binary file format
     pub fn save_to(&mut self, file: F) -> anyhow::Result<(), Error> {
         // set our new file and save
         self.file =

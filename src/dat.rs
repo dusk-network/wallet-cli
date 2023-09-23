@@ -38,6 +38,14 @@ pub enum DatFileVersion {
     RuskBinaryFileFormat(Version),
 }
 
+impl DatFileVersion {
+    /// Checks if the file version is older than the latest Rust Binary file
+    /// format
+    pub fn is_old(&self) -> bool {
+        matches!(self, Self::Legacy | Self::OldWalletCli(_))
+    }
+}
+
 /// Make sense of the payload and return it
 pub(crate) fn get_seed_and_address(
     file: DatFileVersion,

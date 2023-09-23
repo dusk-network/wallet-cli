@@ -34,11 +34,14 @@ impl Cache {
         status: fn(&str),
     ) -> Result<Self, Error> {
         let cfs: Vec<_> = (0..MAX_ADDRESSES)
-            .map(|i| {
+            .flat_map(|i| {
                 let ssk =
                     store.retrieve_ssk(i as u64).expect("ssk to be available");
                 let psk = ssk.public_spend_key();
-                format!("{:?}", psk)
+
+                let live = format!("{:?}", psk);
+                let spent = format!("spent_{:?}", psk);
+                [live, spent]
             })
             .collect();
 
@@ -82,6 +85,65 @@ impl Cache {
         Ok(())
     }
 
+    // We store a column family named by hex representation of the psk.
+    // We store the nullifier of the note as key and the value is the bytes
+    // representation of the tuple (NoteHeight, Note)
+    pub(crate) fn insert_spent(
+        &self,
+        psk: &PublicSpendKey,
+        height: u64,
+        note_data: (Note, BlsScalar),
+    ) -> Result<(), Error> {
+        let cf_name = format!("spent_{:?}", psk);
+
+        let cf = self
+            .db
+            .cf_handle(&cf_name)
+            .ok_or(Error::CacheDatabaseCorrupted)?;
+
+        let (note, nullifier) = note_data;
+
+        let data = NoteData { height, note };
+        let key = nullifier.to_bytes();
+
+        self.db.put_cf(&cf, key, data.to_bytes())?;
+
+        Ok(())
+    }
+
+    pub(crate) fn spend_notes(
+        &self,
+        psk: &PublicSpendKey,
+        nullifiers: &[BlsScalar],
+    ) -> Result<(), Error> {
+        if nullifiers.is_empty() {
+            return Ok(());
+        }
+        let cf_name = format!("{:?}", psk);
+        let spent_cf_name = format!("spent_{:?}", psk);
+
+        let cf = self
+            .db
+            .cf_handle(&cf_name)
+            .ok_or(Error::CacheDatabaseCorrupted)?;
+        let spent_cf = self
+            .db
+            .cf_handle(&spent_cf_name)
+            .ok_or(Error::CacheDatabaseCorrupted)?;
+
+        for n in nullifiers {
+            let key = n.to_bytes();
+            let to_move = self
+                .db
+                .get_cf(&cf, key)?
+                .expect("Note must exists to be moved");
+            self.db.put_cf(&spent_cf, key, to_move)?;
+            self.db.delete_cf(&cf, n.to_bytes())?;
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn insert_last_pos(&self, last_pos: u64) -> Result<(), Error> {
         self.db.put(b"last_pos", last_pos.to_be_bytes())?;
 
@@ -98,8 +160,31 @@ impl Cache {
         }))
     }
 
-    /// Returns an iterator over all notes inserted for the given PSK, in order
-    /// of block height.
+    /// Returns an iterator over all unspent notes nullifier for the given PSK.
+    pub(crate) fn unspent_notes_id(
+        &self,
+        psk: &PublicSpendKey,
+    ) -> Result<Vec<BlsScalar>, Error> {
+        let cf_name = format!("{:?}", psk);
+        let mut notes = vec![];
+
+        if let Some(cf) = self.db.cf_handle(&cf_name) {
+            let iterator =
+                self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
+
+            for i in iterator {
+                let (id, _) = i?;
+
+                let id = BlsScalar::from_slice(&id)?;
+                notes.push(id);
+            }
+        };
+
+        Ok(notes)
+    }
+
+    /// Returns an iterator over all unspent notes inserted for the given PSK,
+    /// in order of note position.
     pub(crate) fn notes(
         &self,
         psk: &PublicSpendKey,
@@ -117,6 +202,32 @@ impl Cache {
                 let note = NoteData::from_slice(&note_data)?;
 
                 notes.insert(note);
+            }
+        };
+
+        Ok(notes)
+    }
+
+    /// Returns an iterator over all notes inserted for the given PSK, in order
+    /// of block height.
+    pub(crate) fn spent_notes(
+        &self,
+        psk: &PublicSpendKey,
+    ) -> Result<Vec<(BlsScalar, NoteData)>, Error> {
+        let cf_name = format!("spent_{:?}", psk);
+        let mut notes = vec![];
+
+        if let Some(cf) = self.db.cf_handle(&cf_name) {
+            let iterator =
+                self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
+
+            for i in iterator {
+                let (key, note_data) = i?;
+
+                let note = NoteData::from_slice(&note_data)?;
+                let key = BlsScalar::from_slice(&key)?;
+
+                notes.push((key, note));
             }
         };
 

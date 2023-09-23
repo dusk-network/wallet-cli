@@ -14,6 +14,7 @@ use requestty::Question;
 
 use crate::command::DEFAULT_STAKE_GAS_LIMIT;
 use crate::io;
+use crate::io::prompt::request_auth;
 use crate::io::GraphQL;
 use crate::prompt;
 use crate::settings::Settings;
@@ -40,41 +41,51 @@ pub(crate) async fn run_loop(
                 }
 
                 let addr = wallet.new_address().clone();
-                wallet.save()?;
+                let file_version = wallet.get_file_version()?;
+
+                let password = &settings.password;
+                // if the version file is old, ask for password and save as
+                // latest dat file
+                if file_version.is_old() {
+                    let pwd = request_auth(
+                        "Updating your wallet data file, please enter your wallet password ",
+                        password,
+                        DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
+                    )?;
+
+                    wallet.save_to(WalletFile {
+                        path: wallet.file().clone().unwrap().path,
+                        pwd,
+                    })?;
+                } else {
+                    // else just save
+                    wallet.save()?;
+                }
+
                 addr
             }
             AddrSelect::Exit => std::process::exit(0),
         };
 
         loop {
+            // get balance for this address
+            prompt::hide_cursor()?;
+            let balance = wallet.get_balance(&addr).await?;
+            let spendable: Dusk = balance.spendable.into();
+            let total: Dusk = balance.value.into();
+            prompt::hide_cursor()?;
+
+            // display address information
+            println!();
+            println!("Address: {}", addr);
+            println!("Balance:");
+            println!(" - Spendable: {spendable}");
+            println!(" - Total: {total}");
+
             // request operation to perform
-            let op = if true {
-                // get balance for this address
-                prompt::hide_cursor()?;
-
-                let (spendable, value) = {
-                    let res = wallet.get_balance(addr.index()?).await?;
-
-                    (res.maximum, res.value)
-                };
-
-                prompt::hide_cursor()?;
-
-                // display address information
-                println!("\rAddress: {}", addr);
-                println!(
-                    "Balance:\n - Spendable: {}\n - Total: {}",
-                    Dusk::from(spendable),
-                    Dusk::from(value)
-                );
-
-                // operations menu
-                menu_op(addr.clone(), spendable.into(), settings)
-            } else {
-                // display address information
-                println!("\rAddress: {}", addr);
-                println!("Balance:\n - Spendable: [n/a]\n - Total: [n/a]");
-                menu_op_offline(addr.clone(), settings)
+            let op = match wallet.is_online().await {
+                true => menu_op(addr.clone(), spendable, settings),
+                false => menu_op_offline(addr.clone(), settings),
             };
 
             // perform operations with this address
@@ -91,7 +102,7 @@ pub(crate) async fn run_loop(
                             Ok(res) => {
                                 println!("\r{}", res);
                                 if let RunResult::Tx(hash) = res {
-                                    let txh = format!("{:x}", hash);
+                                    let txh = format!("{hash:x}");
 
                                     // Wait for transaction confirmation from
                                     // network
@@ -102,11 +113,8 @@ pub(crate) async fn run_loop(
                                     gql.wait_for(&txh).await?;
 
                                     if let Some(explorer) = &settings.explorer {
-                                        let base_url = explorer.to_string();
-
-                                        let url =
-                                            format!("{}{}", base_url, txh);
-                                        println!("> URL: {}", url);
+                                        let url = format!("{explorer}{txh}");
+                                        println!("> URL: {url}");
                                         prompt::launch_explorer(url)?;
                                     }
                                 }
@@ -230,16 +238,14 @@ fn menu_op(
             sndr: Some(addr),
             rcvr: prompt::request_rcvr_addr("recipient")?,
             amt: prompt::request_token_amt("transfer", balance)?,
-            gas_limit: Some(prompt::request_gas_limit(gas::DEFAULT_LIMIT)?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(gas::DEFAULT_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::Stake => AddrOp::Run(Box::new(Command::Stake {
             addr: Some(addr),
             amt: prompt::request_token_amt("stake", balance)?,
-            gas_limit: Some(prompt::request_gas_limit(
-                DEFAULT_STAKE_GAS_LIMIT,
-            )?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::StakeInfo => AddrOp::Run(Box::new(Command::StakeInfo {
             addr: Some(addr),
@@ -247,17 +253,13 @@ fn menu_op(
         })),
         CMI::Unstake => AddrOp::Run(Box::new(Command::Unstake {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit(
-                DEFAULT_STAKE_GAS_LIMIT,
-            )?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::Withdraw => AddrOp::Run(Box::new(Command::Withdraw {
             addr: Some(addr),
-            gas_limit: Some(prompt::request_gas_limit(
-                DEFAULT_STAKE_GAS_LIMIT,
-            )?),
-            gas_price: Some(prompt::request_gas_price()?),
+            gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
         })),
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
@@ -283,7 +285,7 @@ fn menu_op_offline(
         .add(CMI::Back, "Back");
 
     let q = Question::select("theme")
-        .message("What would you like to do?")
+        .message("[OFFLINE] What would you like to do?")
         .choices(cmd_menu.clone())
         .build();
 
@@ -435,8 +437,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let sndr = sndr.as_ref().expect("sender to be a valid address");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Send from = {}", sndr.preview());
             println!("   > Recipient = {}", rcvr.preview());
@@ -451,8 +451,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let addr = addr.as_ref().expect("address to be valid");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Stake from {}", addr.preview());
             println!("   > Amount to stake = {} DUSK", amt);
@@ -465,8 +463,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let addr = addr.as_ref().expect("address to be valid");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Unstake from {}", addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
@@ -478,8 +474,6 @@ fn confirm(cmd: &Command) -> anyhow::Result<bool> {
             gas_price,
         } => {
             let addr = addr.as_ref().expect("address to be valid");
-            let gas_limit = gas_limit.expect("gas limit to be set");
-            let gas_price = gas_price.expect("gas price to be set");
             let max_fee = gas_limit * gas_price;
             println!("   > Reward from {}", addr.preview());
             println!("   > Max fee = {} DUSK", Dusk::from(max_fee));
