@@ -346,6 +346,10 @@ impl StateClient for StateStore {
             rkyv::from_bytes(&data).map_err(|_| Error::Rkyv)?;
         self.status("Stake received!");
 
+        let staking_address = pk.to_bytes().to_vec();
+        let staking_address = bs58::encode(staking_address).into_string();
+        println!("Staking address: {}", staking_address);
+
         let stake = res.ok_or(Error::NotStaked).map(
             |StakeData {
                  amount,
@@ -357,9 +361,6 @@ impl StateClient for StateStore {
                 counter,
             },
         )?;
-        let staking_address = pk.to_bytes().to_vec();
-        let staking_address = bs58::encode(staking_address).into_string();
-        println!("Staking address: {}", staking_address);
 
         Ok(stake)
     }
