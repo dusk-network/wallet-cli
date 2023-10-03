@@ -19,11 +19,11 @@ use crate::{Error, RuskRequest, MAX_ADDRESSES};
 
 const RKYV_TREE_LEAF_SIZE: usize = size_of::<ArchivedTreeLeaf>();
 
-pub(crate) async fn sync_db(
+pub(crate) async fn sync_db<F: Fn(&str)>(
     client: &RuskHttpClient,
     store: &LocalStore,
     cache: &Cache,
-    status: fn(&str),
+    status: F,
 ) -> Result<(), Error> {
     let addresses: Vec<_> = (0..MAX_ADDRESSES)
         .flat_map(|i| store.retrieve_ssk(i as u64))
