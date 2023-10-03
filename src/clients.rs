@@ -229,6 +229,7 @@ impl StateStore {
 
         tokio::spawn(async move {
             loop {
+                let status = |_: &_| {};
                 let sender = Arc::clone(&sender);
                 let _ = sender.send("Syncing..".to_string());
 

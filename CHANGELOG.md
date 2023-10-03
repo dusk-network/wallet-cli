@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix staking address display [#204]
+- Fix status overlap [#179] 
 
 ## [0.19.0] - 2023-09-20
 
@@ -430,6 +431,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#179]: https://github.com/dusk-network/wallet-cli/issues/179
 [#204]: https://github.com/dusk-network/wallet-cli/issues/204
 [#182]: https://github.com/dusk-network/wallet-cli/issues/182
 [#198]: https://github.com/dusk-network/wallet-cli/issues/198
