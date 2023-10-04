@@ -528,11 +528,15 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         let sk = self.store.retrieve_sk(index.into())?;
         let pk = PublicKey::from(&sk);
 
-        let stake = state.fetch_stake(&pk).await?;
-
-        if stake.amount.is_some() {
-            return Err(Error::AlreadyStaked.into());
-        }
+        let counter = match state.fetch_stake(&pk).await {
+            Err(Error::NotStaked) => 0,
+            Ok(StakeInfo {
+                amount: None,
+                counter,
+                ..
+            }) => counter,
+            _ => return Err(Error::AlreadyStaked.into()),
+        };
 
         let value = amt.0;
 
@@ -546,7 +550,7 @@ impl<F: SecureWalletFile> WasmWallet<F> {
         .gas(&gas)
         .prove_stct(prover)
         .await?
-        .get_stake(sk, pk, stake.counter);
+        .get_stake(sk, pk, counter);
 
         let call_data = rkyv::to_bytes::<_, MAX_CALL_SIZE>(&stake)?.to_vec();
 
