@@ -15,6 +15,7 @@ use crossterm::{
 
 use anyhow::Result;
 use bip39::{ErrorKind, Language, Mnemonic};
+use dusk_bytes::DeserializableSlice;
 use dusk_wallet::{dat::DatFileVersion, Error};
 use requestty::Question;
 
@@ -231,6 +232,15 @@ fn check_valid_denom(value: f64, balance: Dusk) -> Result<(), String> {
     }
 }
 
+fn check_valid_pkey(key: &str) -> Result<(), String> {
+    let key = bs58::decode(key).into_vec().map_err(|_| {
+        "Please introduce a valid provisioner key (Base58)".to_string()
+    })?;
+    dusk_bls12_381_sign::PublicKey::from_slice(&key)
+        .map_err(|_| "Invalid provisioner key value".to_string())?;
+    Ok(())
+}
+
 /// Request amount of tokens
 pub(crate) fn request_token_amt(
     action: &str,
@@ -278,6 +288,19 @@ pub(crate) fn request_gas_price() -> anyhow::Result<Lux> {
     let a = requestty::prompt_one(question)?;
     let price = Dusk::from(a.as_float().expect("answer to be a float"));
     Ok(*price)
+}
+
+/// Request provisioner key
+pub(crate) fn request_provisioner_key() -> anyhow::Result<String> {
+    // let the user input the provisioner key
+    let q = Question::input("key")
+        .message("Please enter the provisioner key:")
+        .validate_on_key(|pkey, _| check_valid_pkey(pkey).is_ok())
+        .validate(|pkey, _| check_valid_pkey(pkey))
+        .build();
+
+    let a = requestty::prompt_one(q)?;
+    Ok(a.as_string().expect("answer to be a string").to_owned())
 }
 
 /// Request Dusk block explorer to be opened

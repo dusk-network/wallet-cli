@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add interactive stake allow [#98]
+
 ### Fixed
 
 - Fix staking address display [#204]
@@ -431,6 +434,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#98]: https://github.com/dusk-network/wallet-cli/issues/98
 [#179]: https://github.com/dusk-network/wallet-cli/issues/179
 [#204]: https://github.com/dusk-network/wallet-cli/issues/204
 [#182]: https://github.com/dusk-network/wallet-cli/issues/182

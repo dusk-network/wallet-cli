@@ -192,6 +192,7 @@ enum CommandMenuItem {
     History,
     Transfer,
     Stake,
+    StakeAllow,
     StakeInfo,
     Unstake,
     Withdraw,
@@ -212,6 +213,7 @@ fn menu_op(
         .add(CMI::History, "Transaction History")
         .add(CMI::Transfer, "Transfer Dusk")
         .add(CMI::Stake, "Stake Dusk")
+        .add(CMI::StakeAllow, "Allow staking key")
         .add(CMI::StakeInfo, "Check existing stake")
         .add(CMI::Unstake, "Unstake Dusk")
         .add(CMI::Withdraw, "Withdraw staking reward")
@@ -241,6 +243,12 @@ fn menu_op(
         CMI::Stake => AddrOp::Run(Box::new(Command::Stake {
             addr: Some(addr),
             amt: prompt::request_token_amt("stake", balance)?,
+            gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
+            gas_price: prompt::request_gas_price()?,
+        })),
+        CMI::StakeAllow => AddrOp::Run(Box::new(Command::StakeAllow {
+            addr: Some(addr),
+            key: prompt::request_provisioner_key()?,
             gas_limit: prompt::request_gas_limit(DEFAULT_STAKE_GAS_LIMIT)?,
             gas_price: prompt::request_gas_price()?,
         })),
