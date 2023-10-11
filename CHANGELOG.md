@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1] - 2023-10-11
+
 ### Added
 - Add interactive stake allow [#98]
 - Add optional `WALLET_MAX_ADDR` compile time env [#210]
@@ -526,7 +528,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.19.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/dusk-network/wallet-cli/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/dusk-network/wallet-cli/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/dusk-network/wallet-cli/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/dusk-network/wallet-cli/compare/v0.18.0...v0.18.1
