@@ -32,7 +32,7 @@ pub(crate) async fn run_loop(
             AddrSelect::NewAddress => {
                 if wallet.addresses().len() >= MAX_ADDRESSES {
                     println!(
-                        "Cannot create more addresses, this wallet only supports up to 256 addresses"
+                        "Cannot create more addresses, this wallet only supports up to {MAX_ADDRESSES} addresses"
                     );
                     std::process::exit(0);
                 }
@@ -151,7 +151,7 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
     // show warning early on at 250 addresses
     if wallet.addresses().len() >= MAX_ADDRESSES - 5 {
         action_menu = action_menu.separator().separator_msg(format!(
-            "\x1b[93m{}\x1b[0m This wallet only supports up to 256 addresses, you have {} addresses ",
+            "\x1b[93m{}\x1b[0m This wallet only supports up to {MAX_ADDRESSES} addresses, you have {} addresses ",
             "Warning:",
             wallet.addresses().len()
         ));
