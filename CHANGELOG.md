@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add interactive stake allow [#98]
+- Add optional `WALLET_MAX_ADDR` compile time env [#210]
 
 ### Fixed
 
@@ -434,6 +435,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#210]: https://github.com/dusk-network/wallet-cli/issues/210
 [#98]: https://github.com/dusk-network/wallet-cli/issues/98
 [#179]: https://github.com/dusk-network/wallet-cli/issues/179
 [#204]: https://github.com/dusk-network/wallet-cli/issues/204

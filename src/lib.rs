@@ -42,4 +42,20 @@ pub const MIN_CONVERTIBLE: Dusk = Dusk::new(1);
 /// The length of an epoch in blocks
 pub const EPOCH: u64 = 2160;
 /// Max addresses the wallet can store
-pub const MAX_ADDRESSES: usize = 255;
+pub const MAX_ADDRESSES: usize = get_max_addresses();
+
+const DEFAULT_MAX_ADDRESSES: usize = 255;
+
+const fn get_max_addresses() -> usize {
+    match option_env!("WALLET_MAX_ADDR") {
+        Some(v) => match konst::primitive::parse_usize(v) {
+            Ok(e) if e > DEFAULT_MAX_ADDRESSES => {
+                panic!("WALLET_MAX_ADDR must be lower or equal to 255")
+            }
+            Ok(e) if e > 5 => e,
+            Ok(_) => panic!("WALLET_MAX_ADDR must be greater than 5"),
+            Err(_) => panic!("Invalid WALLET_MAX_ADDR"),
+        },
+        None => DEFAULT_MAX_ADDRESSES,
+    }
+}
