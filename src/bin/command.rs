@@ -212,7 +212,7 @@ impl Command {
                 if new {
                     if wallet.addresses().len() >= MAX_ADDRESSES {
                         println!(
-                            "Cannot create more addresses, this wallet only supports upto 256 addresses. You have {} addresses already.", wallet.addresses().len()
+                            "Cannot create more addresses, this wallet only supports up to {MAX_ADDRESSES} addresses. You have {} addresses already.", wallet.addresses().len()
                         );
                         std::process::exit(0);
                     }
