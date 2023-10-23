@@ -74,7 +74,7 @@ pub(crate) async fn run_loop(
 
             // display address information
             println!();
-            println!("Address: {}", addr);
+            println!("Address: {addr}");
             println!("Balance:");
             println!(" - Spendable: {spendable}");
             println!(" - Total: {total}");
@@ -99,7 +99,7 @@ pub(crate) async fn run_loop(
                             Ok(res) => {
                                 println!("\r{}", res);
                                 if let RunResult::Tx(hash) = res {
-                                    let txh = format!("{hash:x}");
+                                    let tx_id = hex::encode(hash.to_bytes());
 
                                     // Wait for transaction confirmation from
                                     // network
@@ -107,17 +107,17 @@ pub(crate) async fn run_loop(
                                         &settings.state.to_string(),
                                         io::status::interactive,
                                     );
-                                    gql.wait_for(&txh).await?;
+                                    gql.wait_for(&tx_id).await?;
 
                                     if let Some(explorer) = &settings.explorer {
-                                        let url = format!("{explorer}{txh}");
+                                        let url = format!("{explorer}{tx_id}");
                                         println!("> URL: {url}");
                                         prompt::launch_explorer(url)?;
                                     }
                                 }
                             }
 
-                            Err(err) => println!("{}", err),
+                            Err(err) => println!("{err}"),
                         }
                     }
                 }

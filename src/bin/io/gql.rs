@@ -193,13 +193,11 @@ async fn test() -> Result<(), Box<dyn std::error::Error>> {
             "dbc5a2c949516ecfb418406909d195c3cc267b46bd966a3ca9d66d2e13c47003",
         )
         .await?;
-    let r = gql.txs_for_block(90).await?;
-    r.iter().for_each(|(t, _)| {
-        let txh = format!(
-            "{:x}",
-            rusk_abi::hash::Hasher::digest(t.to_hash_input_bytes())
-        );
-        println!("txid: {}", txh);
+    let block_txs = gql.txs_for_block(90).await?;
+    block_txs.iter().for_each(|(t, _)| {
+        let hash = rusk_abi::hash::Hasher::digest(t.to_hash_input_bytes());
+        let tx_id = hex::encode(hash.to_bytes());
+        println!("txid: {tx_id}");
     });
     Ok(())
 }

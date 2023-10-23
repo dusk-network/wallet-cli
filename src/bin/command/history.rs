@@ -52,10 +52,12 @@ impl Display for TransactionHistory {
             }
         };
 
+        let tx_id = hex::encode(self.id.to_bytes());
+        let heigth = self.height;
+
         write!(
             f,
-            "{: >9} | {:x} | {: ^8} | {: >+17.9} | {}",
-            self.height, self.id, contract, dusk, fee
+            "{heigth: >9} | {tx_id} | {contract: ^8} | {dusk: >+17.9} | {fee}",
         )
     }
 }

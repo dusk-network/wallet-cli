@@ -14,6 +14,7 @@ pub use file::{SecureWalletFile, WalletPath};
 
 use bip39::{Language, Mnemonic, Seed};
 use dusk_bytes::{DeserializableSlice, Serializable};
+use ff::Field;
 use flume::Receiver;
 use phoenix_core::transaction::ModuleId;
 use phoenix_core::Note;

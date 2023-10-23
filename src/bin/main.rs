@@ -286,21 +286,21 @@ async fn exec() -> anyhow::Result<()> {
                 }
             }
             RunResult::Address(addr) => {
-                println!("{}", addr);
+                println!("{addr}");
             }
             RunResult::Addresses(addrs) => {
                 for a in addrs {
-                    println!("{}", a);
+                    println!("{a}");
                 }
             }
             RunResult::Tx(hash) => {
-                let txh = format!("{:x}", hash);
+                let tx_id = hex::encode(hash.to_bytes());
 
                 // Wait for transaction confirmation from network
                 let gql = GraphQL::new(settings.state, status::headless);
-                gql.wait_for(&txh).await?;
+                gql.wait_for(&tx_id).await?;
 
-                println!("{}", txh);
+                println!("{tx_id}");
             }
             RunResult::StakeInfo(info, reward) => {
                 if reward {

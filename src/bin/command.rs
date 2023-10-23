@@ -393,7 +393,8 @@ impl fmt::Display for RunResult {
                 write!(f, "> {}", str_addrs)
             }
             Tx(hash) => {
-                write!(f, "> Transaction sent: {:x}", hash)
+                let hash = hex::encode(hash.to_bytes());
+                write!(f, "> Transaction sent: {hash}",)
             }
             StakeInfo(si, _) => {
                 let stake_str = match si.amount {
