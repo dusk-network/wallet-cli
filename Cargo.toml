@@ -45,16 +45,17 @@ rocksdb = "0.21"
 flume = "0.10.14"
 reqwest = { version = "0.11", features = ["stream"] }
 
-dusk-wallet-core = "0.20.0-piecrust.0.6"
+dusk-wallet-core = "0.22.0-plonk.0.16"
 dusk-bytes = "0.1"
-dusk-pki = "0.12"
-rusk-abi = { version = "0.10.0-piecrust.0.6", default-features = false }
-phoenix-core = { version = "0.20.0-rc.0", features = ["alloc"] }
-dusk-schnorr = { version = "0.13", default-features = false }
-dusk-poseidon = "0.30"
-dusk-plonk = "0.14"
-dusk-bls12_381-sign = { version = "0.4", default-features = false }
-poseidon-merkle = "0.2.1-rc.0"
+dusk-pki = "0.13"
+rusk-abi = { version = "0.11", default-features = false }
+phoenix-core = { version = "0.21", features = ["alloc"] }
+dusk-schnorr = { version = "0.14", default-features = false }
+dusk-poseidon = "0.31"
+dusk-plonk = "0.16"
+dusk-bls12_381-sign = { version = "0.5", default-features = false }
+ff = { version = "0.13", default-features = false }
+poseidon-merkle = "0.3"
 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.0", features = [

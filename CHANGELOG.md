@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Change the Staking Address generation. [#214]
+- Change `dusk-wallet-core` to `0.22.0-plonk.0.16` [#214]
+
 ## [0.19.1] - 2023-10-11
 
 ### Added
@@ -437,6 +442,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#214]: https://github.com/dusk-network/wallet-cli/issues/214
 [#210]: https://github.com/dusk-network/wallet-cli/issues/210
 [#98]: https://github.com/dusk-network/wallet-cli/issues/98
 [#179]: https://github.com/dusk-network/wallet-cli/issues/179
