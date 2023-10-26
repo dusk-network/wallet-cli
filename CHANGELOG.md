@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Change `REQUIRED_RUSK_VERSION` to `0.7.0-rc`
 - Change the Staking Address generation. [#214]
 - Change `dusk-wallet-core` to `0.22.0-plonk.0.16` [#214]
 
