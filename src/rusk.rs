@@ -12,7 +12,7 @@ use rkyv::Archive;
 use crate::Error;
 
 /// Supported Rusk version
-const REQUIRED_RUSK_VERSION: &str = "0.6.0";
+const REQUIRED_RUSK_VERSION: &str = "0.7.0-rc";
 
 #[derive(Debug)]
 /// RuskRequesst according to the rusk event system
@@ -103,7 +103,7 @@ impl RuskHttpClient {
             .post(format!("{uri}/{target_type}/{target}"))
             .body(Body::from(request.to_bytes()?))
             .header("Content-Type", "application/octet-stream")
-            .header("x-rusk-version", REQUIRED_RUSK_VERSION);
+            .header("rusk-version", REQUIRED_RUSK_VERSION);
 
         if feed {
             request = request.header("Rusk-Feeder", "1");

@@ -196,9 +196,13 @@ impl Command {
     ) -> anyhow::Result<RunResult> {
         match self {
             Command::Balance { addr, spendable } => {
-                // don't check result of wallet sync, since we support offline
-                // balance
-                let _ = wallet.sync().await;
+                let sync_result = wallet.sync().await;
+                if let Err(e) = sync_result {
+                    // Sync error should be reported only if wallet is online
+                    if wallet.is_online().await {
+                        tracing::error!("Unable to update the balance {e:?}")
+                    }
+                }
 
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
