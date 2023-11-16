@@ -32,6 +32,8 @@ use dusk_wallet_core::{
 use rand::prelude::StdRng;
 use rand::SeedableRng;
 
+use dusk_pki::{PublicSpendKey, SecretSpendKey};
+
 use crate::cache::NoteData;
 use crate::clients::{Prover, StateStore};
 use crate::crypto::encrypt;
@@ -74,6 +76,25 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
     /// Returns the file used for the wallet
     pub fn file(&self) -> &Option<F> {
         &self.file
+    }
+
+    /// Returns spending key pair for a given address
+    pub fn spending_keys(
+        &self,
+        addr: &Address,
+    ) -> Result<(PublicSpendKey, SecretSpendKey), Error> {
+        // make sure we own the address
+        if !addr.is_owned() {
+            return Err(Error::Unauthorized);
+        }
+
+        let index = addr.index()? as u64;
+
+        // retrieve keys
+        let ssk = self.store.retrieve_ssk(index)?;
+        let psk: PublicSpendKey = ssk.public_spend_key();
+
+        Ok((psk, ssk))
     }
 }
 
