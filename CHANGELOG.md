@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix `stake_allow` command [#222] 
+
 ## [0.20.1] - 2023-11-22
 
 ### Added
@@ -451,6 +455,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#222]: https://github.com/dusk-network/wallet-cli/issues/222
 [#218]: https://github.com/dusk-network/wallet-cli/issues/218
 [#214]: https://github.com/dusk-network/wallet-cli/issues/214
 [#210]: https://github.com/dusk-network/wallet-cli/issues/210

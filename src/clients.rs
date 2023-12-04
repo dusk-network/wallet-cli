@@ -351,17 +351,23 @@ impl StateClient for StateStore {
         let staking_address = bs58::encode(staking_address).into_string();
         println!("Staking address: {}", staking_address);
 
-        let stake = res.ok_or(Error::NotStaked).map(
-            |StakeData {
-                 amount,
-                 reward,
-                 counter,
-             }| StakeInfo {
-                amount,
-                reward,
-                counter,
-            },
-        )?;
+        // FIX_ME: proper solution should to return an Option<StakeInfo>
+        // changing the trait implementation. That would reflect the state of
+        // the stake contract. It would be up to the consumer to decide what to
+        // do with a None
+        let stake = res
+            .map(
+                |StakeData {
+                     amount,
+                     reward,
+                     counter,
+                 }| StakeInfo {
+                    amount,
+                    reward,
+                    counter,
+                },
+            )
+            .unwrap_or_default();
 
         Ok(stake)
     }
