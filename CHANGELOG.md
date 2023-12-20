@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix `stake_allow` command [#222] 
 
+### Changed
+
+- Change `dusk-wallet-core` to `0.24.0-plonk.0.16-rc.2`
+
 ## [0.20.1] - 2023-11-22
 
 ### Added
