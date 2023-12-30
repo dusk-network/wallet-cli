@@ -666,6 +666,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
         &self,
         addr: &Address,
         dir: &Path,
+        filename: Option<String>,
         pwd: &[u8],
     ) -> Result<(PathBuf, PathBuf), Error> {
         // we're expecting a directory here
@@ -678,7 +679,7 @@ impl<F: SecureWalletFile + Debug> Wallet<F> {
 
         // set up the path
         let mut path = PathBuf::from(dir);
-        path.push(addr.to_string());
+        path.push(filename.unwrap_or(addr.to_string()));
 
         // export public key to disk
         let bytes = keys.0.to_bytes();
