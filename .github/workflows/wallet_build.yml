@@ -46,17 +46,12 @@ jobs:
     steps:
 
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.dusk_blockchain_ref }}
 
       - name: Install dependencies
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-
-      - name: Add rustfmt component
-        run: rustup component add rustfmt
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: Add arm target for Apple Silicon build
         run: rustup target add aarch64-apple-darwin
