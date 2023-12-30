@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2023-12-30
+
 ### Added
 
 - Add `seed-file` to `create` command [#226] 
@@ -465,6 +467,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#226]: https://github.com/dusk-network/wallet-cli/issues/226
 [#222]: https://github.com/dusk-network/wallet-cli/issues/222
 [#218]: https://github.com/dusk-network/wallet-cli/issues/218
 [#214]: https://github.com/dusk-network/wallet-cli/issues/214
@@ -559,7 +562,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.20.1...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/dusk-network/wallet-cli/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/dusk-network/wallet-cli/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/dusk-network/wallet-cli/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/dusk-network/wallet-cli/compare/v0.19.0...v0.19.1
