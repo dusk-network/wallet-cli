@@ -16,7 +16,8 @@ use dusk_wallet::dat::LATEST_VERSION;
 pub(crate) use menu::Menu;
 
 use clap::Parser;
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
 use tracing::{warn, Level};
 
 use bip39::{Language, Mnemonic, MnemonicType};
@@ -172,7 +173,10 @@ async fn exec() -> anyhow::Result<()> {
     // get our wallet ready
     let mut wallet: Wallet<WalletFile> = match cmd {
         Some(ref cmd) => match cmd {
-            Command::Create { skip_recovery } => {
+            Command::Create {
+                skip_recovery,
+                seed_file,
+            } => {
                 // create a new randomly generated mnemonic phrase
                 let mnemonic =
                     Mnemonic::new(MnemonicType::Words12, Language::English);
@@ -182,9 +186,15 @@ async fn exec() -> anyhow::Result<()> {
                     password,
                     dat::DatFileVersion::RuskBinaryFileFormat(LATEST_VERSION),
                 )?;
-                // skip phrase confirmation if explicitly
-                if !skip_recovery {
-                    prompt::confirm_recovery_phrase(&mnemonic)?;
+
+                match (skip_recovery, seed_file) {
+                    (_, Some(file)) => {
+                        let mut file = File::create(file)?;
+                        file.write_all(mnemonic.phrase().as_bytes())?
+                    }
+                    // skip phrase confirmation if explicitly
+                    (false, _) => prompt::confirm_recovery_phrase(&mnemonic)?,
+                    _ => {}
                 }
 
                 // create wallet

@@ -35,6 +35,10 @@ pub(crate) enum Command {
         /// Skip wallet recovery phrase (useful for headless wallet creation)
         #[clap(long, action)]
         skip_recovery: bool,
+
+        /// Save recovery phrase to file (useful for headless wallet creation)
+        #[clap(long)]
+        seed_file: Option<PathBuf>,
     },
 
     /// Restore a lost wallet
