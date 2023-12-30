@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `seed-file` to `create` command [#226] 
+- Add `name` to `export` command 
+
 ### Fixed
 
 - Fix `stake_allow` command [#222] 
+
+### Changed
+
+- Change `dusk-wallet-core` to `0.24.0-plonk.0.16-rc.2`
+- Change `DEFAULT_MAX_ADDRESSES` from 255 to 25
 
 ## [0.20.1] - 2023-11-22
 

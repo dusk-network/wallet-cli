@@ -35,6 +35,10 @@ pub(crate) enum Command {
         /// Skip wallet recovery phrase (useful for headless wallet creation)
         #[clap(long, action)]
         skip_recovery: bool,
+
+        /// Save recovery phrase to file (useful for headless wallet creation)
+        #[clap(long)]
+        seed_file: Option<PathBuf>,
     },
 
     /// Restore a lost wallet
@@ -181,6 +185,10 @@ pub(crate) enum Command {
         /// Output directory for the exported keys
         #[clap(short, long)]
         dir: PathBuf,
+
+        /// Name of the files exported [default: staking-address]
+        #[clap(short, long)]
+        name: Option<String>,
     },
 
     /// Show current settings
@@ -322,7 +330,7 @@ impl Command {
                 let tx = wallet.withdraw_reward(addr, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
-            Command::Export { addr, dir } => {
+            Command::Export { addr, dir, name } => {
                 let addr = match addr {
                     Some(addr) => wallet.claim_as_address(addr)?,
                     None => wallet.default_address(),
@@ -335,7 +343,7 @@ impl Command {
                 )?;
 
                 let (pub_key, key_pair) =
-                    wallet.export_keys(addr, &dir, &pwd)?;
+                    wallet.export_keys(addr, &dir, name, &pwd)?;
 
                 Ok(RunResult::ExportedKeys(pub_key, key_pair))
             }

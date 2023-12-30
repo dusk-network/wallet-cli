@@ -268,6 +268,7 @@ fn menu_op(
         })),
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
+            name: None,
             dir: prompt::request_dir("export keys", settings.profile.clone())?,
         })),
         CMI::Back => AddrOp::Back,
@@ -300,6 +301,7 @@ fn menu_op_offline(
     let res = match cmd {
         CMI::Export => AddrOp::Run(Box::new(Command::Export {
             addr: Some(addr),
+            name: None,
             dir: prompt::request_dir("export keys", settings.profile.clone())?,
         })),
         CMI::Back => AddrOp::Back,
