@@ -7,8 +7,6 @@
 mod history;
 
 use clap::Subcommand;
-use dusk_bls12_381_sign::PublicKey;
-use dusk_bytes::DeserializableSlice;
 use dusk_plonk::prelude::BlsScalar;
 use rusk_abi::hash::Hasher;
 use std::{fmt, path::PathBuf};
@@ -124,25 +122,6 @@ pub(crate) enum Command {
         /// Check accumulated reward
         #[clap(long, action)]
         reward: bool,
-    },
-
-    /// Allow a provisioner key to stake
-    StakeAllow {
-        /// Address used to perform the operation [default: first address]
-        #[clap(short, long)]
-        addr: Option<Address>,
-
-        /// Provisioner key to allow
-        #[clap(short, long)]
-        key: String,
-
-        /// Max amt of gas for this transaction
-        #[clap(short = 'l', long, default_value_t= DEFAULT_STAKE_GAS_LIMIT)]
-        gas_limit: u64,
-
-        /// Price you're going to pay for each gas unit (in LUX)
-        #[clap(short = 'p', long, default_value_t= DEFAULT_PRICE)]
-        gas_price: Lux,
     },
 
     /// Unstake a key's stake
@@ -267,27 +246,6 @@ impl Command {
                 let gas = Gas::new(gas_limit).with_price(gas_price);
 
                 let tx = wallet.stake(addr, amt, gas).await?;
-                Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
-            }
-            Command::StakeAllow {
-                addr,
-                key,
-                gas_limit,
-                gas_price,
-            } => {
-                wallet.sync().await?;
-                let addr = match addr {
-                    Some(addr) => wallet.claim_as_address(addr)?,
-                    None => wallet.default_address(),
-                };
-
-                let gas = Gas::new(gas_limit).with_price(gas_price);
-
-                let key_data = bs58::decode(key).into_vec()?;
-                let key = PublicKey::from_slice(&key_data[..])
-                    .map_err(dusk_wallet::Error::from)?;
-
-                let tx = wallet.stake_allow(addr, &key, gas).await?;
                 Ok(RunResult::Tx(Hasher::digest(tx.to_hash_input_bytes())))
             }
             Command::StakeInfo { addr, reward } => {

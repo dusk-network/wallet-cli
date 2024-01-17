@@ -68,10 +68,6 @@ pub enum Error {
     /// Not enough gas to perform this transaction
     #[error("Not enough gas to perform this transaction")]
     NotEnoughGas,
-    /// Staking is only allowed when you're running your own local Rusk
-    /// instance (Tip: Point `rusk_addr` to "localhost" or "127.0.0.1")
-    #[error("Staking is only allowed when you're running your own local Rusk instance")]
-    StakingNotAllowed,
     /// A stake already exists for this key
     #[error("A stake already exists for this key")]
     AlreadyStaked,
