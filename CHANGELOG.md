@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Remove `stake_allow` command
+
 ## [0.21.0] - 2023-12-30
 
 ### Added
