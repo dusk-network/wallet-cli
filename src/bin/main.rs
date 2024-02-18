@@ -160,12 +160,9 @@ async fn exec() -> anyhow::Result<()> {
 
     let password = &settings.password;
 
-    match cmd {
-        Some(ref cmd) if cmd == &Command::Settings => {
-            println!("{}", &settings);
-            return Ok(());
-        }
-        _ => {}
+    if let Some(Command::Settings) = cmd {
+        println!("{}", &settings);
+        return Ok(());
     };
 
     let file_version = dat::read_file_version(&wallet_path);
