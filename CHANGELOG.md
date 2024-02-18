@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Change `dusk-wallet-core` to `0.24.0-plonk.0.16-rc.2`
 - Change `DEFAULT_MAX_ADDRESSES` from 255 to 25
+- Update `requestty` from `0.4.1` to `0.5.0` [#231]
 
 ## [0.20.1] - 2023-11-22
 
@@ -471,6 +472,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#231]: https://github.com/dusk-network/wallet-cli/issues/231
 [#226]: https://github.com/dusk-network/wallet-cli/issues/226
 [#222]: https://github.com/dusk-network/wallet-cli/issues/222
 [#218]: https://github.com/dusk-network/wallet-cli/issues/218
