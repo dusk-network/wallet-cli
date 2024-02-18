@@ -330,7 +330,7 @@ pub(crate) fn load_wallet(
                 }) {
                     Ok(wallet) => break wallet,
                     Err(_) if attempt > 2 => {
-                        return Err(Error::AttemptsExhausted)?;
+                        Err(Error::AttemptsExhausted)?;
                     }
                     Err(_) => {
                         println!("Invalid password, please try again");

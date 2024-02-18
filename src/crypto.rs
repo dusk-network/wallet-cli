@@ -23,7 +23,7 @@ pub(crate) fn encrypt(plaintext: &[u8], pwd: &[u8]) -> Result<Vec<u8>, Error> {
     let cipher = Aes256Cbc::new_from_slices(pwd, &iv)?;
     let enc = cipher.encrypt_vec(plaintext);
 
-    let ciphertext = iv.into_iter().chain(enc.into_iter()).collect();
+    let ciphertext = iv.into_iter().chain(enc).collect();
     Ok(ciphertext)
 }
 
