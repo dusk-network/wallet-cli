@@ -71,7 +71,7 @@ impl GraphQL {
 
     /// Wait for a transaction to be confirmed (included in a block)
     pub async fn wait_for(&self, tx_id: &str) -> anyhow::Result<()> {
-        const TIMEOUT_SECS: i32 = 30;
+        const TIMEOUT_SECS: i32 = 100;
         let mut i = 1;
         while i <= TIMEOUT_SECS {
             let status = self.tx_status(tx_id).await?;
@@ -87,7 +87,7 @@ impl GraphQL {
                         )
                         .as_str(),
                     );
-                    sleep(Duration::from_millis(1000)).await;
+                    sleep(Duration::from_millis(5000)).await;
                     i += 1;
                 }
             }
