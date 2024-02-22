@@ -84,7 +84,7 @@ where
     // check for connection errors
     match con {
         Err(Error::RocksDB(e)) => panic!{"Invalid cache {e}"},
-        Err(e) => warn!("Connection to Rusk Failed, some operations won't be available: {e}"),
+        Err(e) => warn!("[OFFLINE MODE]: Unable to connect to Rusk, limited functionality available: {e}"),
         _ => {}
     }
 
