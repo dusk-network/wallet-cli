@@ -295,7 +295,7 @@ impl Command {
                 };
 
                 let pwd = prompt::request_auth(
-                    "Encryption password",
+                    "Provide a password for your provisioner keys",
                     &settings.password,
                     wallet.get_file_version()?,
                 )?;
