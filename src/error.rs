@@ -102,7 +102,7 @@ pub enum Error {
     #[error("Wallet file is missing")]
     WalletFileMissing,
     /// Wrong wallet password
-    #[error("Block Mode Error")]
+    #[error("Invalid password")]
     BlockMode(#[from] block_modes::BlockModeError),
     /// Reached the maximum number of attempts
     #[error("Reached the maximum number of attempts")]
