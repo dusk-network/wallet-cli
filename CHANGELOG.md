@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Update unclear error message [#235]
+- Change provisioner key password prompt message [#238]
 
 ### Removed
 
@@ -476,6 +477,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#238]: https://github.com/dusk-network/wallet-cli/issues/238
 [#235]: https://github.com/dusk-network/wallet-cli/issues/235
 [#231]: https://github.com/dusk-network/wallet-cli/issues/231
 [#226]: https://github.com/dusk-network/wallet-cli/issues/226
