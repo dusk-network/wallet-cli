@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1] - 2024-2-28
+
 ### Changed
 
 - Update unclear error message [#235]
@@ -575,7 +577,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases -->
 
-[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.21.0...HEAD
+[unreleased]: https://github.com/dusk-network/wallet-cli/compare/v0.21.1...HEAD
+[0.21.1]: https://github.com/dusk-network/wallet-cli/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/dusk-network/wallet-cli/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/dusk-network/wallet-cli/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/dusk-network/wallet-cli/compare/v0.19.1...v0.20.0
