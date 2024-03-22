@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for `WALLET_MAX_ADDR` lower than `6`
+
+### Changed
+
+- Change rusk-wallet to wait for tx to be included
+
 ## [0.22.0] - 2024-2-28
 
 ### Changed
