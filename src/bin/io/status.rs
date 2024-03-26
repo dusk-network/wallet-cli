@@ -10,17 +10,9 @@ use std::time::Duration;
 
 use tracing::info;
 
-const STATUS_SIZE: usize = 35;
-
 /// Prints an interactive status message
 pub(crate) fn interactive(status: &str) {
-    let filln = STATUS_SIZE - status.len();
-    let fill = if filln > 0 {
-        " ".repeat(filln)
-    } else {
-        "".to_string()
-    };
-    print!("{}{}\r", status, fill);
+    print!("\r{status: <50}\r");
     let mut stdout = stdout();
     stdout.flush().unwrap();
     thread::sleep(Duration::from_millis(85));
