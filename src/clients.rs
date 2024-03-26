@@ -22,8 +22,10 @@ use phoenix_core::{Crossover, Fee, Note};
 use poseidon_merkle::Opening as PoseidonOpening;
 use tokio::time::{sleep, Duration};
 
+use std::env;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use self::sync::sync_db;
 
@@ -103,6 +105,29 @@ impl ProverClient for Prover {
         let _ = self.state.call(2, "rusk", &preverify_req).wait()?;
         self.status("Preverify success!");
 
+        self.status("Waiting for tx propagation...");
+
+        let propagate_time: u64 = env::var("WALLET_PROPAGATE_TS")
+            .unwrap_or_default()
+            .parse()
+            .unwrap_or_default();
+
+        if propagate_time != 0 {
+            let propagate_time =
+                UNIX_EPOCH + Duration::from_secs(propagate_time);
+            let now = SystemTime::now();
+            if propagate_time > now {
+                let to_wait = propagate_time
+                    .duration_since(now)
+                    .expect("When the hell am I?");
+
+                self.status(
+                    format!("Waiting {to_wait:?} before propagate tx").as_str(),
+                );
+
+                std::thread::sleep(to_wait);
+            }
+        }
         self.status("Propagating tx...");
         let propagate_req = RuskRequest::new("propagate_tx", tx_bytes);
         let _ = self.state.call(2, "Chain", &propagate_req).wait()?;
