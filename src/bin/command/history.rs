@@ -8,11 +8,9 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 
-use dusk_plonk::prelude::BlsScalar;
 use dusk_wallet::DecodedNote;
 use dusk_wallet_core::Transaction;
 use rusk_abi::dusk;
-use rusk_abi::hash::Hasher;
 
 use crate::io::{self, GraphQL};
 use crate::settings::Settings;
@@ -23,7 +21,7 @@ pub struct TransactionHistory {
     amount: f64,
     fee: u64,
     pub tx: Transaction,
-    id: BlsScalar,
+    id: String,
 }
 
 impl TransactionHistory {
@@ -52,7 +50,7 @@ impl Display for TransactionHistory {
             }
         };
 
-        let tx_id = hex::encode(self.id.to_bytes());
+        let tx_id = &self.id;
         let heigth = self.height;
 
         write!(
@@ -96,11 +94,11 @@ pub(crate) async fn transaction_from_notes(
 
         let note_hash = decoded_note.note.hash();
         // Looking for the transaction which created the note
-        let note_creator = txs.iter().find(|(t, _)| {
+        let note_creator = txs.iter().find(|(t, _, _)| {
             t.outputs().iter().any(|&n| n.hash().eq(&note_hash))
         });
 
-        if let Some((t, gas_spent)) = note_creator {
+        if let Some((t, tx_id, gas_spent)) = note_creator {
             let inputs_amount: f64 = t
                 .nullifiers()
                 .iter()
@@ -113,8 +111,7 @@ pub(crate) async fn transaction_from_notes(
                 true => TransactionDirection::Out,
                 false => TransactionDirection::In,
             };
-            let hash_to_find = Hasher::digest(t.to_hash_input_bytes());
-            match ret.iter_mut().find(|th| th.id == hash_to_find) {
+            match ret.iter_mut().find(|th| &th.id == tx_id) {
                 Some(tx) => tx.amount += note_amount,
                 None => ret.push(TransactionHistory {
                     direction,
@@ -122,7 +119,7 @@ pub(crate) async fn transaction_from_notes(
                     amount: note_amount - inputs_amount,
                     fee: gas_spent * t.fee().gas_price,
                     tx: t.clone(),
-                    id: hash_to_find,
+                    id: tx_id.clone(),
                 }),
             }
         } else {
