@@ -20,23 +20,18 @@ pub struct GraphQL {
     status: fn(&str),
 }
 
-// helper structs to deserialize response
 #[derive(Deserialize)]
 struct SpentTx {
+    pub id: String,
+    #[serde(default)]
+    pub raw: String,
     pub err: Option<String>,
     #[serde(alias = "gasSpent", default)]
     pub gas_spent: f64,
 }
-
-#[derive(Deserialize)]
-struct Tx {
-    pub id: String,
-    #[serde(default)]
-    pub raw: String,
-}
 #[derive(Deserialize)]
 struct Block {
-    pub transactions: Vec<Tx>,
+    pub transactions: Vec<SpentTx>,
 }
 
 #[derive(Deserialize)]
@@ -71,9 +66,7 @@ impl GraphQL {
 
     /// Wait for a transaction to be confirmed (included in a block)
     pub async fn wait_for(&self, tx_id: &str) -> anyhow::Result<()> {
-        const TIMEOUT_SECS: i32 = 30;
-        let mut i = 1;
-        while i <= TIMEOUT_SECS {
+        loop {
             let status = self.tx_status(tx_id).await?;
 
             match status {
@@ -81,14 +74,9 @@ impl GraphQL {
                 TxStatus::Error(err) => return Err(Error::Transaction(err))?,
                 TxStatus::NotFound => {
                     (self.status)(
-                        format!(
-                            "Waiting for confirmation... ({}/{})",
-                            i, TIMEOUT_SECS
-                        )
-                        .as_str(),
+                        "Waiting for tx to be included into a block...",
                     );
                     sleep(Duration::from_millis(1000)).await;
-                    i += 1;
                 }
             }
         }
@@ -101,7 +89,7 @@ impl GraphQL {
         tx_id: &str,
     ) -> anyhow::Result<TxStatus, GraphQLError> {
         let query =
-            "query { tx(hash: \"####\") { err }}".replace("####", tx_id);
+            "query { tx(hash: \"####\") { id, err }}".replace("####", tx_id);
         let response = self.query(&query).await?;
         let response = serde_json::from_slice::<SpentTxResponse>(&response)?.tx;
 
@@ -116,8 +104,8 @@ impl GraphQL {
     pub async fn txs_for_block(
         &self,
         block_height: u64,
-    ) -> anyhow::Result<Vec<(Transaction, u64)>, GraphQLError> {
-        let query = "query { block(height: ####) { transactions {id, raw}}}"
+    ) -> anyhow::Result<Vec<(Transaction, String, u64)>, GraphQLError> {
+        let query = "query { block(height: ####) { transactions {id, raw, gasSpent, err}}}"
             .replace("####", block_height.to_string().as_str());
 
         let response = self.query(&query).await?;
@@ -126,17 +114,11 @@ impl GraphQL {
         let block = response.ok_or(GraphQLError::BlockInfo)?;
         let mut ret = vec![];
 
-        for tx in block.transactions {
-            let tx_raw =
-                hex::decode(&tx.raw).map_err(|_| GraphQLError::TxStatus)?;
+        for spent_tx in block.transactions {
+            let tx_raw = hex::decode(&spent_tx.raw)
+                .map_err(|_| GraphQLError::TxStatus)?;
             let ph_tx = Transaction::from_slice(&tx_raw).unwrap();
-            let query = "query { tx(hash: \"####\") { gasSpent, err }}"
-                .replace("####", &tx.id);
-            let response = self.query(&query).await?;
-            let response =
-                serde_json::from_slice::<SpentTxResponse>(&response)?.tx;
-            let spent_tx = response.ok_or(GraphQLError::TxStatus)?;
-            ret.push((ph_tx, spent_tx.gas_spent as u64));
+            ret.push((ph_tx, spent_tx.id, spent_tx.gas_spent as u64));
         }
         Ok(ret)
     }
@@ -194,9 +176,10 @@ async fn test() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
     let block_txs = gql.txs_for_block(90).await?;
-    block_txs.iter().for_each(|(t, _)| {
+    block_txs.into_iter().for_each(|(t, chain_txid, _)| {
         let hash = rusk_abi::hash::Hasher::digest(t.to_hash_input_bytes());
         let tx_id = hex::encode(hash.to_bytes());
+        assert_eq!(chain_txid, tx_id);
         println!("txid: {tx_id}");
     });
     Ok(())

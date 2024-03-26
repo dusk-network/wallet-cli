@@ -144,12 +144,14 @@ fn menu_addr(wallet: &Wallet<WalletFile>) -> anyhow::Result<AddrSelect> {
             .add(AddrSelect::Address(Box::new(addr.clone())), preview);
     }
 
+    let remaining_addresses =
+        MAX_ADDRESSES.saturating_sub(wallet.addresses().len());
     let mut action_menu = Menu::new()
         .separator()
         .add(AddrSelect::NewAddress, "New address");
 
-    // show warning early on at 250 addresses
-    if wallet.addresses().len() >= MAX_ADDRESSES - 5 {
+    // show warning if less than
+    if remaining_addresses < 5 {
         action_menu = action_menu.separator().separator_msg(format!(
             "\x1b[93m{}\x1b[0m This wallet only supports up to {MAX_ADDRESSES} addresses, you have {} addresses ",
             "Warning:",

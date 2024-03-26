@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for `WALLET_MAX_ADDR` lower than `6` [#244]
+
+### Changed
+
+- Change rusk-wallet to wait for tx to be included
+
+### Fixed
+
+- Fix tx history to avoid useless calls [#243]
+
 ## [0.22.0] - 2024-2-28
 
 ### Changed
@@ -480,6 +492,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#244]: https://github.com/dusk-network/wallet-cli/issues/244
+[#243]: https://github.com/dusk-network/wallet-cli/issues/243
 [#238]: https://github.com/dusk-network/wallet-cli/issues/238
 [#235]: https://github.com/dusk-network/wallet-cli/issues/235
 [#231]: https://github.com/dusk-network/wallet-cli/issues/231
