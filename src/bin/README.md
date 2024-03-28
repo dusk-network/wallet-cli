@@ -49,7 +49,9 @@ All other commands involve transactions, and thus require an active connection t
 
 ## Installation
 
-[Install rust](https://www.rust-lang.org/tools/install) and then:
+Prerequisites: [LLVM/Clang](https://llvm.org/), [Rust](https://www.rust-lang.org/tools/install)
+
+then:
 
 ```
 git clone git@github.com:dusk-network/wallet-cli.git
