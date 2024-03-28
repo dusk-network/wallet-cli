@@ -43,8 +43,10 @@ jobs:
             compiler: cargo
             target: windows-x64
 
-    steps:
+    outputs:
+      semver: ${{ steps.semver_output.outputs.SEMVER }}
 
+    steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
@@ -63,25 +65,36 @@ jobs:
         run: ${{matrix.compiler}} b --release --verbose ${{matrix.flags}}
 
       - name: Get semver from wallet binary
+        id: semver_output
         run: |
           ls -la target/release
           export SEMVER=$(cargo pkgid | perl -lpe 's/.*\@(.*)/$1/')
           echo "SEMVER=$SEMVER" >> $GITHUB_ENV
+          echo "SEMVER=$SEMVER" >> $GITHUB_OUTPUT
 
       - name: "Pack binaries"
         run: |
-          mkdir rusk-wallet${{env.SEMVER}}-${{matrix.target}}
-          echo "Fetching changelog and readme files..."
-          mv target/${{matrix.platform}}/release/rusk-wallet rusk-wallet${{env.SEMVER}}-${{matrix.target}}
-          cp CHANGELOG.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
-          cp README.md rusk-wallet${{env.SEMVER}}-${{matrix.target}}
-          tar -czvf ruskwallet${{env.SEMVER}}-${{matrix.target}}.tar.gz rusk-wallet${{env.SEMVER}}-${{matrix.target}}
+          mkdir -p ./${{env.SEMVER}}-${{matrix.target}}
+          echo "Fetching binary, changelog, and readme files..."
+          mv target/${{matrix.platform}}/release/rusk-wallet ./${{env.SEMVER}}-${{matrix.target}}/rusk-wallet
+          cp CHANGELOG.md ./${{env.SEMVER}}-${{matrix.target}}/
+          cp README.md ./${{env.SEMVER}}-${{matrix.target}}/
+          tar -czvf ruskwallet${{env.SEMVER}}-${{matrix.target}}.tar.gz ./${{env.SEMVER}}-${{matrix.target}}
           ls -la *.gz
 
       - name: "Upload Wallet Artifacts"
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: wallet-binaries-${{env.SEMVER}}
-          path: |
-            ./*.gz
+          name: rusk-wallet-${{env.SEMVER}}-${{matrix.target}}
+          path: ./*.gz
           retention-days: 5
+
+  merge:
+    runs-on: ubuntu-latest
+    needs: build_and_publish
+    steps:
+      - name: Merge Artifacts
+        uses: actions/upload-artifact/merge@v4
+        with:
+          name: wallet-binaries-${{needs.build_and_publish.outputs.SEMVER}}
+          pattern: rusk-wallet-*
