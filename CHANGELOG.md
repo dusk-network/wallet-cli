@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix tx history to show tx created with "MAX" amount [#248]
+
 ## [0.22.1] - 2024-3-27
 
 ### Added
@@ -494,6 +498,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of `Store` trait from `wallet-core`
 - Implementation of `State` and `Prover` traits from `wallet-core`
 
+[#248]: https://github.com/dusk-network/wallet-cli/issues/248
 [#244]: https://github.com/dusk-network/wallet-cli/issues/244
 [#243]: https://github.com/dusk-network/wallet-cli/issues/243
 [#238]: https://github.com/dusk-network/wallet-cli/issues/238
