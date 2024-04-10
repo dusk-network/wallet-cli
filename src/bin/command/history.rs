@@ -96,6 +96,9 @@ pub(crate) async fn transaction_from_notes(
         // Looking for the transaction which created the note
         let note_creator = txs.iter().find(|(t, _, _)| {
             t.outputs().iter().any(|&n| n.hash().eq(&note_hash))
+                || t.nullifiers
+                    .iter()
+                    .any(|tx_null| nullifiers.iter().any(|(n, _)| n == tx_null))
         });
 
         if let Some((t, tx_id, gas_spent)) = note_creator {
