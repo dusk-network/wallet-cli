@@ -1,9 +1,5 @@
-[![Repository](https://img.shields.io/badge/github-dusk--wallet-purple?logo=github)](https://github.com/dusk-network/wallet-cli)
-![Build Status](https://github.com/dusk-network/wallet-cli/workflows/Continuous%20integration/badge.svg)
-[![Documentation](https://img.shields.io/badge/docs-dusk--wallet-orange?logo=rust)](https://docs.rs/dusk-wallet/)
+# ⛔ [DEPRECATED] Dusk Wallet
 
-# Dusk Wallet
+This repository has been archived and is no longer actively maintained.
 
-Library providing functionalities to create wallets compatible with Dusk Network
-
-This library is used to implement the official [Dusk CLI wallet](https://github.com/dusk-network/wallet-cli/blob/main/src/bin/README.md).
+The development of the Rusk CLI Wallet has been moved to the [Rusk Monorepo](https://github.com/dusk-network/rusk/tree/master/rusk-wallet). Please refer to that repository for the latest code, updates, and contributions.
